@@ -1,15 +1,15 @@
 # rsfiler 構築・開発環境セットアップガイド
 
-クロスプラットフォーム型ファイルマネージャー **rsfiler**（Tauri v2 + Rust + React + TypeScript）の環境構築手順およびディレクトリ構成の記録です。
+クロスプラットフォーム型ファイルマネージャー **rsfiler**(Tauri v2 + Rust + React + TypeScript)の環境構築手順およびディレクトリ構成の記録です。
 
 ---
 
 ## 1. 開発環境の要件
 
-- **OS**: Linux (Ubuntu / Debian 系) / macOS / Windows
-- **Node.js**: v18 以上 (npm)
-- **Rust**: stable toolchain (rustup)
-- **環境変数**: Cargo への PATH（`$HOME/.cargo/bin`）が通っていること
+* **OS**: Linux (Ubuntu / Debian 系) / macOS / Windows
+* **Node.js**: v18 以上 (npm)
+* **Rust**: stable toolchain (rustup)
+* **環境変数**: Cargo への PATH(`$HOME/.cargo/bin`)が通っていること
 
 ---
 
@@ -22,7 +22,7 @@ Rustの公式ツールチェーンインストーラー `rustup` を使用して
 #### macOS / Linux の場合
 
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf [https://sh.rustup.rs](https://sh.rustup.rs) | sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 ```
 
@@ -79,59 +79,42 @@ cargo install cargo-edit
 
 ```
 
+### 3.3 Rust カバレッジツールのインストール(初回のみ)
+
+Rust 側のコードカバレッジ(`npm run coverage`)を測定するには `cargo-tarpaulin` が必要です。**初回セットアップ時のみ**、以下のコマンドを実行してインストールしてください。
+
+```bash
+cargo install cargo-tarpaulin
+
+```
+
 ---
 
 ## 4. プロジェクトのファイル構成
 
-### 4.1 バックエンド（Rust）
+### 4.1 バックエンド(Rust)
 
 マクロ名衝突回避のため、IPC コマンド群は `commands.rs` に分離しています。
 
 * **`src-tauri/src/commands.rs`**
 * ディレクトリ走査 (`read_directory`) およびホームディレクトリ取得 (`get_home_dir`) の IPC コマンドを実装。
+
+
 * **`src-tauri/src/lib.rs`**
 * `commands` モジュールを読み込み、Tauri アプリの `invoke_handler` にコマンドを登録。
+
+
 * **`src-tauri/src/main.rs`**
 * エントリポイント。`lib::run()` を呼び出し。
 
-### 4.2 フロントエンド（React + TypeScript）
+
+
+### 4.2 フロントエンド(React + TypeScript)
 
 * **`src/App.tsx`**
 * ホームディレクトリを初期表示し、パスの移動やファイル一覧表示を行うメインコンポーネント。
-* エラーハンドリング・デバッグログ（`loglevel` / `console`）を含む。
+* エラーハンドリング・デバッグログ(`loglevel` / `console`)を含む。
 
----
 
-## 5. アプリケーションの起動とデバッグ
-
-### 5.1 開発モードの起動
-
-```bash
-npm run tauri dev
-
-```
-
-### 5.2 画面（フロントエンド）ログの確認手順
-
-1. 起動した Tauri ウィンドウ上で **右クリック**
-2. **「検証（Inspect）」** を選択
-3. **Console** タブを開き、出力を確認
-
-### 5.3 Webサーバーなし（ビルド済み静的ファイル）で起動する場合
-
-```bash
-npm run build
-npx tauri dev --no-dev-server
-
-```
-
----
-
-## 6. バージョン管理（バージョンバンプ）
-
-```bash
-npm version patch --no-git-tag-version
-
-```
-
-※ `package.json` 更新後、`src-tauri/tauri.conf.json` および `src-tauri/Cargo.toml` の `version` も手動で統一してください。
+* **`src/test/setup.ts`**
+* Vitest および React Testing Library の初期セットアップ設定ファイル。
