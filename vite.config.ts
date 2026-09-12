@@ -29,4 +29,22 @@ export default defineConfig(() => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  test: {
+    globals: true,
+    environment: "jsdom",
+    setupFiles: "./src/test/setup.ts",
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      // 測定対象を src 内のソースコード（ts, tsx）に限定
+      include: ['src/**/*.{ts,tsx}'],
+      // テストファイル、型定義、エントリーポイントを除外
+      exclude: [
+        'src/main.tsx',
+        'src/vite-env.d.ts',
+        'src/**/*.test.{ts,tsx}',
+        'src/test/**',
+      ],
+    },
+  },
 }));
