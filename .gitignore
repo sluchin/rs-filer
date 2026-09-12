@@ -23,6 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 
+# coverage
 coverage/
 tarpaulin-report.html
+
+# doc
+/src-tauri/target/
+/docs/
 
