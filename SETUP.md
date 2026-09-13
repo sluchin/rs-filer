@@ -1,6 +1,6 @@
 # rsfiler 構築・開発環境セットアップガイド
 
-クロスプラットフォーム型ファイルマネージャー **rsfiler**(Tauri v2 + Rust + React + TypeScript)の環境構築手順およびディレクトリ構成の記録です。
+クロスプラットフォーム型ファイルマネージャー **rsfiler** (Tauri v2 + Rust + React + TypeScript) の環境構築手順およびディレクトリ構成の記録です。
 
 ---
 
@@ -9,7 +9,7 @@
 * **OS**: Linux (Ubuntu / Debian 系) / macOS / Windows
 * **Node.js**: v18 以上 (npm)
 * **Rust**: stable toolchain (rustup)
-* **環境変数**: Cargo への PATH(`$HOME/.cargo/bin`)が通っていること
+* **環境変数**: Cargo への PATH (`$HOME/.cargo/bin`) が通っていること
 
 ---
 
@@ -81,7 +81,7 @@ cargo install cargo-edit
 
 ### 3.3 Rust カバレッジツールのインストール(初回のみ)
 
-Rust 側のコードカバレッジ(`npm run coverage`)を測定するには `cargo-tarpaulin` が必要です。**初回セットアップ時のみ**、以下のコマンドを実行してインストールしてください。
+Rust 側のコードカバレッジ (`npm run coverage`) を測定するには `cargo-tarpaulin` が必要です。**初回セットアップ時のみ**、以下のコマンドを実行してインストールしてください。
 
 ```bash
 cargo install cargo-tarpaulin
@@ -92,7 +92,7 @@ cargo install cargo-tarpaulin
 
 ## 4. プロジェクトのファイル構成
 
-### 4.1 バックエンド(Rust)
+### 4.1 バックエンド (Rust)
 
 マクロ名衝突回避のため、IPC コマンド群は `commands.rs` に分離しています。
 
@@ -109,11 +109,11 @@ cargo install cargo-tarpaulin
 
 
 
-### 4.2 フロントエンド(React + TypeScript)
+### 4.2 フロントエンド (React + TypeScript)
 
 * **`src/App.tsx`**
 * ホームディレクトリを初期表示し、パスの移動やファイル一覧表示を行うメインコンポーネント。
-* エラーハンドリング・デバッグログ(`loglevel` / `console`)を含む。
+* エラーハンドリング・デバッグログ (`loglevel` / `console`) を含む。
 
 
 * **`src/test/setup.ts`**
