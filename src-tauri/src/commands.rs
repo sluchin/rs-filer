@@ -65,11 +65,3 @@ pub fn get_home_dir() -> Result<String, String> {
         .map(|p| p.to_string_lossy().into_owned())
         .ok_or_else(|| "ホームディレクトリを取得できませんでした".to_string())
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_example() {
-        assert_eq!(2 + 2, 4);
-    }
-}
