@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import log from "loglevel";
 
@@ -21,6 +21,14 @@ export interface FileEntry {
   is_dir: boolean;
 }
 
+type PaneId = "left" | "right";
+
+interface PaneState {
+  currentPath: string;
+  files: FileEntry[];
+  selectedIndex: number;
+}
+
 /**
  * rsfiler のメインアプリケーションコンポーネント。
  * ディレクトリの閲覧、親ディレクトリへの移動、ファイル一覧の表示機能を提供します。
@@ -28,98 +36,187 @@ export interface FileEntry {
  * @returns rsfiler のメインUI要素
  */
 export default function App() {
-  /** 現在表示中のディレクトリパス */
-  const [currentPath, setCurrentPath] = useState<string>("/");
-  /** 現在のディレクトリに含まれるファイル・ディレクトリ一覧 */
-  const [files, setFiles] = useState<FileEntry[]>([]);
-  /** エラーメッセージ（発生時のみ文字列、正常時は null） */
+  const [activePane, setActivePane] = useState<PaneId>("left");
   const [error, setError] = useState<string | null>(null);
+
+  const [leftPane, setLeftPane] = useState<PaneState>({
+    currentPath: "/",
+    files: [],
+    selectedIndex: 0,
+  });
+
+  const [rightPane, setRightPane] = useState<PaneState>({
+    currentPath: "/",
+    files: [],
+    selectedIndex: 0,
+  });
 
   /**
    * 指定されたパスのディレクトリ内容を取得し、状態を更新する非同期関数。
    *
    * @param targetPath - 読み込み対象のディレクトリ絶対パス
    */
-  const loadDirectory = async (targetPath: string) => {
-    try {
-      setError(null);
-      log.debug("[React] ディレクトリ読み込み要求:", targetPath);
+  const loadDirectory = useCallback(
+    async (pane: PaneId, targetPath: string) => {
+      try {
+        setError(null);
+        log.debug(`[React] ${pane}ペイン 読み込み要求:`, targetPath);
 
-      const result = await invoke<FileEntry[]>("read_directory", {
-        path: targetPath,
-      });
-      setFiles(result);
-      setCurrentPath(targetPath);
+        const result = await invoke<FileEntry[]>("read_directory", {
+          path: targetPath,
+        });
 
-      log.info(`[React] ディレクトリ取得完了: ${result.length} 件`);
-    } catch (e) {
-      log.error("[React] ディレクトリ読み込み失敗:", e);
-      setError(String(e));
-    }
-  };
+        const updateState = (prev: PaneState): PaneState => ({
+          ...prev,
+          currentPath: targetPath,
+          files: result,
+          selectedIndex: Math.min(
+            prev.selectedIndex,
+            Math.max(0, result.length - 1),
+          ),
+        });
 
+        if (pane === "left") setLeftPane(updateState);
+        else setRightPane(updateState);
+
+        log.info(`[React] ${pane}ペイン 取得完了: ${result.length} 件`);
+      } catch (e) {
+        log.error(`[React] ${pane}ペイン 読み込み失敗:`, e);
+        setError(String(e));
+      }
+    },
+    [],
+  );
+
+  // 初期化：左右ともにホームディレクトリを開く
   useEffect(() => {
     /**
      * アプリ起動時の初期化処理。
      * ホームディレクトリの取得を試み、失敗した場合はルート ("/") を読み込みます。
      */
     const init = async () => {
+      let home = "/";
       try {
-        const home = await invoke<string>("get_home_dir");
-        loadDirectory(home);
+        home = await invoke<string>("get_home_dir");
       } catch {
-        loadDirectory("/");
+        home = "/";
       }
+      await loadDirectory("left", home);
+      await loadDirectory("right", home);
     };
     init();
-  }, []);
+  }, [loadDirectory]);
 
   /**
    * 階層パスを解析し、一つ上の親ディレクトリへ移動するハンドラー。
    */
-  const handleParentDir = () => {
-    const parent =
-      currentPath.split("/").filter(Boolean).slice(0, -1).join("/") || "/";
-    loadDirectory(parent.startsWith("/") ? parent : "/" + parent);
+  const handleParentDir = (pane: PaneId) => {
+    const targetState = pane === "left" ? leftPane : rightPane;
+    const segments = targetState.currentPath.split("/").filter(Boolean);
+    segments.pop();
+    const parent = "/" + segments.join("/");
+    loadDirectory(pane, parent);
+  };
+
+  // ペインのレシーバーレンダリング関数
+  const renderPane = (paneId: PaneId, state: PaneState) => {
+    const isActive = activePane === paneId;
+
+    return (
+      <div
+        onClick={() => setActivePane(paneId)}
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          border: isActive ? "2px solid #0066cc" : "1px solid #ccc",
+          borderRadius: "4px",
+          padding: "0.75rem",
+          background: isActive ? "#fafafa" : "#ffffff",
+        }}
+      >
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+          <button onClick={() => handleParentDir(paneId)}>⬆ 親</button>
+          <input
+            type="text"
+            value={state.currentPath}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (paneId === "left")
+                setLeftPane((p) => ({ ...p, currentPath: val }));
+              else setRightPane((p) => ({ ...p, currentPath: val }));
+            }}
+            onKeyDown={(e) =>
+              e.key === "Enter" && loadDirectory(paneId, state.currentPath)
+            }
+            style={{ flex: 1, padding: "0.25rem 0.4rem" }}
+          />
+        </div>
+
+        <ul
+          style={{
+            listStyle: "none",
+            padding: 0,
+            margin: 0,
+            flex: 1,
+            overflowY: "auto",
+          }}
+        >
+          {state.files.map((file, idx) => {
+            const isSelected = isActive && state.selectedIndex === idx;
+            return (
+              <li
+                key={file.path}
+                onClick={() => {
+                  setActivePane(paneId);
+                  if (paneId === "left")
+                    setLeftPane((p) => ({ ...p, selectedIndex: idx }));
+                  else setRightPane((p) => ({ ...p, selectedIndex: idx }));
+
+                  if (file.is_dir) {
+                    loadDirectory(paneId, file.path);
+                  }
+                }}
+                style={{
+                  padding: "0.3rem 0.5rem",
+                  cursor: file.is_dir ? "pointer" : "default",
+                  background: isSelected ? "#0066cc" : "transparent",
+                  color: isSelected ? "#ffffff" : "#000000",
+                  display: "flex",
+                  gap: "0.5rem",
+                }}
+              >
+                <span>{file.is_dir ? "📁" : "📄"}</span>
+                <span style={{ fontWeight: file.is_dir ? "bold" : "normal" }}>
+                  {file.name}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
   };
 
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "sans-serif" }}>
-      <h2>rsfiler Prototype</h2>
+    <div
+      style={{
+        padding: "1rem",
+        fontFamily: "sans-serif",
+        height: "100vh",
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {error && (
+        <p style={{ color: "red", margin: "0 0 0.5rem 0" }}>エラー: {error}</p>
+      )}
 
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-        <button onClick={handleParentDir}>⬆ 親ディレクトリへ</button>
-        <input
-          type="text"
-          value={currentPath}
-          onChange={(e) => setCurrentPath(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && loadDirectory(currentPath)}
-          style={{ flex: 1, padding: "0.4rem" }}
-        />
-      </div>
-
-      {error && <p style={{ color: "red" }}>エラー: {error}</p>}
-
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {files.map((file) => (
-          <li
-            key={file.path}
-            onClick={() => file.is_dir && loadDirectory(file.path)}
-            style={{
-              padding: "0.4rem",
-              cursor: file.is_dir ? "pointer" : "default",
-              borderBottom: "1px solid #eee",
-              display: "flex",
-              gap: "0.5rem",
-            }}
-          >
-            <span>{file.is_dir ? "📁" : "📄"}</span>
-            <span style={{ fontWeight: file.is_dir ? "bold" : "normal" }}>
-              {file.name}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <main style={{ flex: 1, display: "flex", gap: "1rem", minHeight: 0 }}>
+        {renderPane("left", leftPane)}
+        {renderPane("right", rightPane)}
+      </main>
     </div>
   );
 }
