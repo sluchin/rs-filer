@@ -3,5 +3,5 @@
 
 #[cfg(not(tarpaulin_include))]
 fn main() {
-    rsfiler_lib::run()
+    rsfiler::run()
 }

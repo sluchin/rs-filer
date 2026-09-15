@@ -5,6 +5,8 @@
 
 use serde::Serialize;
 use std::fs;
+use std::path::Path;
+
 //use log::{info, error};
 
 /// ファイルシステム上の 1 つのエントリ（ファイルまたはディレクトリ）を表す構造体。
@@ -64,4 +66,43 @@ pub fn get_home_dir() -> Result<String, String> {
     dirs::home_dir()
         .map(|p| p.to_string_lossy().into_owned())
         .ok_or_else(|| "ホームディレクトリを取得できませんでした".to_string())
+}
+
+#[tauri::command]
+pub async fn copy_item(src_path: String, dest_dir: String) -> Result<(), String> {
+    let src = Path::new(&src_path);
+    if !src.exists() {
+        return Err(format!("Source path does not exist: {}", src_path));
+    }
+
+    let file_name = src
+        .file_name()
+        .ok_or_else(|| "Invalid source path".to_string())?;
+
+    let dest = Path::new(&dest_dir).join(file_name);
+
+    copy_recursively(src, &dest)
+}
+
+/// ディレクトリまたはファイルを再帰的にコピーする内部関数
+fn copy_recursively(src: &Path, dst: &Path) -> Result<(), String> {
+    if src.is_dir() {
+        fs::create_dir_all(dst).map_err(|e| e.to_string())?;
+        for entry in fs::read_dir(src).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let entry_path = entry.path();
+            let target_path = dst.join(entry.file_name());
+            if entry_path.is_dir() {
+                copy_recursively(&entry_path, &target_path)?;
+            } else {
+                fs::copy(&entry_path, &target_path).map_err(|e| e.to_string())?;
+            }
+        }
+    } else {
+        if let Some(parent) = dst.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::copy(src, dst).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
