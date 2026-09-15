@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import log from "loglevel";
 
@@ -88,6 +88,46 @@ export default function App() {
     [],
   );
 
+  /**
+   * アクティブなペインの選択項目を非アクティブな対向ペインへコピーするハンドラー。
+   */
+  const handleCopy = useCallback(async () => {
+    const activeState = activePane === "left" ? leftPane : rightPane;
+    const targetState = activePane === "left" ? rightPane : leftPane;
+    const targetPaneId = activePane === "left" ? "right" : "left";
+
+    const selectedFile = activeState.files[activeState.selectedIndex];
+    if (!selectedFile) {
+      setError("コピー対象の項目が選択されていません");
+      return;
+    }
+
+    try {
+      setError(null);
+      log.debug(
+        `[React] コピー開始: ${selectedFile.path} -> ${targetState.currentPath}`,
+      );
+
+      await invoke("copy_item", {
+        srcPath: selectedFile.path,
+        destDir: targetState.currentPath,
+      });
+
+      // コピー完了後、対向ペインの内容を最新に更新
+      await loadDirectory(targetPaneId, targetState.currentPath);
+      log.info(`[React] コピー完了: ${selectedFile.name}`);
+    } catch (e) {
+      log.error(`[React] コピー失敗:`, e);
+      setError(String(e));
+    }
+  }, [activePane, leftPane, rightPane, loadDirectory]);
+
+  // 最新の handleCopy 関数を参照するための ref
+  const handleCopyRef = useRef(handleCopy);
+  useEffect(() => {
+    handleCopyRef.current = handleCopy;
+  }, [handleCopy]);
+
   // 初期化：左右ともにホームディレクトリを開く
   useEffect(() => {
     /**
@@ -106,6 +146,18 @@ export default function App() {
     };
     init();
   }, [loadDirectory]);
+
+  // キーボードショートカット（F5 キーでコピー）の登録
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F5") {
+        e.preventDefault();
+        handleCopyRef.current();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   /**
    * 階層パスを解析し、一つ上の親ディレクトリへ移動するハンドラー。
@@ -137,6 +189,11 @@ export default function App() {
       >
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
           <button onClick={() => handleParentDir(paneId)}>⬆ 親</button>
+          {isActive && (
+            <button onClick={handleCopy} title="対向ペインへコピー (F5)">
+              📋 コピー
+            </button>
+          )}
           <input
             type="text"
             value={state.currentPath}
