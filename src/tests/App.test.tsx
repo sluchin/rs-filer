@@ -1,4 +1,5 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import App from "../App";
 import { invoke } from "@tauri-apps/api/core";
@@ -229,6 +230,44 @@ describe("App (Dual Pane)", () => {
     });
   });
 
+  it("操作系: アクティブペインから対向ペインへファイルをコピーできること", async () => {
+    mockedInvoke.mockImplementation((cmd, args) => {
+      if (cmd === "get_home_dir") return Promise.resolve("/mock/home");
+      if (cmd === "read_directory" && args?.path === "/mock/home") {
+        return Promise.resolve([
+          { name: "item.txt", path: "/mock/home/item.txt", is_dir: false },
+        ]);
+      }
+      if (cmd === "copy_item") {
+        expect(args).toEqual({
+          srcPath: "/mock/home/item.txt",
+          destDir: "/mock/home",
+        });
+        return Promise.resolve();
+      }
+      return Promise.reject(new Error(`Unknown command: ${cmd}`));
+    });
+
+    render(<App />);
+
+    // 初期読み込みを待機
+    const files = await screen.findAllByText("item.txt");
+
+    // 左ペインのファイルを選択
+    fireEvent.click(files[0]);
+
+    // コピーボタンをクリック
+    const copyButton = screen.getByRole("button", { name: /コピー|Copy/i });
+    fireEvent.click(copyButton);
+
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenCalledWith("copy_item", {
+        srcPath: "/mock/home/item.txt",
+        destDir: "/mock/home",
+      });
+    });
+  });
+
   it("環境設定: 本番環境 (DEV = false) の場合にログレベルが warn に設定されること", async () => {
     vi.stubEnv("DEV", "");
     vi.resetModules();
@@ -251,5 +290,124 @@ describe("App (Dual Pane)", () => {
     });
 
     vi.unstubAllEnvs();
+  });
+
+  // ファイル未選択でのエラー
+  it("shows error when selectedFile is empty and copy is executed", async () => {
+    const user = userEvent.setup();
+    // read_directory が空配列 [] を返すように設定（ファイルがない状態）
+    vi.mocked(invoke).mockImplementation((cmd) => {
+      if (cmd === "read_directory") return Promise.resolve([]);
+      if (cmd === "get_home_dir") return Promise.resolve("/mock/home");
+      return Promise.resolve(null);
+    });
+
+    render(<App />);
+
+    // 初期表示の完了（input のパス表示）を待つ
+    await screen.findAllByDisplayValue("/mock/home");
+
+    const copyButton = screen.getByRole("button", { name: /コピー/i });
+    await user.click(copyButton);
+
+    // 完全一致から正規表現に変更（「エラー: 」テキストとの分割に対応）
+    expect(
+      await screen.findByText(/コピー対象の項目が選択されていません/i),
+    ).toBeInTheDocument();
+  });
+
+  // invoke の例外ハンドリング
+  it("handles copy failure when invoke throws an error", async () => {
+    const user = userEvent.setup();
+
+    // read_directory は正常なリストを返し、copy_item のみ例外を投げるようモックを分離
+    const mockFiles: FileEntry[] = [
+      { name: "file1.txt", path: "/mock/home/file1.txt", is_dir: false },
+    ];
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "get_home_dir") return "/mock/home";
+      if (cmd === "read_directory") return mockFiles;
+      if (cmd === "copy_item") throw new Error("Copy failed in Backend");
+      return null;
+    });
+
+    render(<App />);
+
+    // ファイル一覧が描画されて選択状態 (selectedIndex: 0) になるのを待つ
+    await screen.findAllByText("file1.txt");
+
+    const copyButton = screen.getByRole("button", { name: /コピー/i });
+    await user.click(copyButton);
+
+    expect(
+      await screen.findByText(/Copy failed in Backend/i),
+    ).toBeInTheDocument();
+  });
+
+  // F5 キーイベント
+  it("triggers handleCopy when F5 key is pressed", async () => {
+    const user = userEvent.setup();
+
+    // 変更箇所: read_directory が実際のファイルを返すようにモックを設定
+    const mockFiles: FileEntry[] = [
+      { name: "file1.txt", path: "/mock/home/file1.txt", is_dir: false },
+    ];
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "get_home_dir") return "/mock/home";
+      if (cmd === "read_directory") return mockFiles;
+      if (cmd === "copy_item") return Promise.resolve();
+      return null;
+    });
+
+    render(<App />);
+
+    // モックで定義した実際のファイル名（"file1.txt"）の描画を待つ
+    await screen.findAllByText("file1.txt");
+
+    // F5 キーを発火
+    await user.keyboard("{F5}");
+
+    // copy_item が呼ばれたことを確認
+    expect(invoke).toHaveBeenCalledWith(
+      "copy_item",
+      expect.objectContaining({
+        srcPath: "/mock/home/file1.txt",
+        destDir: "/mock/home",
+      }),
+    );
+  });
+
+  it("右ペインがアクティブな場合にも対向（左ペイン）へコピーできること", async () => {
+    const user = userEvent.setup();
+    const mockFiles: FileEntry[] = [
+      {
+        name: "right-file.txt",
+        path: "/mock/home/right-file.txt",
+        is_dir: false,
+      },
+    ];
+
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "get_home_dir") return "/mock/home";
+      if (cmd === "read_directory") return mockFiles;
+      if (cmd === "copy_item") return Promise.resolve();
+      return null;
+    });
+
+    render(<App />);
+
+    // 右ペインのファイルを待つ
+    const rightFiles = await screen.findAllByText("right-file.txt");
+    // 右ペイン側の要素（2つ目の要素）をクリックしてアクティブにする
+    await user.click(rightFiles[1]);
+
+    // F5 または コピーボタンを押す
+    await user.keyboard("{F5}");
+
+    // 左ペイン (対向) のパス宛てに copy_item が呼ばれたことを検証
+    expect(invoke).toHaveBeenCalledWith("copy_item", {
+      srcPath: "/mock/home/right-file.txt",
+      destDir: "/mock/home",
+    });
   });
 });

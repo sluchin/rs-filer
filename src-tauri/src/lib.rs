@@ -4,7 +4,10 @@
 //! およびイベントループの実行を管理します。
 
 pub mod commands;
+pub use commands::copy_item;
 
+// builder に登録するのを忘れずに:
+// .invoke_handler(tauri::generate_handler![get_home_dir, read_directory, copy_item])
 /// Tauri アプリケーションをビルドして実行します。
 ///
 /// 以下の処理を順に実行します:
@@ -22,7 +25,8 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::read_directory,
-            commands::get_home_dir
+            commands::get_home_dir,
+            commands::copy_item
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
