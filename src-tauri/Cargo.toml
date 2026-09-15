@@ -11,8 +11,9 @@ edition = "2021"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "rsfiler_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+name = "rsfiler"
+path = "src/lib.rs"
+#crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -34,3 +35,7 @@ strip = true
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }
