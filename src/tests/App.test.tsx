@@ -292,8 +292,7 @@ describe("App (Dual Pane)", () => {
     vi.unstubAllEnvs();
   });
 
-  // ファイル未選択でのエラー
-  it("shows error when selectedFile is empty and copy is executed", async () => {
+  it("異常系: コピー対象の項目が未選択の状態でコピーを実行した場合にエラーが表示されること", async () => {
     const user = userEvent.setup();
     // read_directory が空配列 [] を返すように設定（ファイルがない状態）
     vi.mocked(invoke).mockImplementation((cmd) => {
@@ -316,8 +315,7 @@ describe("App (Dual Pane)", () => {
     ).toBeInTheDocument();
   });
 
-  // invoke の例外ハンドリング
-  it("handles copy failure when invoke throws an error", async () => {
+  it("異常系: copy_item 実行時にエラーが発生した場合にエラーメッセージが表示されること", async () => {
     const user = userEvent.setup();
 
     // read_directory は正常なリストを返し、copy_item のみ例外を投げるようモックを分離
@@ -344,8 +342,7 @@ describe("App (Dual Pane)", () => {
     ).toBeInTheDocument();
   });
 
-  // F5 キーイベント
-  it("triggers handleCopy when F5 key is pressed", async () => {
+  it("操作系: F5 キーが押下された場合にコピー処理が実行されること", async () => {
     const user = userEvent.setup();
 
     // 変更箇所: read_directory が実際のファイルを返すようにモックを設定
@@ -377,7 +374,7 @@ describe("App (Dual Pane)", () => {
     );
   });
 
-  it("右ペインがアクティブな場合にも対向（左ペイン）へコピーできること", async () => {
+  it("操作系: 右ペインがアクティブな場合にも対向（左ペイン）へコピーできること", async () => {
     const user = userEvent.setup();
     const mockFiles: FileEntry[] = [
       {
