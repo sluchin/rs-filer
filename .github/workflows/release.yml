@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*' # vから始まるタグ（例: v0.1.0）がプッシュされたときに実行
+
+jobs:
+  publish:
+    permissions:
+      contents: write # GitHub Releasesへの書き込み権限に必要
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: universal-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Node.jsのセットアップ
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm' # または 'pnpm', 'yarn'
+
+      # 2. Rustのセットアップ
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # 3. Rustのビルドキャッシュ（高速化）
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+
+      # 4. Linux環境のみ必要なシステム依存関係のインストール
+      - name: Install Linux Dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      # 5. フロントエンドの依存関係インストールとビルド
+      - name: Install frontend dependencies
+        run: npm install # または pnpm install / yarn install
+
+      # 6. Tauriアプリのビルド & GitHub Releasesへのアップロード
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'rsfiler ${{ github.ref_name }}'
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}
