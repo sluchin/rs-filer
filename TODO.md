@@ -8,7 +8,7 @@
 - [x] Phase 5: 2ペイン間連携・プレビュー・安全性強化
 - [x] Phase 6: xyzzy風キーバインド・ミニバッファ・操作性最適化
 - [x] Phase 7: 外部連携・カスタマイズ機能
-- [ ] Phase 8: パフォーマンス改善・テスト・CI/CD・配布整備
+- [x] Phase 8: パフォーマンス改善・テスト・CI/CD・配布整備
 
 ---
 
@@ -100,13 +100,13 @@
   - [x] 文字エンコーディング対応 (CP932 (Shift_JIS 互換), EUC-JP, UTF-16, UTF-8. Phase 5 のプレビューで対応済み)
 
 ### Phase 8: パフォーマンス改善・テスト・CI/CD・配布整備
-- [ ] **パフォーマンス改善**
-  - [ ] 大量ファイル表示時の仮想スクロール実装 (React Virtualized / TanStack Virtual)
-  - [ ] Rust側の高速ディレクトリスキャン (非同期ディレクトリ走査)
-- [ ] **テスト・品質担保**
-  - [ ] フロントエンド単体テスト (Vitest / React Testing Library: キーバインド処理、UIコンポーネント)
-  - [ ] バックエンド単体・統合テスト (cargo test: Rust側のファイルI/O・パス解決)
-- [ ] **ドキュメント・ビルド・配布**
-  - [ ] README.md の整備 (インストール手順、xyzzy風キーマップ一覧表)
+- [x] **パフォーマンス改善**
+  - [x] 大量ファイル表示時の仮想スクロール実装 (自前の仮想スクロールフック `useVirtualRows`. コンテナ・行の高さが測れるまでは全件描画にフォールバックする)
+  - [x] Rust側の高速ディレクトリスキャン (`read_directory` を非同期化し, 走査は `spawn_blocking` で別スレッド実行. IPC を処理するスレッドを塞がない)
+- [x] **テスト・品質担保**
+  - [x] フロントエンド単体テスト (Vitest / React Testing Library: キーバインド処理、UIコンポーネント。継続してカバレッジ 100% を維持)
+  - [x] バックエンド単体・統合テスト (cargo test: Rust側のファイルI/O・パス解決)
+- [x] **ドキュメント・ビルド・配布**
+  - [x] README.md の整備 (インストール手順、xyzzy風キーマップ一覧表)
   - [x] GitHub Actions CI (cargo clippy, cargo test, npm run lint, npm test)
-  - [ ] Tauri Bundler によるインストーラ/単一バイナリ生成 (Windows: MSI/NSIS, Linux: deb/AppImage, macOS: dmg)
+  - [x] Tauri Bundler によるインストーラ/単一バイナリ生成 (Windows: MSI/NSIS, Linux: deb/AppImage, macOS: dmg. `tauri.conf.json` にカテゴリ・説明を追加)

@@ -79,10 +79,9 @@ fn is_hidden(name: &str, metadata: &fs::Metadata) -> bool {
 ///
 /// 成功した場合は [`FileEntry`] のベクトルを包んだ [`Ok`] を返し,
 /// ディレクトリが存在しないかアクセス権限がない場合はエラー文字列を含む [`Err`] を返します.
-#[tauri::command]
-pub fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
+fn scan_directory(path: &str) -> Result<Vec<FileEntry>, String> {
     //info!("ディレクトリ読み取り開始: {}", path);
-    let entries = fs::read_dir(&path).map_err(|e| e.to_string())?;
+    let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
     let mut files = Vec::new();
 
     for entry in entries.flatten() {
@@ -105,6 +104,25 @@ pub fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
     // フォルダを上, ファイルを下にソート.
     files.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
     Ok(files)
+}
+
+/// 指定されたパスのディレクトリ内にあるファイル・ディレクトリの一覧を取得します.
+///
+/// 走査 (ディスク I/O) はブロッキング用のスレッドで実行し, IPC を処理するスレッドを塞ぎません.
+///
+/// # Arguments
+///
+/// * `path` - 読み込み対象となるディレクトリの絶対パス文字列.
+///
+/// # Returns
+///
+/// 成功した場合は [`FileEntry`] のベクトルを包んだ [`Ok`] を返し,
+/// ディレクトリが存在しないかアクセス権限がない場合はエラー文字列を含む [`Err`] を返します.
+#[tauri::command]
+pub async fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || scan_directory(&path))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// 実行環境におけるユーザーのホームディレクトリの絶対パスを取得します.
@@ -253,7 +271,7 @@ mod tests {
         perm.set_readonly(true);
         fs::set_permissions(&ro, perm).unwrap();
 
-        let files = read_directory(dir.path().to_string_lossy().into_owned()).unwrap();
+        let files = scan_directory(&dir.path().to_string_lossy()).unwrap();
         let get = |n: &str| files.iter().find(|f| f.name == n).unwrap();
 
         assert_eq!(get("a.txt").size, 5);
@@ -262,6 +280,21 @@ mod tests {
         assert!(!get("a.txt").hidden);
         assert!(get("ro.txt").readonly);
         assert!(get(".hidden").hidden == cfg!(not(windows)));
+    }
+
+    #[test]
+    fn test_read_directory_async_success_and_failure() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("a.txt"), "x").unwrap();
+
+        let files = tauri::async_runtime::block_on(read_directory(
+            dir.path().to_string_lossy().into_owned(),
+        ))
+        .unwrap();
+        assert_eq!(files.len(), 1);
+
+        let missing = dir.path().join("none").to_string_lossy().into_owned();
+        assert!(tauri::async_runtime::block_on(read_directory(missing)).is_err());
     }
 
     #[test]
