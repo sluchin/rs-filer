@@ -99,11 +99,12 @@ cargo install cargo-tarpaulin
 * **`src-tauri/src/commands/`**
 * `fs.rs`: ディレクトリ走査 (`read_directory`)、ホームディレクトリ取得 (`get_home_dir`)、ドライブ一覧、ディスク容量。
 * `ops.rs`: 作成・名前変更。
-* `config.rs`: キーマップ設定ファイル (`keymap.json`) の読み込み。
+* `config.rs`: 設定ファイルの読み書き (`keymap.json` の読み込み、`config.json` のテーマ・フォントサイズ・エディタ・ターミナルの読み書き)。
 * `app.rs`: アプリケーションの終了。
 * `transfer.rs`: コピー・移動・削除 (別スレッドで実行し、進捗を Channel で通知。中断に対応)。
 * `preview.rs`: テキスト・画像・バイナリのプレビュー。
-* `open.rs`: 関連付けアプリ・エディタで開く。
+* `open.rs`: 関連付けアプリ・エディタで開く、ターミナルを開く。
+* `exec.rs`: 選択したファイルに対する外部コマンドの実行 (`%f` をパスに置換)。
 
 
 * **`src-tauri/src/lib.rs`**
