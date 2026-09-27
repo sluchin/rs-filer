@@ -94,10 +94,12 @@ cargo install cargo-tarpaulin
 
 ### 4.1 バックエンド (Rust)
 
-マクロ名衝突回避のため、IPC コマンド群は `commands.rs` に分離しています。
+マクロ名衝突回避のため、IPC コマンド群は `commands/` モジュールに分離しています。
 
-* **`src-tauri/src/commands.rs`**
-* ディレクトリ走査 (`read_directory`) およびホームディレクトリ取得 (`get_home_dir`) の IPC コマンドを実装。
+* **`src-tauri/src/commands/`**
+* `fs.rs`: ディレクトリ走査 (`read_directory`)、ホームディレクトリ取得 (`get_home_dir`)、ドライブ一覧、ディスク容量。
+* `ops.rs`: コピー・作成・名前変更・削除。
+* `open.rs`: 関連付けアプリ・エディタで開く。
 
 
 * **`src-tauri/src/lib.rs`**

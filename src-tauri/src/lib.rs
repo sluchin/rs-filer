@@ -25,17 +25,17 @@ pub use commands::copy_item;
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            commands::read_directory,
-            commands::get_home_dir,
-            commands::copy_item,
-            commands::create_directory,
-            commands::create_file,
-            commands::rename_item,
-            commands::delete_item,
-            commands::open_item,
-            commands::open_in_editor,
-            commands::list_drives,
-            commands::get_disk_space
+            commands::fs::read_directory,
+            commands::fs::get_home_dir,
+            commands::ops::copy_item,
+            commands::ops::create_directory,
+            commands::ops::create_file,
+            commands::ops::rename_item,
+            commands::ops::delete_item,
+            commands::open::open_item,
+            commands::open::open_in_editor,
+            commands::fs::list_drives,
+            commands::fs::get_disk_space
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
