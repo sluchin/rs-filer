@@ -29,6 +29,7 @@ src/
 │
 ├── components/                         # 共通UIコンポーネント
 │   ├── Button.tsx
+│   ├── Minibuffer.tsx                  # 画面下部の入力領域 (作成・名前変更・確認・ドライブ選択・M-x を表示)
 │   ├── Dialog.tsx                      # 確認ダイアログ (上書き確認・削除確認等)
 │   ├── ContextMenu.tsx                 # 右クリックメニュー
 │   ├── Modal.tsx                       # 汎用モーダル枠
@@ -42,7 +43,7 @@ src/
 │   │   │   ├── DualPaneContainer.tsx   # 左右2ペインの比率分割・アクティブ制御
 │   │   │   ├── Pane.tsx                # 1つのペイン (ヘッダー, リスト, ドライブ切替)
 │   │   │   ├── DriveSelector.tsx       # ドライブ切り替えバー (C:, D: 等)
-│   │   │   ├── PathBar.tsx             # カレントパス表示・直接入力バー
+│   │   │   ├── PathBar.tsx             # カレントパス表示・直接入力バー (Tab でパス補完)
 │   │   │   ├── FileList.tsx            # ファイル一覧テーブル (仮想スクロール対応)
 │   │   │   └── FileItem.tsx            # 行要素 (アイコン, 名前, 拡張子, サイズ, 更新日時)
 │   │   ├── hooks/
@@ -79,19 +80,27 @@ src/
 │   │       └── useQuickFilter.ts       # カレント一覧の絞り込み
 │   │
 │   ├── keybindings/                    # キーバインド制御 (Phase 6)
-│   │   ├── keymap.ts                   # xyzzy/Emacs風キーバインド定義テーブル
+│   │   ├── keymap.ts                   # キー列とコマンドの対応表・解決 (プレフィックスキー含む)
+│   │   ├── commandNames.ts             # コマンドパレット用の名前・別名・説明
 │   │   ├── types.ts                    # コマンド識別子・キーストローク型定義
-│   │   └── useKeymap.ts                # キー入力キャッチ・プレフィックスキー (C-x 等) 状態管理
+│   │   ├── useKeymap.ts                # キー入力キャッチ・入力途中のキー列の状態管理
+│   │   ├── hooks/
+│   │   │   └── useUserKeymap.ts        # 設定ファイルによるキーマップ上書きの読み込み
+│   │   └── components/
+│   │       ├── CommandPalette.tsx      # M-x / : コマンドパレット (ミニバッファ, 候補一覧は表示しない)
+│   │       └── HelpDialog.tsx          # ? / :help のコマンド一覧 (キー割り当て・説明)
 │   │
 │   └── bookmarks/                      # ブックマーク・お気に入りディレクトリ
 │       ├── components/
-│       │   └── BookmarkMenu.tsx
+│       │   └── BookmarkPane.tsx        # ペインの表示をブックマーク一覧に差し替えるビュー
 │       └── hooks/
 │           └── useBookmarks.ts
 │
 ├── hooks/                              # アプリ全体共通のカスタムフック
 │   ├── useSettings.ts                  # 設定 (テーマ, 隠しファイル表示等)
-│   └── useCommandPalette.ts            # ミニバッファ / コマンド入力用
+│   ├── useHistoryNav.ts                # ミニバッファの入力履歴参照
+│   ├── useNotice.ts                    # 完了通知の一定時間表示
+│   └── useOperationLog.ts              # 操作ログの保持
 │
 ├── services/                           # Tauriの `invoke` / イベントリスナー ラッパー
 │   └── tauriApi.ts                     # Rust側コマンド呼び出しの型安全ラッパー
@@ -125,7 +134,8 @@ src-tauri/src/
 │   ├── watcher.rs                      # カレントディレクトリ変更監視の開始・停止
 │   ├── search.rs                       # 高速ファイル検索
 │   ├── preview.rs                      # テキスト(文字コード自動判別)/画像/バイナリのプレビューデータ取得
-│   └── config.rs                       # 設定ファイルの読み書き・ブックマーク管理
+│   ├── config.rs                       # キーマップ設定ファイル (keymap.json) の読み込み
+│   └── app.rs                          # 終了 (quit_app)
 │
 └── core/                               # ドメインロジック (OS依存処理・最適化実装)
     ├── mod.rs

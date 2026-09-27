@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactElement } from "react";
-import Modal from "../../../components/Modal";
+import Minibuffer from "../../../components/Minibuffer";
 import type { DialogState } from "../types";
 
 /**
@@ -90,12 +90,12 @@ export default function OperationDialog({
   onClose,
 }: OperationDialogProps): ReactElement {
   return (
-    <Modal title={dialog.title} onClose={onClose}>
+    <Minibuffer title={dialog.title} onClose={onClose}>
       {dialog.kind === "prompt" ? (
         <PromptBody dialog={dialog} onClose={onClose} />
       ) : (
         <ConfirmBody dialog={dialog} onClose={onClose} />
       )}
-    </Modal>
+    </Minibuffer>
   );
 }

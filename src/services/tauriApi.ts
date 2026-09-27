@@ -142,3 +142,29 @@ export function cancelTransfer(): Promise<void> {
 export function readPreview(path: string): Promise<Preview> {
   return invoke<Preview>("read_preview", { path });
 }
+
+/**
+ * 入力途中のパスを補完する候補を取得します.
+ *
+ * @param input - 入力途中のパス.
+ * @returns 候補のパス (ディレクトリのみ. 末尾に `/`).
+ */
+export function completePath(input: string): Promise<string[]> {
+  return invoke<string[]>("complete_path", { input });
+}
+
+/**
+ * ユーザーのキーマップ設定を読み込みます.
+ *
+ * @returns キーの並びからコマンド名への対応. 値が null のキーは割り当てを解除する.
+ */
+export function loadKeymap(): Promise<Record<string, string | null>> {
+  return invoke<Record<string, string | null>>("load_keymap");
+}
+
+/**
+ * アプリケーションを終了します.
+ */
+export function quitApp(): Promise<void> {
+  return invoke<void>("quit_app");
+}

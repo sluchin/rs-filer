@@ -59,6 +59,12 @@ body,
   color: #000000;
 }
 
+.bookmark-title {
+  display: flex;
+  align-items: center;
+  font-weight: bold;
+}
+
 .file-list {
   flex: 1;
   min-height: 0;
@@ -256,6 +262,63 @@ body,
 
 .operation-log li[data-level="error"] {
   color: #cc0000;
+}
+
+.palette-message {
+  margin: 4px 0 0;
+  color: #666666;
+}
+
+.help-table-scroll {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.help-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.help-table th,
+.help-table td {
+  text-align: left;
+  padding: 2px 8px 2px 0;
+  border-bottom: 1px solid #e0e0e0;
+  vertical-align: top;
+}
+
+.help-aliases {
+  color: #666666;
+  font-size: 0.9em;
+}
+
+.minibuffer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-top: 1px solid #a0a0a0;
+  background: #eef3fb;
+  padding: 4px 6px;
+}
+
+.minibuffer-title {
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.minibuffer-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.minibuffer input[type="text"] {
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #828790;
+  padding: 2px 4px;
+  background: #ffffff;
 }
 
 .key-hint-bar {

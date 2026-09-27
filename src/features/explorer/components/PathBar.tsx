@@ -1,4 +1,7 @@
 import { useState } from "react";
+import log from "loglevel";
+import { completePath } from "../../../services/tauriApi";
+import { commonPrefix } from "../../../utils/strings";
 import type { ChangeEvent, KeyboardEvent, ReactElement } from "react";
 
 /**
@@ -44,6 +47,16 @@ export default function PathBar({
         } else if (e.key === "Escape") {
           setDraft(path);
           e.currentTarget.blur();
+        } else if (e.key === "Tab") {
+          e.preventDefault();
+          completePath(draft)
+            .then((candidates) => {
+              const prefix = commonPrefix(candidates);
+              if (prefix.length > draft.length) {
+                setDraft(prefix);
+              }
+            })
+            .catch((err) => log.warn("[React] パス補完に失敗:", err));
         }
       }}
       className="path-bar"
