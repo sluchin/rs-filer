@@ -1,5 +1,6 @@
 name: CI
 
+# main への push と, すべての pull request で実行する.
 on:
   push:
     branches:
@@ -15,19 +16,23 @@ jobs:
   check:
     runs-on: ubuntu-22.04
     steps:
+      # リポジトリを取得する.
       - uses: actions/checkout@v5
 
+      # npm run check のフロントエンド部分 (tsc, vite, eslint, vitest) に使う.
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: 'npm'
 
+      # npm run check のバックエンド部分 (clippy, cargo test, cargo fmt) に使う.
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
 
+      # src-tauri のビルド成果物をキャッシュし, 以降の実行を速くする.
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
         with:
@@ -39,6 +44,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
+      # package-lock.json どおりに依存をインストールする.
       - name: Install frontend dependencies
         run: npm ci
 
