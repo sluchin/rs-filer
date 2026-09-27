@@ -22,7 +22,7 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 - `src/`: フロントエンド (React / TypeScript)。テストは `src/tests/` に置く (`setup.ts` は vitest の setupFiles)。
 - `src-tauri/`: バックエンド (Rust)。
   - `src/lib.rs`: Tauri の初期化と IPC ハンドラーの登録 (`run`)。
-  - `src/commands/`: フロントエンドから呼ぶ IPC コマンド (`#[tauri::command]`)。`fs.rs` (一覧・ホーム・ドライブ・ディスク容量)、`ops.rs` (作成・名前変更)、`open.rs` (外部アプリ・エディタで開く)、`transfer.rs` (コピー・移動・削除。進捗通知と中断に対応)、`preview.rs` (プレビュー) に分け、`mod.rs` で再エクスポートする。
+  - `src/commands/`: フロントエンドから呼ぶ IPC コマンド (`#[tauri::command]`)。`fs.rs` (一覧・ホーム・ドライブ・ディスク容量)、`ops.rs` (作成・名前変更)、`open.rs` (外部アプリ・エディタで開く)、`transfer.rs` (コピー・移動・削除。進捗通知と中断に対応)、`preview.rs` (プレビュー)、`config.rs` (キーマップ設定ファイルの読み込み)、`app.rs` (終了) に分け、`mod.rs` で再エクスポートする。
   - `src/main.rs`: エントリポイント。
   - `tests/`: 結合テスト (`commands_test.rs`)。
   - `capabilities/default.json`: Tauri v2 の権限設定。
@@ -40,7 +40,8 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 - フロントエンドとバックエンドは、Tauri の IPC (`invoke` とコマンド) だけで結ぶ。コマンドの名前・引数・戻り値を変えるときは、`src-tauri/src/commands/` 配下、`src-tauri/src/lib.rs` の `generate_handler!`、フロントエンドの `invoke` 呼び出し、両方のテストを、まとめて直す。
 - Rust の構造体を IPC で返すときは、`serde::Serialize` を派生する。フロントエンドの型 (`FileEntry` など) は、そのフィールド名 (`is_dir` のようなスネークケース) に合わせる。
 - 新しく IPC コマンドを追加したら、`lib.rs` の `generate_handler!` に、サブモジュール込みのパス (`commands::ops::copy_item` など) で登録する。ファイルシステムやシェルなどのプラグインを使う場合は、`capabilities/default.json` の権限も追加する。
-- ドキュメントコメントは日本語で書く。文末は「.」を使う既存の書き方に合わせる (`/// ... します.`、`* @param` など)。
+- コマンド (`M-x` / `:`)・新規作成・名前変更・削除確認・ドライブ選択は, ダイアログではなく `components/Minibuffer.tsx` (画面下部の入力領域) で表示する。進捗表示 (`TaskProgressModal`) や操作ログ・コマンド一覧 (`OperationLogDialog`, `HelpDialog`) のように, 文字入力を伴わないものは `components/Modal.tsx` (中央のダイアログ) のままでよい。ブックマーク一覧は, ダイアログでもミニバッファでもなく, `DualPaneContainer` の `overrides` でペインの表示そのものを差し替える (`BookmarkPane`)。
+ドキュメントコメントは日本語で書く。文末は「.」を使う既存の書き方に合わせる (`/// ... します.`、`* @param` など)。
 - コメントに、`// ---` や `// ===` のような、装飾の記号を入れない。
 
 ### バックエンド (Rust)

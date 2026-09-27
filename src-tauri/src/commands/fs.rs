@@ -157,6 +157,72 @@ pub fn get_disk_space(path: String) -> Result<DiskSpace, String> {
     Ok(DiskSpace { free, total })
 }
 
+/// 補完の候補として返す最大の件数.
+const MAX_COMPLETIONS: usize = 200;
+
+/// 入力途中のパスを補完する候補を, 実際のディレクトリの内容から求めます.
+///
+/// 最後の区切り文字 (`/` または `\`) までをディレクトリ, その後ろを名前の前方一致の条件として扱い,
+/// 条件に合うサブディレクトリを, 入力と同じ書き方 (先頭の `~` を含む) の, 末尾に `/` の付いたパスで返します.
+/// 名前が `.` で始まる隠しディレクトリは, 条件も `.` で始まる場合だけ返します.
+///
+/// # Arguments
+///
+/// * `input` - 入力途中のパス. 区切り文字を含まない場合や空の場合は, 候補なし.
+/// * `home` - ホームディレクトリ. 先頭の `~` の展開に使う.
+///
+/// # Returns
+///
+/// 名前順に並べた候補 (最大 200 件). ディレクトリを読めない場合は空.
+fn complete_path_with(input: &str, home: Option<&Path>) -> Vec<String> {
+    let Some(split) = input.rfind(['/', '\\']) else {
+        return Vec::new();
+    };
+    let (typed_dir, prefix) = input.split_at(split + 1);
+    let dir = match (typed_dir.strip_prefix('~'), home) {
+        (Some(rest), Some(home)) => home.join(rest.trim_start_matches(['/', '\\'])),
+        _ => Path::new(typed_dir).to_path_buf(),
+    };
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let fold = |s: &str| {
+        if cfg!(windows) {
+            s.to_lowercase()
+        } else {
+            s.to_string()
+        }
+    };
+    let wanted = fold(prefix);
+    let mut names: Vec<String> = entries
+        .flatten()
+        .filter(|e| e.path().is_dir())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|name| fold(name).starts_with(&wanted))
+        .filter(|name| !name.starts_with('.') || prefix.starts_with('.'))
+        .collect();
+    names.sort();
+    names.truncate(MAX_COMPLETIONS);
+    names
+        .into_iter()
+        .map(|name| format!("{}{}/", typed_dir, name))
+        .collect()
+}
+
+/// 入力途中のパスを補完する候補を返します.
+///
+/// # Arguments
+///
+/// * `input` - 入力途中のパス.
+///
+/// # Returns
+///
+/// 候補のパス (ディレクトリのみ. 末尾に `/`).
+#[tauri::command]
+pub fn complete_path(input: String) -> Vec<String> {
+    complete_path_with(&input, dirs::home_dir().as_deref())
+}
+
 /// 現在の OS で調べるルートパスの候補を返します.
 fn candidate_roots() -> Vec<String> {
     if cfg!(windows) {
@@ -206,6 +272,63 @@ mod tests {
         f.set_modified(UNIX_EPOCH - std::time::Duration::from_secs(60))
             .unwrap();
         assert_eq!(modified_secs(&fs::metadata(&file).unwrap()), Some(-60));
+    }
+
+    #[test]
+    fn test_complete_path_with_success() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("alpha")).unwrap();
+        fs::create_dir_all(dir.path().join("alps")).unwrap();
+        fs::create_dir_all(dir.path().join("beta")).unwrap();
+        fs::create_dir_all(dir.path().join(".hidden")).unwrap();
+        fs::write(dir.path().join("alfile"), "").unwrap();
+        let base = format!("{}/", dir.path().display());
+
+        assert_eq!(
+            complete_path_with(&format!("{}al", base), None),
+            vec![format!("{}alpha/", base), format!("{}alps/", base)]
+        );
+        assert_eq!(
+            complete_path_with(&base, None),
+            vec![
+                format!("{}alpha/", base),
+                format!("{}alps/", base),
+                format!("{}beta/", base)
+            ]
+        );
+        assert_eq!(
+            complete_path_with(&format!("{}.", base), None),
+            vec![format!("{}.hidden/", base)]
+        );
+    }
+
+    #[test]
+    fn test_complete_path_with_home_and_failures() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("docs")).unwrap();
+
+        assert_eq!(
+            complete_path_with("~/do", Some(dir.path())),
+            vec!["~/docs/".to_string()]
+        );
+        assert!(complete_path_with("~/do", None).is_empty());
+        assert!(complete_path_with("", None).is_empty());
+        assert!(complete_path_with("no-separator", None).is_empty());
+        assert!(complete_path_with("/non_existent_path_rsfiler_12345/a", None).is_empty());
+        assert_eq!(
+            complete_path("/non_existent_path_rsfiler_12345/a".into()).len(),
+            0
+        );
+    }
+
+    #[test]
+    fn test_complete_path_with_limits_results() {
+        let dir = tempdir().unwrap();
+        for i in 0..(MAX_COMPLETIONS + 5) {
+            fs::create_dir(dir.path().join(format!("d{:04}", i))).unwrap();
+        }
+        let input = format!("{}/d", dir.path().display());
+        assert_eq!(complete_path_with(&input, None).len(), MAX_COMPLETIONS);
     }
 
     #[test]

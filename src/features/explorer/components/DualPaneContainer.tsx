@@ -26,10 +26,8 @@ interface DualPaneContainerProps {
   onItemClick: (pane: PaneId, index: number, file: FileEntry) => void;
   /** 項目ダブルクリックのハンドラー. */
   onItemOpen: (pane: PaneId, index: number, file: FileEntry) => void;
-  /** プレビューを表示するペイン. 表示しない場合は null. */
-  previewPane: PaneId | null;
-  /** プレビューの表示内容. `previewPane` のペインの代わりに表示される. */
-  previewSlot: ReactElement | null;
+  /** ペインの通常表示を差し替える内容 (プレビュー・ブックマーク一覧など). 無いペインは通常表示のまま. */
+  overrides: Partial<Record<PaneId, ReactElement>>;
   /** パス入力欄の要素を登録するハンドラー. */
   registerPathInput: (pane: PaneId, element: HTMLInputElement | null) => void;
   /** 絞り込み入力欄の要素を登録するハンドラー. */
@@ -53,15 +51,12 @@ export default function DualPaneContainer({
   onFilterChange,
   onItemClick,
   onItemOpen,
-  previewPane,
-  previewSlot,
+  overrides,
   registerPathInput,
   registerFilterInput,
 }: DualPaneContainerProps): ReactElement {
   const renderPane = (paneId: PaneId, state: PaneState): ReactElement =>
-    paneId === previewPane && previewSlot ? (
-      previewSlot
-    ) : (
+    overrides[paneId] ?? (
       <Pane
         paneId={paneId}
         state={state}

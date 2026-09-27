@@ -4,6 +4,8 @@ import type { ReactElement } from "react";
 const HINTS: string[] = [
   "Tab:ペイン",
   "j/k:移動",
+  "PgUp/PgDn:ページ",
+  "Home/End:先頭/末尾",
   "Enter:開く",
   "h:親DIR",
   "g:パス",
@@ -12,7 +14,6 @@ const HINTS: string[] = [
   "m:移動",
   "O:同期",
   "v:プレビュー",
-  "H:ログ",
   "d:削除",
   "D:完全削除",
   "r:名前変更",
@@ -30,6 +31,10 @@ const HINTS: string[] = [
   "/:絞込",
   "b:ブックマーク",
   "M-←/→:履歴",
+  "M-x/::コマンド",
+  "?:ヘルプ",
+  "H:ログ",
+  "q:終了",
 ];
 
 /**
