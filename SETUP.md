@@ -97,7 +97,7 @@ cargo install cargo-tarpaulin
 マクロ名衝突回避のため、IPC コマンド群は `commands/` モジュールに分離しています。
 
 * **`src-tauri/src/commands/`**
-* `fs.rs`: ディレクトリ走査 (`read_directory`)、ホームディレクトリ取得 (`get_home_dir`)、ドライブ一覧、ディスク容量。
+* `fs.rs`: ディレクトリ走査 (`read_directory`。走査自体は `spawn_blocking` で別スレッド実行し, IPC を処理するスレッドを塞がない)、ホームディレクトリ取得 (`get_home_dir`)、ドライブ一覧、ディスク容量。
 * `ops.rs`: 作成・名前変更。
 * `config.rs`: 設定ファイルの読み書き (`keymap.json` の読み込み、`config.json` のテーマ・フォントサイズ・エディタ・ターミナルの読み書き)。
 * `app.rs`: アプリケーションの終了。

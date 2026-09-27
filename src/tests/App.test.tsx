@@ -2744,4 +2744,66 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
       "dark",
     );
   });
+
+  it("正常系: 一覧の高さが測れる環境では, 仮想スクロールで見えない範囲がパディングになること", async () => {
+    const originalClientHeight = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "clientHeight",
+    );
+    const originalRect = Element.prototype.getBoundingClientRect;
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get: () => 40,
+    });
+    Element.prototype.getBoundingClientRect = () => ({ height: 20 }) as DOMRect;
+
+    try {
+      mockedInvoke.mockImplementation((cmd, args) => {
+        if (cmd === "get_home_dir") return Promise.resolve("/mock/home");
+        if (cmd === "read_directory" && pathOf(args) === "/mock/home") {
+          return Promise.resolve(
+            Array.from({ length: 30 }, (_, i) => ({
+              name: `f${i}.txt`,
+              path: `/mock/home/f${i}.txt`,
+              is_dir: false,
+              size: 1,
+              modified: 1,
+              readonly: false,
+              hidden: false,
+            })),
+          );
+        }
+        return Promise.resolve(defaultResult(cmd as string));
+      });
+      render(<App />);
+      await paneOf("left").findByText("f0.txt");
+      const container = paneOf("left").getByRole("list");
+
+      // 末尾側は描画されないので, その分の高さを埋めるパディングが出る.
+      await waitFor(() =>
+        expect(
+          container.querySelectorAll('li[aria-hidden="true"]'),
+        ).toHaveLength(1),
+      );
+      expect(paneOf("left").queryByText("f29.txt")).not.toBeInTheDocument();
+
+      // 下へスクロールすると, 先頭側にもパディングが出る.
+      act(() => {
+        container.scrollTop = 400;
+        container.dispatchEvent(new Event("scroll"));
+      });
+      expect(
+        container.querySelectorAll('li[aria-hidden="true"]').length,
+      ).toBeGreaterThanOrEqual(1);
+    } finally {
+      if (originalClientHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "clientHeight",
+          originalClientHeight,
+        );
+      }
+      Element.prototype.getBoundingClientRect = originalRect;
+    }
+  });
 });

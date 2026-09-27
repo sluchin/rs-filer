@@ -50,7 +50,8 @@ src/
 │   │   │   ├── useFileList.ts          # ファイル一覧の取得・ファイル監視イベント連携
 │   │   │   ├── useDiskSpace.ts         # アクティブペインのディスク空き容量の取得
 │   │   │   ├── useNavigation.ts        # ディレクトリ移動・履歴 (戻る/進む/親へ)
-│   │   │   └── useMarks.ts             # マーク (複数選択) 処理
+│   │   │   ├── useMarks.ts             # マーク (複数選択) 処理
+│   │   │   └── useVirtualRows.ts       # 仮想スクロール (表示範囲の計算・スクロール追従)
 │   │   ├── view.ts                     # 隠しファイル除外・絞り込み・ソート・パターン一致
 │   │   └── types.ts                    # FileEntry, PaneState, SortOption等の型定義
 │   │

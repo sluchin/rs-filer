@@ -9,9 +9,22 @@ Tauri v2 + Rust + React + TypeScript で構築するクロスプラットフォ�
 - **Frontend Framework**: React (TypeScript, Vite)
 - **Logging**: loglevel (Frontend)
 
-## クイックスタート
+## インストール
 
-詳細な環境構築手順や設計方針については [SETUP.md](./SETUP.md) を、ビルドやインストール手順については [INSTALL.md](./INSTALL.md) を参照してください。
+GitHub の [Releases](../../releases) から, お使いの OS 向けのパッケージをダウンロードしてください。
+
+| OS | ファイル |
+| --- | --- |
+| Windows | `rsfiler_*_x64-setup.exe` (NSIS) または `.msi`。ポータブル版の `.zip` もあります |
+| Linux (Debian/Ubuntu 系) | `.deb` (`sudo apt install ./rsfiler_*_amd64.deb`) |
+| Linux (その他) | `.AppImage` (実行権限を付けてそのまま起動) または `.rpm` |
+| macOS | `.dmg` |
+
+詳しい手順や, ソースからのビルド方法は [INSTALL.md](./INSTALL.md) を参照してください。
+
+## クイックスタート (開発)
+
+詳細な環境構築手順や設計方針については [SETUP.md](./SETUP.md) を参照してください。
 
 ```bash
 # 依存関係のインストール
