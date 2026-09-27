@@ -56,7 +56,8 @@ export default function CommandPalette({
   };
 
   /**
-   * 入力を確定します.
+   * 入力を確定します. 入力そのものが名前として存在すればそれを優先し (別名を含む),
+   * そうでなければ前方一致が 1 件のときだけそれを実行します. それ以外は, 件数を知らせるだけに留めます.
    */
   const submit = (): void => {
     const trimmed = value.trim();

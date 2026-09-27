@@ -114,6 +114,7 @@ fn hex_dump(bytes: &[u8]) -> String {
 ///
 /// (文字コード名, テキスト).
 fn decode_text(bytes: &[u8], truncated: bool) -> (String, String) {
+    // BOM があれば, それが最も確実な判定なので優先する.
     if let Some((encoding, bom_len)) = Encoding::for_bom(bytes) {
         let (text, _) = encoding.decode_without_bom_handling(&bytes[bom_len..]);
         return (encoding.name().to_string(), text.into_owned());
@@ -121,11 +122,14 @@ fn decode_text(bytes: &[u8], truncated: bool) -> (String, String) {
     match std::str::from_utf8(bytes) {
         Ok(text) => return ("UTF-8".to_string(), text.to_string()),
         Err(e) if truncated && e.error_len().is_none() => {
+            // 先頭部分だけを読んだ場合, 末尾が文字の途中で切れているだけなら UTF-8 として扱ってよい.
+            // (`error_len` が None は「不正なバイト列」ではなく「データ不足」を意味する.)
             let text = String::from_utf8_lossy(&bytes[..e.valid_up_to()]).into_owned();
             return ("UTF-8".to_string(), text);
         }
         Err(_) => {}
     }
+    // UTF-8 でなければ, Shift_JIS や EUC-JP などを統計的に推測する.
     let mut detector = EncodingDetector::new(Iso2022JpDetection::Allow);
     detector.feed(bytes, !truncated);
     let encoding = detector.guess(None, Utf8Detection::Deny);
@@ -156,6 +160,7 @@ pub fn build_preview(path: &Path) -> Result<Preview, String> {
         if size > MAX_IMAGE_BYTES {
             return Err(format!("Image is too large to preview: {} bytes", size));
         }
+        // 画像は全体を base64 の data URL にするため, 丸ごと読み込む.
         let bytes = fs::read(path).map_err(|e| e.to_string())?;
         return Ok(Preview {
             kind: PreviewKind::Image,
@@ -167,12 +172,15 @@ pub fn build_preview(path: &Path) -> Result<Preview, String> {
         });
     }
 
+    // 画像以外は, 大きなファイルでも重くならないよう先頭部分だけ読む.
     let mut bytes = Vec::new();
     fs::File::open(path)
         .and_then(|f| f.take(MAX_TEXT_BYTES).read_to_end(&mut bytes))
         .map_err(|e| e.to_string())?;
     let truncated = size > MAX_TEXT_BYTES;
 
+    // BOM 付きの UTF-16 テキストなどを誤判定しないよう, BOM が無い場合だけ NUL バイトの有無で
+    // バイナリかどうかを判定する.
     let sniff = &bytes[..bytes.len().min(BINARY_SNIFF_BYTES)];
     if Encoding::for_bom(&bytes).is_none() && sniff.contains(&0) {
         return Ok(Preview {

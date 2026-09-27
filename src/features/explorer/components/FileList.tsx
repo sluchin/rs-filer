@@ -102,6 +102,7 @@ export default function FileList({
 
   const rows: ReactElement[] = [];
   for (let row = start; row < end; row++) {
+    // 行の高さはどれも同じ想定なので, 描画する範囲の先頭の行だけを測ればよい.
     const rowMeasureRef = row === start ? measureRowRef : () => {};
     if (hasParent && row === 0) {
       rows.push(
