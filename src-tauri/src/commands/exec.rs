@@ -61,12 +61,17 @@ fn build_command(command: &str, paths: &[String]) -> String {
 /// 成功した場合は [`Ok(())`], コマンドが空の場合や起動に失敗した場合はエラー文字列を含む [`Err`].
 fn run_with(full_command: &str, runner: &dyn Fn(&str) -> bool) -> Result<(), String> {
     if full_command.trim().is_empty() {
-        return Err("Command is empty".to_string());
+        let message = "Command is empty".to_string();
+        log::error!("{}", message);
+        return Err(message);
     }
     if runner(full_command) {
+        log::info!("外部コマンド実行: {}", full_command);
         Ok(())
     } else {
-        Err(format!("Failed to start command: {}", full_command))
+        let message = format!("Failed to start command: {}", full_command);
+        log::error!("{}", message);
+        Err(message)
     }
 }
 
@@ -123,7 +128,9 @@ fn existing_paths(paths: &[String]) -> Vec<String> {
 pub fn run_external_command(command: String, paths: Vec<String>) -> Result<(), String> {
     let paths = existing_paths(&paths);
     if paths.is_empty() {
-        return Err("No existing targets".to_string());
+        let message = "No existing targets".to_string();
+        log::error!("{}", message);
+        return Err(message);
     }
     run_with(&build_command(&command, &paths), &spawn_in_shell)
 }

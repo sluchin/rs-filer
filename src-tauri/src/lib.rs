@@ -1,17 +1,20 @@
 //! `rsfiler` バックエンドアプリケーションのコアライブラリ.
 //!
 //! Tauri アプリケーションの初期化, IPC ハンドラー (`commands` モジュール) の設定,
-//! およびイベントループの実行を管理します.
+//! ログ出力 (`logging` モジュール) の初期化, およびイベントループの実行を管理します.
 
 /// フロントエンドと通信する IPC コマンドを提供するモジュール.
 pub mod commands;
+/// 標準エラー出力とログファイルへのログ出力を設定するモジュール.
+pub mod logging;
 
 /// Tauri アプリケーションをビルドして実行します.
 ///
 /// 以下の処理を順に実行します:
-/// 1. デフォルトの Tauri ビルダーの初期化
-/// 2. フロントエンドから呼び出し可能な IPC ハンドラーの登録 (`commands` モジュールの各コマンド)
-/// 3. コンテキストの生成とアプリケーションループのスタート
+/// 1. ログ出力 (標準エラー出力とログファイル) の初期化
+/// 2. デフォルトの Tauri ビルダーの初期化
+/// 3. フロントエンドから呼び出し可能な IPC ハンドラーの登録 (`commands` モジュールの各コマンド)
+/// 4. コンテキストの生成とアプリケーションループのスタート
 ///
 /// # Panics
 ///
@@ -20,6 +23,7 @@ pub mod commands;
 #[cfg(not(tarpaulin_include))]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    logging::init_logging();
     tauri::Builder::default()
         .manage(commands::TransferState::default())
         .invoke_handler(tauri::generate_handler![
@@ -42,7 +46,8 @@ pub fn run() {
             commands::open::open_terminal,
             commands::exec::run_external_command,
             commands::fs::list_drives,
-            commands::fs::get_disk_space
+            commands::fs::get_disk_space,
+            commands::frontend_log::log_frontend_message
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
