@@ -139,6 +139,7 @@ const MODIFIER_ORDER = ["C", "M", "S"];
  * @returns 正規化した表記. 不正な場合は null.
  */
 function normalizeToken(token: string): string | null {
+  // 先頭の修飾キー (`C-`/`M-`/`S-` の繰り返し) と, 残りのキー名を分離する.
   const match = /^((?:[CMS]-)*)(.+)$/.exec(token);
   if (!match) {
     return null;
@@ -147,12 +148,15 @@ function normalizeToken(token: string): string | null {
   const key = match[2];
   const named = NAMED_KEYS.has(key);
   if (!named && [...key].length !== 1) {
+    // 名前の無いキーは, 1 文字だけを許す.
     return null;
   }
   if (new Set(modifiers).size !== modifiers.length) {
+    // 同じ修飾キーの重複 (`C-C-x` など) は不正.
     return null;
   }
   if (modifiers.includes("S") && !named) {
+    // Shift は, 名前のあるキー (`S-Delete`) だけに使う (文字キーは Shift の有無で別の文字になるため).
     return null;
   }
   const ordered = MODIFIER_ORDER.filter((m) => modifiers.includes(m));
@@ -264,6 +268,8 @@ export function resolveKey(
   if (command !== undefined) {
     return { command };
   }
+  // このキーではコマンドが決まらないが, これで始まる, より長いキーの並びが登録されているなら,
+  // プレフィクスとして続きの入力を待つ.
   const continues = [...keymap.keys()].some((k) =>
     k.startsWith(`${sequence} `),
   );

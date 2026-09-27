@@ -55,6 +55,7 @@ export function useKeymap(
       prefixRef.current = prefix ?? null;
       setPending(prefix ?? null);
       if (command === undefined && prefix === undefined) {
+        // キーマップのどれにも当たらない: ブラウザの既定の動作 (文字入力など) に任せる.
         return;
       }
       e.preventDefault();

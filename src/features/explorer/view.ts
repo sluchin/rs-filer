@@ -124,9 +124,11 @@ export function deriveFiles(all: FileEntry[], view: ViewOptions): FileEntry[] {
  */
 export function compilePattern(pattern: string): (name: string) => boolean {
   if (pattern.length > 2 && pattern.startsWith("/") && pattern.endsWith("/")) {
+    // `/.../` で囲まれている場合は, 中身をそのまま正規表現として使う.
     const regex = new RegExp(pattern.slice(1, -1));
     return (name) => regex.test(name);
   }
+  // ワイルドカードとして扱う: 正規表現の特殊文字は無効化してから, `*`/`?` だけを有効にする.
   const source = pattern
     .replace(/[.+^${}()|[\]\\]/g, "\\$&")
     .replace(/\*/g, ".*")
