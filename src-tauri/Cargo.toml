@@ -27,6 +27,9 @@ log = "0.4.34"
 trash = "5.2.9"
 open = "5.4.4"
 fs4 = "1.1.0"
+encoding_rs = "0.8.42"
+chardetng = "1.0.0"
+base64 = "0.23.1"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
@@ -41,4 +44,3 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
 
 [dev-dependencies]
 tempfile = "3.27.0"
-tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }

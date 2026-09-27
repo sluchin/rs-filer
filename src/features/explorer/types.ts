@@ -87,7 +87,7 @@ export interface PaneState {
    */
   allFiles: FileEntry[];
   /**
-   * 現在フォーカスまたは選択されている項目のインデックス.
+   * 現在フォーカスまたは選択されている項目のインデックス. -1 は親ディレクトリの行 (`..`).
    */
   selectedIndex: number;
   /**

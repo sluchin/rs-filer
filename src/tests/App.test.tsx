@@ -1,4 +1,5 @@
 import {
+  act,
   render,
   screen,
   waitFor,
@@ -13,9 +14,18 @@ import { invoke } from "@tauri-apps/api/core";
 // @tauri-apps/api/core の invoke コマンドをモック
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
+  Channel: class {
+    onmessage?: (message: unknown) => void;
+  },
 }));
 
 const mockedInvoke = vi.mocked(invoke);
+
+/** 指定したペインの親ディレクトリの行 (`..`) を返す. */
+const parentRow = (pane: "left" | "right"): HTMLElement =>
+  within(screen.getByRole("region", { name: `${pane} pane` }))
+    .getByText("..")
+    .closest("li") as HTMLElement;
 
 /** 指定したペインの内側だけを対象にする (ステータスバーの表示と区別するため). */
 const paneOf = (pane: "left" | "right") =>
@@ -212,6 +222,13 @@ describe("App (Dual Pane)", () => {
   });
 });
 
+/** モックで, 個別に扱わなかったコマンドの既定の戻り値を返す. */
+function defaultResult(cmd: string): unknown {
+  if (cmd === "read_directory" || cmd === "check_conflicts") return [];
+  if (cmd === "run_transfer") return { processed: 1, cancelled: false };
+  return undefined;
+}
+
 /** 1 件のファイルと 1 件のディレクトリを持つホームディレクトリを模した invoke のモックを設定する. */
 function mockHome(
   extra: (cmd: string, args: unknown) => Promise<unknown> | undefined = () =>
@@ -232,7 +249,7 @@ function mockHome(
         { name: "in.txt", path: "/mock/home/FolderA/in.txt", is_dir: false },
       ]);
     }
-    return Promise.resolve(cmd === "read_directory" ? [] : undefined);
+    return Promise.resolve(defaultResult(cmd));
   });
 }
 
@@ -268,7 +285,10 @@ describe("App (キーボード操作)", () => {
     await user.keyboard("k");
     expect(cursorNames()).toEqual(["FolderA"]);
     await user.keyboard("{ArrowUp}");
-    expect(cursorNames()).toEqual(["FolderA"]);
+    expect(cursorNames()).toEqual([""]);
+    expect(parentRow("left")).toHaveAttribute("aria-current", "true");
+    await user.keyboard("{ArrowUp}");
+    expect(parentRow("left")).toHaveAttribute("aria-current", "true");
   });
 
   it("正常系: Tab と C-x o でアクティブペインが切り替わること", async () => {
@@ -583,9 +603,15 @@ describe("App (作成・名前変更・削除)", () => {
     await user.keyboard("y");
 
     await waitFor(() =>
-      expect(mockedInvoke).toHaveBeenCalledWith("delete_item", {
-        path: "/mock/home/b.txt",
-        permanent: false,
+      expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {
+        request: {
+          kind: "delete",
+          sources: ["/mock/home/b.txt"],
+          dest_dir: null,
+          overwrite: false,
+          permanent: false,
+        },
+        onProgress: expect.anything(),
       }),
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -597,7 +623,7 @@ describe("App (作成・名前変更・削除)", () => {
     await user.keyboard("{Delete}n");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mockedInvoke).not.toHaveBeenCalledWith(
-      "delete_item",
+      "run_transfer",
       expect.anything(),
     );
   });
@@ -615,16 +641,22 @@ describe("App (作成・名前変更・削除)", () => {
     await user.click(screen.getByRole("button", { name: "はい" }));
 
     await waitFor(() =>
-      expect(mockedInvoke).toHaveBeenCalledWith("delete_item", {
-        path: "/mock/home/FolderA",
-        permanent: true,
+      expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {
+        request: {
+          kind: "delete",
+          sources: ["/mock/home/FolderA"],
+          dest_dir: null,
+          overwrite: false,
+          permanent: true,
+        },
+        onProgress: expect.anything(),
       }),
     );
   });
 
   it("異常系: 削除に失敗するとエラーが表示されること", async () => {
     mockHome((cmd) =>
-      cmd === "delete_item" ? Promise.reject("削除できません") : undefined,
+      cmd === "run_transfer" ? Promise.reject("削除できません") : undefined,
     );
     const user = await renderLoaded();
     await user.keyboard("dy");
@@ -642,6 +674,12 @@ describe("App (分岐の網羅)", () => {
   it("境界: 割り当ての無いキー, 修飾キー単独ではコマンドが実行されず, window 直接のイベントは処理されること", async () => {
     mockHome();
     const user = await renderLoaded();
+    // ディスク容量の取得が終わってから, 呼び出しの記録を消す.
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("get_disk_space", {
+        path: "/mock/home",
+      }),
+    );
     mockedInvoke.mockClear();
 
     await user.keyboard("z{Shift}");
@@ -742,9 +780,15 @@ describe("App (分岐の網羅)", () => {
     await user.keyboard("c");
 
     await waitFor(() =>
-      expect(mockedInvoke).toHaveBeenCalledWith("copy_item", {
-        srcPath: "/mock/home/b.txt",
-        destDir: "/mock/home/FolderA",
+      expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {
+        request: {
+          kind: "copy",
+          sources: ["/mock/home/b.txt"],
+          dest_dir: "/mock/home/FolderA",
+          overwrite: false,
+          permanent: false,
+        },
+        onProgress: expect.anything(),
       }),
     );
     await waitFor(() =>
@@ -756,10 +800,12 @@ describe("App (分岐の網羅)", () => {
 
   it("異常系: コピーに失敗するとエラーが表示されること", async () => {
     mockHome((cmd) =>
-      cmd === "copy_item" ? Promise.reject("コピーできません") : undefined,
+      cmd === "run_transfer" ? Promise.reject("コピーできません") : undefined,
     );
     const user = await renderLoaded();
-    await user.keyboard("c");
+    await user.keyboard("{Tab}{Enter}");
+    await paneOf("right").findByText("in.txt");
+    await user.keyboard("{Tab}c");
     expect(
       await screen.findByText("エラー: コピーできません"),
     ).toBeInTheDocument();
@@ -781,14 +827,22 @@ describe("App (分岐の網羅)", () => {
   it("正常系: 右ペインがアクティブなとき, c で左ペインのディレクトリへコピーされること", async () => {
     mockHome();
     const user = await renderLoaded();
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
     await user.keyboard("{Tab}j");
 
     await user.keyboard("c");
 
     await waitFor(() =>
-      expect(mockedInvoke).toHaveBeenCalledWith("copy_item", {
-        srcPath: "/mock/home/b.txt",
-        destDir: "/mock/home",
+      expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {
+        request: {
+          kind: "copy",
+          sources: ["/mock/home/b.txt"],
+          dest_dir: "/mock/home/FolderA",
+          overwrite: false,
+          permanent: false,
+        },
+        onProgress: expect.anything(),
       }),
     );
   });
@@ -855,7 +909,7 @@ function mockPhase4(files?: () => unknown[]): void {
     if (cmd === "read_directory" && pathOf(args) === "/mock/home/FolderA") {
       return Promise.resolve([base("in.txt")]);
     }
-    return Promise.resolve(cmd === "read_directory" ? [] : undefined);
+    return Promise.resolve(defaultResult(cmd));
   });
 }
 
@@ -1260,5 +1314,690 @@ describe("App (履歴・ブックマーク)", () => {
     await waitFor(() =>
       expect(paneOf("right").getByText("a.txt")).toBeInTheDocument(),
     );
+  });
+});
+
+/** 左ペインを /mock/home, 右ペインを /mock/home/FolderA にして, 左をアクティブにした状態にする. */
+async function renderTwoDirs(): Promise<ReturnType<typeof userEvent.setup>> {
+  const user = await renderLoaded();
+  await user.keyboard("{Tab}{Enter}");
+  await paneOf("right").findByText("in.txt");
+  await user.keyboard("{Tab}");
+  return user;
+}
+
+/** 進捗の通知と完了を, テストから制御できる run_transfer のモックを設定する. */
+function mockControlledTransfer(
+  extra: (cmd: string) => Promise<unknown> | undefined = () => undefined,
+): {
+  emit: (progress: unknown) => void;
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
+} {
+  let channel: { onmessage?: (m: unknown) => void } = {};
+  let resolve: (value: unknown) => void = () => {};
+  let reject: (reason: unknown) => void = () => {};
+  mockHome((cmd, args) => {
+    const handled = extra(cmd);
+    if (handled) return handled;
+    if (cmd === "run_transfer") {
+      channel = (args as { onProgress: typeof channel }).onProgress;
+      return new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+    }
+    return undefined;
+  });
+  return {
+    emit: (progress) => channel.onmessage?.(progress),
+    resolve: (value) => resolve(value),
+    reject: (reason) => reject(reason),
+  };
+}
+
+describe("App (コピー・移動・削除の実行)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: m で移動でき, 完了の通知が表示されること", async () => {
+    mockHome();
+    const user = await renderTwoDirs();
+    await user.keyboard("j");
+
+    await user.keyboard("m");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {
+        request: {
+          kind: "move",
+          sources: ["/mock/home/b.txt"],
+          dest_dir: "/mock/home/FolderA",
+          overwrite: false,
+          permanent: false,
+        },
+        onProgress: expect.anything(),
+      }),
+    );
+    expect(await screen.findByText("移動しました: 1 件")).toBeInTheDocument();
+  });
+
+  it("正常系: c の完了で通知が表示され, 両ペインが再読み込みされること", async () => {
+    mockHome();
+    const user = await renderTwoDirs();
+    mockedInvoke.mockClear();
+
+    await user.keyboard("c");
+
+    expect(await screen.findByText("コピーしました: 1 件")).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("read_directory", {
+      path: "/mock/home",
+    });
+    expect(mockedInvoke).toHaveBeenCalledWith("read_directory", {
+      path: "/mock/home/FolderA",
+    });
+  });
+
+  it("異常系: 対向ペインが同じディレクトリのときは, コピー・移動せずエラーが表示されること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("m");
+    expect(
+      screen.getByText(/対向ペインが同じディレクトリです/),
+    ).toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "run_transfer",
+      expect.anything(),
+    );
+  });
+
+  it("正常系: マークした複数の項目がまとめてコピーされ, 完了後にマークが解除されること", async () => {
+    mockHome();
+    const user = await renderTwoDirs();
+    await user.keyboard("  ");
+    expect(statusText()).toContain("マーク: 2");
+
+    await user.keyboard("c");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {
+        request: expect.objectContaining({
+          kind: "copy",
+          sources: ["/mock/home/FolderA", "/mock/home/b.txt"],
+        }),
+        onProgress: expect.anything(),
+      }),
+    );
+    await waitFor(() => expect(statusText()).toContain("マーク: 0"));
+  });
+
+  it("正常系: 同名のものがある場合は上書きを確認し, y で上書きして実行されること", async () => {
+    mockHome((cmd) =>
+      cmd === "check_conflicts" ? Promise.resolve(["b.txt"]) : undefined,
+    );
+    const user = await renderTwoDirs();
+    await user.keyboard("j");
+
+    await user.keyboard("c");
+    expect(
+      screen.getByText(
+        "1 件が既に存在します (b.txt). 上書きしてコピーしますか? (y/n)",
+      ),
+    ).toBeInTheDocument();
+    await user.keyboard("y");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {
+        request: expect.objectContaining({ kind: "copy", overwrite: true }),
+        onProgress: expect.anything(),
+      }),
+    );
+  });
+
+  it("正常系: 上書きの確認で n を押すと実行されず, 4 件以上の同名は省略して表示されること", async () => {
+    mockHome((cmd) =>
+      cmd === "check_conflicts"
+        ? Promise.resolve(["a", "b", "c", "d"])
+        : undefined,
+    );
+    const user = await renderTwoDirs();
+
+    await user.keyboard("m");
+    expect(
+      screen.getByText(
+        "4 件が既に存在します (a, b, c ほか). 上書きして移動しますか? (y/n)",
+      ),
+    ).toBeInTheDocument();
+    await user.keyboard("n");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "run_transfer",
+      expect.anything(),
+    );
+  });
+
+  it("正常系: C と M は, 同名が無くても実行前に確認すること", async () => {
+    mockHome();
+    const user = await renderTwoDirs();
+
+    await user.keyboard("C");
+    expect(
+      screen.getByText("1 件を「/mock/home/FolderA」へコピーしますか? (y/n)"),
+    ).toBeInTheDocument();
+    await user.keyboard("n");
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "run_transfer",
+      expect.anything(),
+    );
+
+    await user.keyboard("M");
+    expect(screen.getByRole("dialog", { name: "移動" })).toBeInTheDocument();
+    await user.keyboard("y");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {
+        request: expect.objectContaining({ kind: "move", overwrite: false }),
+        onProgress: expect.anything(),
+      }),
+    );
+  });
+
+  it("異常系: 同名の確認に失敗するとエラーが表示され, 実行されないこと", async () => {
+    mockHome((cmd) =>
+      cmd === "check_conflicts" ? Promise.reject("確認できません") : undefined,
+    );
+    const user = await renderTwoDirs();
+    await user.keyboard("c");
+    expect(
+      await screen.findByText("エラー: 確認できません"),
+    ).toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "run_transfer",
+      expect.anything(),
+    );
+  });
+
+  it("正常系: マークした複数の項目の削除は, 件数で確認されること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("  d");
+    expect(
+      screen.getByText("2 件をゴミ箱へ移動しますか? (y/n)"),
+    ).toBeInTheDocument();
+    await user.keyboard("D");
+    await user.keyboard("{Escape}D");
+    expect(
+      screen.getByText("2 件を完全に削除しますか? 元に戻せません. (y/n)"),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: 実行中は進捗ダイアログが表示され, 進捗が反映され, 他のキー操作は効かないこと", async () => {
+    const transfer = mockControlledTransfer();
+    const user = await renderTwoDirs();
+    await user.keyboard("j");
+
+    await user.keyboard("c");
+    const dialog = await screen.findByRole("dialog", { name: "コピー中" });
+    expect(within(dialog).getByText("準備中...")).toBeInTheDocument();
+
+    act(() => transfer.emit({ done: 5, total: 10, current: "b.txt" }));
+    expect(within(dialog).getByText("b.txt")).toBeInTheDocument();
+    const bar = within(dialog).getByRole("progressbar");
+    expect(bar).toHaveAttribute("value", "5");
+    expect(bar).toHaveAttribute("max", "10");
+
+    await user.keyboard("k");
+    expect(cursorNames()).toEqual(["b.txt"]);
+
+    await act(async () => transfer.resolve({ processed: 1, cancelled: false }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("コピーしました: 1 件")).toBeInTheDocument();
+
+    act(() => transfer.emit({ done: 9, total: 10, current: "late" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "中断ボタン",
+      async (u: ReturnType<typeof userEvent.setup>) => {
+        await u.click(screen.getByRole("button", { name: "中断 (C-g)" }));
+      },
+    ],
+    [
+      "C-g",
+      async (u: ReturnType<typeof userEvent.setup>) => {
+        await u.keyboard("{Control>}g{/Control}");
+      },
+    ],
+    [
+      "Esc",
+      async (u: ReturnType<typeof userEvent.setup>) => {
+        await u.keyboard("{Escape}");
+      },
+    ],
+  ])(
+    "正常系: %s で中断でき, 中断した旨が通知されること",
+    async (_name, cancel) => {
+      const transfer = mockControlledTransfer();
+      const user = await renderTwoDirs();
+      await user.keyboard("j");
+      await user.keyboard("m");
+      await screen.findByRole("dialog", { name: "移動中" });
+
+      await cancel(user);
+
+      expect(mockedInvoke).toHaveBeenCalledWith("cancel_transfer");
+      expect(
+        screen.getByRole("button", { name: "中断しています..." }),
+      ).toBeDisabled();
+
+      await act(async () =>
+        transfer.resolve({ processed: 0, cancelled: true }),
+      );
+      expect(
+        await screen.findByText("移動を中断しました (0/1 件処理済み)"),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it("異常系: 中断の要求に失敗しても, 操作は続き画面は動作すること", async () => {
+    const transfer = mockControlledTransfer((cmd) =>
+      cmd === "cancel_transfer" ? Promise.reject("失敗") : undefined,
+    );
+    const user = await renderTwoDirs();
+    await user.keyboard("jdy");
+    await screen.findByRole("dialog", { name: "削除中" });
+
+    await user.click(screen.getByRole("button", { name: "中断 (C-g)" }));
+    await act(async () => transfer.resolve({ processed: 1, cancelled: false }));
+
+    expect(await screen.findByText("削除しました: 1 件")).toBeInTheDocument();
+  });
+
+  it("異常系: 実行中に失敗すると, 進捗ダイアログが閉じてエラーが表示されること", async () => {
+    const transfer = mockControlledTransfer();
+    const user = await renderTwoDirs();
+    await user.keyboard("c");
+    await screen.findByRole("dialog", { name: "コピー中" });
+
+    await act(async () => transfer.reject("ディスクがいっぱいです"));
+
+    expect(
+      await screen.findByText("エラー: ディスクがいっぱいです"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: O と C-x 4 で, 反対側のペインがアクティブなペインと同じディレクトリになること", async () => {
+    mockHome();
+    const user = await renderTwoDirs();
+    expect(paneOf("right").queryByText("FolderA")).not.toBeInTheDocument();
+
+    await user.keyboard("O");
+    await waitFor(() =>
+      expect(paneOf("right").getByText("FolderA")).toBeInTheDocument(),
+    );
+
+    await user.keyboard("{Tab}{Enter}");
+    await paneOf("right").findByText("in.txt");
+    await user.keyboard("{Control>}x{/Control}4");
+    await waitFor(() =>
+      expect(paneOf("left").getByText("in.txt")).toBeInTheDocument(),
+    );
+  });
+});
+
+describe("App (操作ログ)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: H でログのダイアログが開き, ログが無ければその旨が表示され, Esc で閉じること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("H");
+    expect(
+      screen.getByRole("dialog", { name: "操作ログ" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("ログはありません.")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: 完了の通知とエラーが, 新しいものを上にして記録されること", async () => {
+    mockHome((cmd) =>
+      cmd === "create_directory" ? Promise.reject("作成できません") : undefined,
+    );
+    const user = await renderTwoDirs();
+    await user.keyboard("c");
+    await screen.findByText("コピーしました: 1 件");
+    await user.keyboard("Nx{Enter}");
+    await screen.findByText("エラー: 作成できません");
+
+    await user.keyboard("H");
+    const items = within(screen.getByRole("dialog")).getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("作成できません");
+    expect(items[0]).toHaveAttribute("data-level", "error");
+    expect(items[1]).toHaveTextContent("コピーしました: 1 件");
+    expect(items[1]).toHaveAttribute("data-level", "info");
+    expect(items[1].textContent).toMatch(/^\d{2}:\d{2}:\d{2} /);
+
+    await user.click(screen.getByRole("button", { name: "閉じる" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: ディレクトリの読み込みエラーも記録されること", async () => {
+    mockedInvoke.mockImplementation((cmd) =>
+      cmd === "get_home_dir"
+        ? Promise.resolve("/mock/home")
+        : Promise.reject("読めません"),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findAllByText("エラー: 読めません");
+    await user.keyboard("H");
+    expect(
+      within(screen.getByRole("dialog")).getAllByText(/読めません/).length,
+    ).toBeGreaterThan(0);
+  });
+});
+
+/** 指定した名前が左ペインに表示されるまで待って, App を描画する. */
+async function renderLoadedFor(
+  name: string,
+): Promise<ReturnType<typeof userEvent.setup>> {
+  const user = userEvent.setup();
+  render(<App />);
+  await paneOf("left").findByText(name);
+  return user;
+}
+
+/** プレビュー用のファイルを持つホームと, パスごとのプレビューの戻り値を設定する. */
+function mockPreviewHome(
+  previews: Record<string, unknown | Error>,
+  delay?: Promise<void>,
+): void {
+  const file = (name: string, over: Record<string, unknown> = {}) => ({
+    name,
+    path: `/mock/home/${name}`,
+    is_dir: false,
+    size: 10,
+    modified: 1000,
+    readonly: false,
+    hidden: false,
+    ...over,
+  });
+  mockedInvoke.mockImplementation(async (cmd, args) => {
+    if (cmd === "get_home_dir") return "/mock/home";
+    if (cmd === "read_directory") {
+      return pathOf(args) === "/mock/home"
+        ? [
+            file("Dir", { is_dir: true }),
+            file("a.ts"),
+            file("b.png"),
+            file("c.bin"),
+            file("d.txt"),
+            file("e.txt"),
+          ]
+        : [];
+    }
+    if (cmd === "read_preview") {
+      await delay;
+      const result = previews[pathOf(args) as string];
+      if (result instanceof Error) throw result.message;
+      return result;
+    }
+    return defaultResult(cmd);
+  });
+}
+
+/** テキストのプレビューを作る. */
+const textPreview = (text: string, over: Record<string, unknown> = {}) => ({
+  kind: "text",
+  size: 12,
+  encoding: "UTF-8",
+  text,
+  data_url: null,
+  truncated: false,
+  ...over,
+});
+
+describe("App (プレビュー)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: v で反対側のペインの場所にプレビューが開き, ディレクトリでは対象が無い旨が表示され, もう一度 v で閉じること", async () => {
+    mockPreviewHome({});
+    const user = await renderLoadedFor("Dir");
+    expect(screen.queryByRole("region", { name: "preview pane" })).toBeNull();
+
+    await user.keyboard("v");
+    const preview = screen.getByRole("region", { name: "preview pane" });
+    expect(
+      within(preview).getByText("プレビューできる項目がありません."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "right pane" })).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "left pane" }),
+    ).toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "read_preview",
+      expect.anything(),
+    );
+
+    await user.keyboard("v");
+    expect(screen.queryByRole("region", { name: "preview pane" })).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "right pane" }),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: テキストはシンタックスハイライトされ, 文字コードとサイズが表示されること", async () => {
+    mockPreviewHome({
+      "/mock/home/a.ts": textPreview("const a = 1; <b>", { truncated: true }),
+    });
+    const user = await renderLoadedFor("Dir");
+
+    await user.keyboard("jv");
+
+    const preview = screen.getByRole("region", { name: "preview pane" });
+    expect(await within(preview).findByText("const")).toHaveClass(
+      "hljs-keyword",
+    );
+    expect(preview).toHaveTextContent("const a = 1; <b>");
+    expect(preview).toHaveTextContent("UTF-8 / 12B / 先頭のみ");
+    expect(preview.querySelector("b")).toBeNull();
+  });
+
+  it("正常系: 対応する言語が無い拡張子は, そのままのテキストで表示されること", async () => {
+    mockPreviewHome({ "/mock/home/d.txt": textPreview("plain <text>") });
+    const user = await renderLoadedFor("Dir");
+    await user.keyboard("jjjjv");
+    const preview = screen.getByRole("region", { name: "preview pane" });
+    expect(
+      await within(preview).findByText("plain <text>"),
+    ).toBeInTheDocument();
+    expect(preview.querySelector(".hljs-keyword")).toBeNull();
+  });
+
+  it("正常系: 画像とバイナリがそれぞれの形式で表示されること", async () => {
+    mockPreviewHome({
+      "/mock/home/b.png": {
+        kind: "image",
+        size: 3,
+        encoding: null,
+        text: null,
+        data_url: "data:image/png;base64,AQID",
+        truncated: false,
+      },
+      "/mock/home/c.bin": {
+        kind: "binary",
+        size: 4,
+        encoding: null,
+        text: "00000000  41 42 00 01",
+        data_url: null,
+        truncated: false,
+      },
+    });
+    const user = await renderLoadedFor("Dir");
+
+    await user.keyboard("jjv");
+    const preview = screen.getByRole("region", { name: "preview pane" });
+    const image = await within(preview).findByRole("img", { name: "b.png" });
+    expect(image).toHaveAttribute("src", "data:image/png;base64,AQID");
+
+    await user.keyboard("j");
+    expect(
+      await within(preview).findByText("00000000 41 42 00 01", {
+        normalizer: (t) => t.replace(/\s+/g, " "),
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("異常系: プレビューに失敗した場合は, そのメッセージが表示されること", async () => {
+    mockPreviewHome({ "/mock/home/a.ts": new Error("大きすぎます") });
+    const user = await renderLoadedFor("Dir");
+    await user.keyboard("jv");
+    expect(
+      await within(
+        screen.getByRole("region", { name: "preview pane" }),
+      ).findByText("大きすぎます"),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: 読み込み中は読み込み中と表示され, Tab でペインを切り替えるとプレビューの場所が入れ替わること", async () => {
+    let release: () => void = () => {};
+    const delay = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    mockPreviewHome({ "/mock/home/a.ts": textPreview("x") }, delay);
+    const user = await renderLoadedFor("Dir");
+
+    await user.keyboard("jv");
+    const preview = screen.getByRole("region", { name: "preview pane" });
+    expect(within(preview).getByText("読み込み中...")).toBeInTheDocument();
+    await act(async () => release());
+    expect(await within(preview).findByText("x")).toBeInTheDocument();
+
+    await user.keyboard("{Tab}");
+    expect(screen.queryByRole("region", { name: "right pane" })).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "left pane" })).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "preview pane" }),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: カーソルを動かすとプレビューが切り替わること", async () => {
+    mockPreviewHome({
+      "/mock/home/d.txt": textPreview("first"),
+      "/mock/home/e.txt": textPreview("second"),
+    });
+    const user = await renderLoadedFor("Dir");
+    await user.keyboard("jjjjv");
+    const preview = screen.getByRole("region", { name: "preview pane" });
+    expect(await within(preview).findByText("first")).toBeInTheDocument();
+
+    await user.keyboard("j");
+    expect(await within(preview).findByText("second")).toBeInTheDocument();
+    expect(within(preview).queryByText("first")).toBeNull();
+  });
+
+  it("境界: 項目の無いディレクトリでもプレビューを開け, 対象が無い旨が表示されること", async () => {
+    mockedInvoke.mockImplementation((cmd) =>
+      cmd === "get_home_dir" ? Promise.resolve("/empty") : Promise.resolve([]),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findAllByDisplayValue("/empty");
+
+    await user.keyboard("v");
+
+    expect(
+      within(screen.getByRole("region", { name: "preview pane" })).getByText(
+        "プレビューできる項目がありません.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: k で先頭の上の .. の行にカーソルが移り, Enter で親ディレクトリへ移動し, 元のディレクトリにカーソルが合うこと", async () => {
+    mockedInvoke.mockImplementation((cmd, args) => {
+      if (cmd === "get_home_dir") return Promise.resolve("/mock/home");
+      if (cmd === "read_directory" && pathOf(args) === "/mock") {
+        return Promise.resolve([
+          { name: "other", path: "/mock/other", is_dir: true },
+          { name: "home", path: "/mock/home", is_dir: true },
+        ]);
+      }
+      return Promise.resolve(defaultResult(cmd as string));
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findAllByDisplayValue("/mock/home");
+
+    await user.keyboard("k");
+    expect(parentRow("left")).toHaveAttribute("aria-current", "true");
+    expect(statusText()).toContain("..");
+
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("other");
+    expect(cursorNames()).toEqual(["home"]);
+  });
+
+  it("正常系: .. の行では Space・名前変更・コピーは対象なしとして扱われ, j で先頭へ戻れること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("k ");
+    expect(statusText()).toContain("マーク: 0");
+    expect(cursorNames()).toEqual(["FolderA"]);
+
+    await user.keyboard("kr");
+    expect(
+      screen.getByText("エラー: 対象の項目が選択されていません."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.keyboard("j");
+    expect(cursorNames()).toEqual(["FolderA"]);
+  });
+
+  it("正常系: .. の行をクリックするとカーソルが移り, 再読み込みしても .. の行に残ること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.click(paneOf("right").getByText(".."));
+    expect(parentRow("right")).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("region", { name: "right pane" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+
+    await user.keyboard("{F5}");
+    await waitFor(() =>
+      expect(parentRow("right")).toHaveAttribute("aria-current", "true"),
+    );
+    expect(parentRow("left")).toHaveAttribute("data-cursor", "none");
+
+    await user.click(paneOf("left").getByText(".."));
+    expect(parentRow("right")).toHaveAttribute("data-cursor", "inactive");
+  });
+
+  it("境界: ルートでは .. の行が無いので, k で先頭より上へは動かないこと", async () => {
+    mockedInvoke.mockImplementation((cmd, args) => {
+      if (cmd === "get_home_dir") return Promise.resolve("/");
+      if (cmd === "read_directory" && pathOf(args) === "/") {
+        return Promise.resolve([{ name: "usr", path: "/usr", is_dir: true }]);
+      }
+      return Promise.resolve(defaultResult(cmd as string));
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await paneOf("left").findByText("usr");
+    await user.keyboard("kk");
+    expect(cursorNames()).toEqual(["usr"]);
   });
 });
