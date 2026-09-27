@@ -8,13 +8,18 @@ describe("getParentPath", () => {
     ["C:/Users", "C:/"],
     ["C:\\Users\\foo", "C:/Users"],
     ["rel/sub", "rel"],
+    ["\\\\server\\share\\folder", "//server/share"],
+    ["//server/share/a/b", "//server/share/a"],
   ])("正常系: パス %s の親は %s であること", (current, expectedParent) => {
     expect(getParentPath(current)).toBe(expectedParent);
   });
 
-  it.each(["/", ""])("境界: パス %j は親へ移動できず null を返すこと", (p) => {
-    expect(getParentPath(p)).toBeNull();
-  });
+  it.each(["/", "", "C:/", "C:\\", "\\\\server\\share", "//server/share"])(
+    "境界: パス %j は親へ移動できず null を返すこと (ルート・ドライブ直下・UNC の共有直下)",
+    (p) => {
+      expect(getParentPath(p)).toBeNull();
+    },
+  );
 });
 
 describe("getBaseName", () => {

@@ -30,6 +30,8 @@ pub fn run() {
             commands::ops::rename_item,
             commands::app::quit_app,
             commands::config::load_keymap,
+            commands::config::load_config,
+            commands::config::save_config,
             commands::fs::complete_path,
             commands::preview::read_preview,
             commands::transfer::run_transfer,
@@ -37,6 +39,8 @@ pub fn run() {
             commands::transfer::check_conflicts,
             commands::open::open_item,
             commands::open::open_in_editor,
+            commands::open::open_terminal,
+            commands::exec::run_external_command,
             commands::fs::list_drives,
             commands::fs::get_disk_space
         ])

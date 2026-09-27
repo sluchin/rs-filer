@@ -6,6 +6,7 @@ import type {
   TransferSummary,
 } from "../features/operations/types";
 import type { Preview } from "../features/preview/types";
+import type { AppConfig } from "../features/settings/types";
 
 /**
  * 指定ディレクトリ内のファイル・ディレクトリ一覧を取得します.
@@ -167,4 +168,44 @@ export function loadKeymap(): Promise<Record<string, string | null>> {
  */
 export function quitApp(): Promise<void> {
   return invoke<void>("quit_app");
+}
+
+/**
+ * カレントディレクトリでターミナルを開きます.
+ *
+ * @param path - ターミナルの作業ディレクトリにするパス.
+ */
+export function openTerminal(path: string): Promise<void> {
+  return invoke<void>("open_terminal", { path });
+}
+
+/**
+ * 選択したファイルまたはディレクトリに対して, 外部コマンドを実行します.
+ *
+ * @param command - 実行するコマンド (`%f` を対象のパスに置き換える).
+ * @param paths - 対象のパス.
+ */
+export function runExternalCommand(
+  command: string,
+  paths: string[],
+): Promise<void> {
+  return invoke<void>("run_external_command", { command, paths });
+}
+
+/**
+ * アプリケーションの設定を読み込みます.
+ *
+ * @returns 設定. 設定ファイルが無い場合は既定値.
+ */
+export function loadConfig(): Promise<AppConfig> {
+  return invoke<AppConfig>("load_config");
+}
+
+/**
+ * アプリケーションの設定を書き込みます.
+ *
+ * @param config - 書き込む設定.
+ */
+export function saveConfig(config: AppConfig): Promise<void> {
+  return invoke<void>("save_config", { config });
 }

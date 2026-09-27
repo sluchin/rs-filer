@@ -45,6 +45,10 @@ export const COMMANDS = [
   "addBookmark",
   "palette",
   "help",
+  "openTerminal",
+  "externalCommand",
+  "cycleTheme",
+  "cycleFontSize",
   "quit",
 ] as const;
 
