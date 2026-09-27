@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import log from "loglevel";
 import { getHomeDir, readDirectory } from "../../../services/tauriApi";
 import type { FileEntry, PaneId, PaneState } from "../types";
+import { getParentPath } from "../../../utils/path";
 import { deriveFiles } from "../view";
 
 /** ペインの初期状態. */
@@ -44,12 +45,14 @@ export type ViewPatch = Partial<
  * @param files - 表示するエントリ一覧.
  * @param previous - 読み込み前のカーソル位置.
  * @param options - カーソル位置に関するオプション.
+ * @param hasParent - 親ディレクトリの行 (`..`) があるかどうか. ある場合, カーソルは -1 (`..` の行) にも置ける.
  * @returns 新しいカーソル位置.
  */
 function cursorAfterLoad(
   files: FileEntry[],
   previous: number,
   options: LoadOptions,
+  hasParent: boolean,
 ): number {
   const named =
     options.selectName === undefined
@@ -58,8 +61,9 @@ function cursorAfterLoad(
   if (named >= 0) {
     return named;
   }
+  const lowest = hasParent ? -1 : 0;
   return options.keepCursor
-    ? Math.min(previous, Math.max(0, files.length - 1))
+    ? Math.max(lowest, Math.min(previous, files.length - 1))
     : 0;
 }
 
@@ -68,9 +72,10 @@ function cursorAfterLoad(
  *
  * 初回マウント時に, 左右ともにホームディレクトリ (取得失敗時はルート) を開きます.
  *
+ * @param onError - 読み込みに失敗したときに, エラーメッセージを受け取る関数 (ログへの記録など).
  * @returns ペイン状態, エラー, および状態を操作する関数.
  */
-export function useFileList() {
+export function useFileList(onError: (message: string) => void) {
   const [leftPane, setLeftPane] = useState<PaneState>(INITIAL_PANE);
   const [rightPane, setRightPane] = useState<PaneState>(INITIAL_PANE);
   const [error, setError] = useState<string | null>(null);
@@ -132,7 +137,12 @@ export function useFileList() {
             files,
             filter,
             marks: moved ? [] : prev.marks.filter((m) => existing.has(m)),
-            selectedIndex: cursorAfterLoad(files, prev.selectedIndex, options),
+            selectedIndex: cursorAfterLoad(
+              files,
+              prev.selectedIndex,
+              options,
+              getParentPath(targetPath) !== null,
+            ),
             history,
             historyIndex,
           };
@@ -142,9 +152,10 @@ export function useFileList() {
       } catch (e) {
         log.error(`[React] ${pane}ペイン 読み込み失敗:`, e);
         setError(String(e));
+        onError(String(e));
       }
     },
-    [updatePane],
+    [updatePane, onError],
   );
 
   /**
@@ -163,10 +174,12 @@ export function useFileList() {
         return {
           ...next,
           files,
-          selectedIndex: cursorAfterLoad(files, prev.selectedIndex, {
-            selectName: name,
-            keepCursor: true,
-          }),
+          selectedIndex: cursorAfterLoad(
+            files,
+            prev.selectedIndex,
+            { selectName: name, keepCursor: true },
+            getParentPath(prev.currentPath) !== null,
+          ),
         };
       });
     },
@@ -174,20 +187,23 @@ export function useFileList() {
   );
 
   /**
-   * 指定したペインのカーソルを上下に動かします. 範囲外にはみ出さない.
+   * 指定したペインのカーソルを上下に動かします. 範囲外にはみ出さない. 親ディレクトリの行 (`..`) がある場合は, 先頭の上 (-1) まで動かせる.
    *
    * @param pane - 対象のペイン識別子.
    * @param delta - 移動量 (下向きが正).
    */
   const moveCursor = useCallback(
     (pane: PaneId, delta: number): void => {
-      updatePane(pane, (prev) => ({
-        ...prev,
-        selectedIndex: Math.min(
-          Math.max(0, prev.files.length - 1),
-          Math.max(0, prev.selectedIndex + delta),
-        ),
-      }));
+      updatePane(pane, (prev) => {
+        const lowest = getParentPath(prev.currentPath) !== null ? -1 : 0;
+        return {
+          ...prev,
+          selectedIndex: Math.min(
+            Math.max(lowest, prev.files.length - 1),
+            Math.max(lowest, prev.selectedIndex + delta),
+          ),
+        };
+      });
     },
     [updatePane],
   );

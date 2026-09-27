@@ -22,7 +22,7 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 - `src/`: フロントエンド (React / TypeScript)。テストは `src/tests/` に置く (`setup.ts` は vitest の setupFiles)。
 - `src-tauri/`: バックエンド (Rust)。
   - `src/lib.rs`: Tauri の初期化と IPC ハンドラーの登録 (`run`)。
-  - `src/commands/`: フロントエンドから呼ぶ IPC コマンド (`#[tauri::command]`)。`fs.rs` (一覧・ホーム・ドライブ・ディスク容量)、`ops.rs` (コピー・作成・名前変更・削除)、`open.rs` (外部アプリ・エディタで開く) に分け、`mod.rs` で再エクスポートする。
+  - `src/commands/`: フロントエンドから呼ぶ IPC コマンド (`#[tauri::command]`)。`fs.rs` (一覧・ホーム・ドライブ・ディスク容量)、`ops.rs` (作成・名前変更)、`open.rs` (外部アプリ・エディタで開く)、`transfer.rs` (コピー・移動・削除。進捗通知と中断に対応)、`preview.rs` (プレビュー) に分け、`mod.rs` で再エクスポートする。
   - `src/main.rs`: エントリポイント。
   - `tests/`: 結合テスト (`commands_test.rs`)。
   - `capabilities/default.json`: Tauri v2 の権限設定。

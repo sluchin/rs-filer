@@ -6,9 +6,6 @@
 /// フロントエンドと通信する IPC コマンドを提供するモジュール.
 pub mod commands;
 
-/// 単一ファイルまたはディレクトリをコピーするコマンド.
-pub use commands::copy_item;
-
 /// Tauri アプリケーションをビルドして実行します.
 ///
 /// 以下の処理を順に実行します:
@@ -24,14 +21,17 @@ pub use commands::copy_item;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(commands::TransferState::default())
         .invoke_handler(tauri::generate_handler![
             commands::fs::read_directory,
             commands::fs::get_home_dir,
-            commands::ops::copy_item,
             commands::ops::create_directory,
             commands::ops::create_file,
             commands::ops::rename_item,
-            commands::ops::delete_item,
+            commands::preview::read_preview,
+            commands::transfer::run_transfer,
+            commands::transfer::cancel_transfer,
+            commands::transfer::check_conflicts,
             commands::open::open_item,
             commands::open::open_in_editor,
             commands::fs::list_drives,

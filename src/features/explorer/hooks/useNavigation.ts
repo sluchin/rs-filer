@@ -87,6 +87,17 @@ export function useNavigation(
   );
 
   /**
+   * 反対側のペインを, アクティブなペインと同じディレクトリへ移動します.
+   */
+  const handleSyncPane = useCallback((): void => {
+    const current = activePane === "left" ? leftPane : rightPane;
+    loadDirectory(
+      activePane === "left" ? "right" : "left",
+      current.currentPath,
+    );
+  }, [activePane, leftPane, rightPane, loadDirectory]);
+
+  /**
    * ドライブ選択ダイアログを開きます.
    */
   const showDrives = useCallback(async (): Promise<void> => {
@@ -123,6 +134,7 @@ export function useNavigation(
     handleEnter,
     handleReload,
     handleHistory,
+    handleSyncPane,
     showDrives,
     closeDrives,
     selectDrive,

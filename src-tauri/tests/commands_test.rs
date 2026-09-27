@@ -1,9 +1,12 @@
 use rsfiler::commands::{
-    copy_item, create_directory, create_file, delete_item, get_home_dir, list_drives,
-    open_in_editor, open_item, read_directory, rename_item,
+    check_conflicts, create_directory, create_file, get_home_dir, list_drives, open_in_editor,
+    open_item, read_directory, rename_item, transfer, TransferKind, TransferRequest,
+    TransferSummary,
 };
 use std::fs::{self, File};
 use std::io::Write;
+use std::path::Path;
+use std::sync::atomic::AtomicBool;
 use tempfile::tempdir;
 
 #[test]
@@ -63,12 +66,27 @@ fn test_read_directory_non_existent_integration() {
     assert!(result.is_err(), "存在しないパスの場合は Err が返ること");
 }
 
-#[tokio::test]
-async fn test_copy_item_single_file() {
+/// 進捗を無視して, 実際の操作でコピー・移動・削除を実行する.
+fn run(request: TransferRequest) -> Result<TransferSummary, String> {
+    transfer(&request, &AtomicBool::new(false), &mut |_| {})
+}
+
+/// テスト用の依頼を作る.
+fn request(kind: TransferKind, source: &Path, dest: Option<&Path>) -> TransferRequest {
+    TransferRequest {
+        kind,
+        sources: vec![source.to_string_lossy().into_owned()],
+        dest_dir: dest.map(|p| p.to_string_lossy().into_owned()),
+        overwrite: false,
+        permanent: true,
+    }
+}
+
+#[test]
+fn test_transfer_copy_single_file_integration() {
     let temp_dir = tempdir().expect("Failed to create temp dir");
     let src_dir = temp_dir.path().join("src");
     let dest_dir = temp_dir.path().join("dest");
-
     fs::create_dir_all(&src_dir).unwrap();
     fs::create_dir_all(&dest_dir).unwrap();
 
@@ -77,73 +95,61 @@ async fn test_copy_item_single_file() {
     let mut file = File::create(&src_file_path).unwrap();
     file.write_all(content.as_bytes()).unwrap();
 
-    let result = copy_item(
-        src_file_path.to_str().unwrap().to_string(),
-        dest_dir.to_str().unwrap().to_string(),
-    )
-    .await;
+    let result = run(request(TransferKind::Copy, &src_file_path, Some(&dest_dir)));
 
-    assert!(result.is_ok(), "copy_item failed: {:?}", result.err());
-
+    assert!(result.is_ok(), "copy failed: {:?}", result.err());
     let copied_file_path = dest_dir.join("test.txt");
-    assert!(copied_file_path.exists());
     assert_eq!(fs::read_to_string(copied_file_path).unwrap(), content);
+    assert!(src_file_path.exists(), "コピー元は残ること");
 }
 
-#[tokio::test]
-async fn test_copy_item_directory_recursively() {
+#[test]
+fn test_transfer_copy_directory_recursively_integration() {
     let temp_dir = tempdir().expect("Failed to create temp dir");
     let src_dir = temp_dir.path().join("src_dir");
     let sub_dir = src_dir.join("sub_dir");
     let dest_dir = temp_dir.path().join("dest_dir");
-
     fs::create_dir_all(&sub_dir).unwrap();
     fs::create_dir_all(&dest_dir).unwrap();
+    fs::write(src_dir.join("file1.txt"), "Content 1").unwrap();
+    fs::write(sub_dir.join("file2.txt"), "Content 2").unwrap();
 
-    let file1_path = src_dir.join("file1.txt");
-    let file2_path = sub_dir.join("file2.txt");
-
-    fs::write(&file1_path, "Content 1").unwrap();
-    fs::write(&file2_path, "Content 2").unwrap();
-
-    let result = copy_item(
-        src_dir.to_str().unwrap().to_string(),
-        dest_dir.to_str().unwrap().to_string(),
-    )
-    .await;
+    let result = run(request(TransferKind::Copy, &src_dir, Some(&dest_dir)));
 
     assert!(result.is_ok(), "Directory copy failed: {:?}", result.err());
-
     let copied_dir = dest_dir.join("src_dir");
     assert!(copied_dir.join("file1.txt").is_file());
     assert!(copied_dir.join("sub_dir/file2.txt").is_file());
 }
 
-#[tokio::test]
-async fn test_copy_item_non_existent_source() {
+#[test]
+fn test_transfer_copy_non_existent_source_integration() {
     let temp_dir = tempdir().expect("Failed to create temp dir");
-    let non_existent_src = temp_dir.path().join("does_not_exist.txt");
+    let missing = temp_dir.path().join("does_not_exist.txt");
     let dest_dir = temp_dir.path().join("dest");
-
-    // コピー先ディレクトリをあらかじめ作っておく
     fs::create_dir_all(&dest_dir).unwrap();
 
-    let result = copy_item(
-        non_existent_src.to_str().unwrap().to_string(),
-        dest_dir.to_str().unwrap().to_string(),
-    )
-    .await;
+    let err_msg = run(request(TransferKind::Copy, &missing, Some(&dest_dir))).unwrap_err();
 
-    // エラーが返っていることを検証
-    assert!(result.is_err(), "Expected Err but got Ok");
-
-    // 返ってきたエラーメッセージがプロダクションコードの文字列と一致するか検証
-    let err_msg = result.unwrap_err();
     assert!(
-        err_msg.contains("Source path does not exist"),
+        err_msg.contains("Path does not exist"),
         "Unexpected error message: {}",
         err_msg
     );
+}
+
+#[test]
+fn test_transfer_move_integration() {
+    let temp_dir = tempdir().unwrap();
+    let src = temp_dir.path().join("a.txt");
+    let dest_dir = temp_dir.path().join("dest");
+    fs::create_dir_all(&dest_dir).unwrap();
+    fs::write(&src, "x").unwrap();
+
+    run(request(TransferKind::Move, &src, Some(&dest_dir))).unwrap();
+
+    assert!(!src.exists());
+    assert!(dest_dir.join("a.txt").exists());
 }
 
 #[test]
@@ -236,19 +242,28 @@ fn test_rename_item_existing_target_failure() {
 }
 
 #[test]
-fn test_delete_item_permanent_success() {
+fn test_transfer_delete_permanent_integration() {
     let dir = tempdir().unwrap();
     let file = dir.path().join("f.txt");
     fs::write(&file, "x").unwrap();
-    delete_item(file.to_string_lossy().into_owned(), true).unwrap();
+    run(request(TransferKind::Delete, &file, None)).unwrap();
     assert!(!file.exists());
 }
 
 #[test]
-fn test_delete_item_missing_failure() {
+fn test_transfer_delete_missing_integration() {
     let dir = tempdir().unwrap();
     let missing = dir.path().join("none");
-    assert!(delete_item(missing.to_string_lossy().into_owned(), true).is_err());
+    assert!(run(request(TransferKind::Delete, &missing, None)).is_err());
+}
+
+#[test]
+fn test_check_conflicts_integration() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("a.txt"), "").unwrap();
+    let dest = dir.path().to_string_lossy().into_owned();
+    let conflicts = check_conflicts(vec!["/other/a.txt".into(), "/other/b.txt".into()], dest);
+    assert_eq!(conflicts.unwrap(), vec!["a.txt".to_string()]);
 }
 
 #[test]

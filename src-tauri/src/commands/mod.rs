@@ -1,16 +1,25 @@
 //! フロントエンドから呼び出す IPC コマンドを提供するモジュール.
 //!
-//! 機能ごとに, ファイルシステムの情報取得 (`fs`), ファイル操作 (`ops`),
-//! 外部アプリケーションで開く操作 (`open`) のサブモジュールへ分けています.
+//! 機能ごとに, ファイルシステムの情報取得 (`fs`), ファイルの作成・名前変更 (`ops`),
+//! 外部アプリケーションで開く操作 (`open`), コピー・移動・削除 (`transfer`) のサブモジュールへ分けています.
 //! 各コマンドは, 呼び出しやすいようにこのモジュールから再エクスポートします.
 
 /// ディレクトリ一覧・ホームディレクトリ・ドライブ・ディスク容量を取得するコマンド.
 pub mod fs;
 /// 関連付けられたアプリケーションまたはエディタで開くコマンド.
 pub mod open;
-/// ファイル・ディレクトリのコピー・作成・名前変更・削除を行うコマンド.
+/// ファイル・ディレクトリの作成・名前変更を行うコマンド.
 pub mod ops;
+/// ファイルのプレビューを取得するコマンド.
+pub mod preview;
+/// コピー・移動・削除を, 進捗の通知と中断に対応して実行するコマンド.
+pub mod transfer;
 
 pub use fs::{get_disk_space, get_home_dir, list_drives, read_directory, DiskSpace, FileEntry};
 pub use open::{open_in_editor, open_item};
-pub use ops::{copy_item, create_directory, create_file, delete_item, rename_item};
+pub use ops::{create_directory, create_file, rename_item};
+pub use preview::{read_preview, Preview, PreviewKind};
+pub use transfer::{
+    cancel_transfer, check_conflicts, find_conflicts, run_transfer, transfer, transfer_with,
+    TransferKind, TransferProgress, TransferRequest, TransferState, TransferSummary,
+};
