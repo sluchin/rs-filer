@@ -30,9 +30,20 @@ fn system_open(path: &Path) -> Result<(), String> {
 /// 成功した場合は [`Ok(())`], 対象が存在しない場合や起動に失敗した場合はエラー文字列を含む [`Err`].
 fn open_with(path: &Path, opener: impl FnOnce(&Path) -> Result<(), String>) -> Result<(), String> {
     if !path.exists() {
-        return Err(format!("Path does not exist: {}", path.display()));
+        let message = format!("Path does not exist: {}", path.display());
+        log::error!("{}", message);
+        return Err(message);
     }
-    opener(path)
+    match opener(path) {
+        Ok(()) => {
+            log::info!("開く: {}", path.display());
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("開く失敗: {} ({})", path.display(), e);
+            Err(e)
+        }
+    }
 }
 
 /// 関連付けられた外部アプリケーションでファイルまたはディレクトリを開きます.
@@ -155,15 +166,20 @@ fn open_terminal_with(
     spawner: &dyn Fn(&str, &[String], &Path) -> bool,
 ) -> Result<(), String> {
     if !dir.is_dir() {
-        return Err(format!("Not a directory: {}", dir.display()));
+        let message = format!("Not a directory: {}", dir.display());
+        log::error!("{}", message);
+        return Err(message);
     }
     if candidates
         .iter()
         .any(|(program, args)| spawner(program, args, dir))
     {
+        log::info!("ターミナルを開く: {}", dir.display());
         Ok(())
     } else {
-        Err("Failed to start a terminal".to_string())
+        let message = "Failed to start a terminal".to_string();
+        log::error!("{} ({})", message, dir.display());
+        Err(message)
     }
 }
 

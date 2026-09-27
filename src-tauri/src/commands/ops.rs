@@ -39,7 +39,12 @@ fn join_valid_name(parent: &str, name: &str) -> Result<PathBuf, String> {
 #[tauri::command]
 pub fn create_directory(parent: String, name: String) -> Result<(), String> {
     let path = join_valid_name(&parent, &name)?;
-    fs::create_dir(&path).map_err(|e| e.to_string())
+    fs::create_dir(&path).map_err(|e| {
+        log::error!("ディレクトリ作成失敗: {} ({})", path.display(), e);
+        e.to_string()
+    })?;
+    log::info!("ディレクトリ作成: {}", path.display());
+    Ok(())
 }
 
 /// 指定ディレクトリの直下に新しい空ファイルを作成します.
@@ -61,8 +66,12 @@ pub fn create_file(parent: String, name: String) -> Result<(), String> {
         .write(true)
         .create_new(true)
         .open(&path)
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+        .map_err(|e| {
+            log::error!("ファイル作成失敗: {} ({})", path.display(), e);
+            e.to_string()
+        })?;
+    log::info!("ファイル作成: {}", path.display());
+    Ok(())
 }
 
 /// ファイルまたはディレクトリの名前を, 同じディレクトリ内で変更します.
@@ -82,16 +91,25 @@ pub fn create_file(parent: String, name: String) -> Result<(), String> {
 pub fn rename_item(path: String, new_name: String) -> Result<(), String> {
     let src = Path::new(&path);
     if fs::symlink_metadata(src).is_err() {
-        return Err(format!("Path does not exist: {}", path));
+        let message = format!("Path does not exist: {}", path);
+        log::error!("{}", message);
+        return Err(message);
     }
     let parent = src
         .parent()
         .ok_or_else(|| "Invalid source path".to_string())?;
     let dest = join_valid_name(&parent.to_string_lossy(), &new_name)?;
     if fs::symlink_metadata(&dest).is_ok() {
-        return Err(format!("Already exists: {}", dest.display()));
+        let message = format!("Already exists: {}", dest.display());
+        log::error!("{}", message);
+        return Err(message);
     }
-    fs::rename(src, &dest).map_err(|e| e.to_string())
+    fs::rename(src, &dest).map_err(|e| {
+        log::error!("名前変更失敗: {} -> {} ({})", path, dest.display(), e);
+        e.to_string()
+    })?;
+    log::info!("名前変更: {} -> {}", path, dest.display());
+    Ok(())
 }
 
 #[cfg(test)]

@@ -401,8 +401,11 @@ pub fn transfer_with(
     on_progress: &mut dyn FnMut(TransferProgress),
 ) -> Result<TransferSummary, String> {
     if request.sources.is_empty() {
-        return Err("No targets".to_string());
+        let message = "No targets".to_string();
+        log::error!("{}", message);
+        return Err(message);
     }
+    log::info!("{:?} 開始: {} 件", request.kind, request.sources.len());
     let mut processed = 0;
     // 削除は件数, コピー・移動はバイト数で進捗を数えるため, 種類ごとに全体量の求め方が異なる.
     // try_for_each は, 途中の要素が Err (中断・失敗) を返した時点でそこで止まり, 残りは処理しない.
@@ -446,15 +449,24 @@ pub fn transfer_with(
     };
     // 中断は呼び出し側の想定内の結果として Ok で返し, それ以外の失敗だけをエラーにする.
     match result {
-        Ok(()) => Ok(TransferSummary {
-            processed,
-            cancelled: false,
-        }),
-        Err(Stop::Cancelled) => Ok(TransferSummary {
-            processed,
-            cancelled: true,
-        }),
-        Err(Stop::Failed(message)) => Err(message),
+        Ok(()) => {
+            log::info!("{:?} 完了: {} 件", request.kind, processed);
+            Ok(TransferSummary {
+                processed,
+                cancelled: false,
+            })
+        }
+        Err(Stop::Cancelled) => {
+            log::info!("{:?} 中断: {} 件処理済み", request.kind, processed);
+            Ok(TransferSummary {
+                processed,
+                cancelled: true,
+            })
+        }
+        Err(Stop::Failed(message)) => {
+            log::error!("{:?} 失敗: {}", request.kind, message);
+            Err(message)
+        }
     }
 }
 
@@ -562,6 +574,7 @@ pub async fn run_transfer(
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
 pub fn cancel_transfer(state: tauri::State<'_, TransferState>) {
+    log::info!("中断要求");
     state.cancel();
 }
 

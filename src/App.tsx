@@ -37,10 +37,13 @@ import { useSettings } from "./hooks/useSettings";
 import { targetsOf } from "./features/operations/hooks/useTransfer";
 import OperationDialog from "./features/operations/components/OperationDialog";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
+import { installLogForwarding } from "./services/logForwarder";
 
 /** ページ送り (`PageUp` / `PageDown`) で動かす行数. */
 const PAGE_SIZE = 10;
 
+// バックエンドのログファイルにも残すため, コンソールへの出力に加えて IPC 経由で転送する.
+installLogForwarding();
 // 開発環境では debug 以上, 本番では warn 以上を出力.
 if (import.meta.env.DEV) {
   log.setLevel("debug");

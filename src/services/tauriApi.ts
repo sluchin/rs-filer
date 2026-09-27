@@ -210,3 +210,19 @@ export function loadConfig(): Promise<AppConfig> {
 export function saveConfig(config: AppConfig): Promise<void> {
   return invoke<void>("save_config", { config });
 }
+
+/** バックエンドへ転送する, ログの重大度. */
+export type LogLevel = "debug" | "info" | "warn" | "error";
+
+/**
+ * フロントエンドのログメッセージを, バックエンドのログ (標準エラー出力とログファイル) へ転送します.
+ *
+ * @param level - ログの重大度.
+ * @param message - ログの内容.
+ */
+export function logFrontendMessage(
+  level: LogLevel,
+  message: string,
+): Promise<void> {
+  return invoke<void>("log_frontend_message", { level, message });
+}

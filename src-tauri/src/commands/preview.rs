@@ -214,7 +214,11 @@ pub fn build_preview(path: &Path) -> Result<Preview, String> {
 /// プレビュー. 失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command(async)]
 pub fn read_preview(path: String) -> Result<Preview, String> {
-    build_preview(Path::new(&path))
+    let result = build_preview(Path::new(&path));
+    if let Err(e) = &result {
+        log::error!("プレビュー取得失敗: {} ({})", path, e);
+    }
+    result
 }
 
 #[cfg(test)]
