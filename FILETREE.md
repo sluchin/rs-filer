@@ -32,7 +32,8 @@ src/
 │   ├── Dialog.tsx                      # 確認ダイアログ (上書き確認・削除確認等)
 │   ├── ContextMenu.tsx                 # 右クリックメニュー
 │   ├── Modal.tsx                       # 汎用モーダル枠
-│   └── StatusBar.tsx                   # ステータスバー (選択件数・サイズ合計・エラー表示)
+│   ├── KeyHintBar.tsx                  # 画面下部のキー操作案内
+│   └── StatusBar.tsx                   # ステータスバー (カーソル位置の名前・ディスク空き容量・エラー表示)
 │
 ├── features/                           # 機能ごとのモジュール
 │   ├── explorer/                       # ファイル一覧・ペイン関連 (Phase 2〜3)
@@ -45,13 +46,15 @@ src/
 │   │   │   └── FileItem.tsx            # 行要素 (アイコン, 名前, 拡張子, サイズ, 更新日時)
 │   │   ├── hooks/
 │   │   │   ├── useFileList.ts          # ファイル一覧の取得・ファイル監視イベント連携
+│   │   │   ├── useDiskSpace.ts         # アクティブペインのディスク空き容量の取得
 │   │   │   ├── useNavigation.ts        # ディレクトリ移動・履歴 (戻る/進む/親へ)
 │   │   │   └── useFileSelection.ts     # カーソル移動・複数選択・マーク処理
 │   │   └── types.ts                    # FileEntry, PaneState, SortOption等の型定義
 │   │
 │   ├── operations/                     # ファイル操作・進捗管理 (Phase 3)
 │   │   ├── components/
-│   │   │   └── TaskProgressModal.tsx   # コピー/移動/削除の非同期進捗バー表示
+│   │   │   ├── OperationDialog.tsx         # 名前入力・確認ダイアログ (作成/リネーム/削除)
+│   │   └── TaskProgressModal.tsx   # コピー/移動/削除の非同期進捗バー表示
 │   │   ├── hooks/
 │   │   │   └── useFileOperations.ts    # コピー・移動・削除・リネーム呼び出し
 │   │   └── types.ts                    # TransferProgress, OperationType等の定義

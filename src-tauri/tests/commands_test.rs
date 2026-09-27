@@ -1,4 +1,7 @@
-use rsfiler::commands::{copy_item, get_home_dir, read_directory};
+use rsfiler::commands::{
+    copy_item, create_directory, create_file, delete_item, get_home_dir, list_drives,
+    open_in_editor, open_item, read_directory, rename_item,
+};
 use std::fs::{self, File};
 use std::io::Write;
 use tempfile::tempdir;
@@ -141,4 +144,129 @@ async fn test_copy_item_non_existent_source() {
         "Unexpected error message: {}",
         err_msg
     );
+}
+
+#[test]
+fn test_create_directory_success() {
+    let dir = tempdir().unwrap();
+    let parent = dir.path().to_string_lossy().into_owned();
+    create_directory(parent, "newdir".to_string()).unwrap();
+    assert!(dir.path().join("newdir").is_dir());
+}
+
+#[test]
+fn test_create_directory_existing_failure() {
+    let dir = tempdir().unwrap();
+    let parent = dir.path().to_string_lossy().into_owned();
+    create_directory(parent.clone(), "d".to_string()).unwrap();
+    assert!(create_directory(parent, "d".to_string()).is_err());
+}
+
+#[test]
+fn test_create_directory_invalid_name_failure() {
+    let dir = tempdir().unwrap();
+    let parent = dir.path().to_string_lossy().into_owned();
+    assert!(create_directory(parent, "a/b".to_string()).is_err());
+}
+
+#[test]
+fn test_create_file_success() {
+    let dir = tempdir().unwrap();
+    let parent = dir.path().to_string_lossy().into_owned();
+    create_file(parent, "new.txt".to_string()).unwrap();
+    assert_eq!(fs::read(dir.path().join("new.txt")).unwrap().len(), 0);
+}
+
+#[test]
+fn test_create_file_existing_failure() {
+    let dir = tempdir().unwrap();
+    let existing = dir.path().join("keep.txt");
+    fs::write(&existing, "data").unwrap();
+    let parent = dir.path().to_string_lossy().into_owned();
+    assert!(create_file(parent, "keep.txt".to_string()).is_err());
+    assert_eq!(
+        fs::read_to_string(&existing).unwrap(),
+        "data",
+        "既存の内容が保たれること"
+    );
+}
+
+#[test]
+fn test_rename_item_success() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.txt");
+    fs::write(&old, "x").unwrap();
+    rename_item(old.to_string_lossy().into_owned(), "new.txt".to_string()).unwrap();
+    assert!(!old.exists());
+    assert!(dir.path().join("new.txt").exists());
+}
+
+#[test]
+fn test_rename_item_missing_failure() {
+    let dir = tempdir().unwrap();
+    let missing = dir.path().join("none");
+    assert!(rename_item(missing.to_string_lossy().into_owned(), "x".to_string()).is_err());
+}
+
+#[test]
+fn test_rename_item_root_failure() {
+    // 親ディレクトリを持たないパス
+    let root = if cfg!(windows) { "C:/" } else { "/" };
+    assert!(rename_item(root.to_string(), "x".to_string()).is_err());
+}
+
+#[test]
+fn test_rename_item_invalid_name_failure() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.txt");
+    fs::write(&old, "x").unwrap();
+    assert!(rename_item(old.to_string_lossy().into_owned(), "..".to_string()).is_err());
+    assert!(old.exists());
+}
+
+#[test]
+fn test_rename_item_existing_target_failure() {
+    let dir = tempdir().unwrap();
+    let a = dir.path().join("a.txt");
+    let b = dir.path().join("b.txt");
+    fs::write(&a, "a").unwrap();
+    fs::write(&b, "b").unwrap();
+    assert!(rename_item(a.to_string_lossy().into_owned(), "b.txt".to_string()).is_err());
+    assert_eq!(fs::read_to_string(&b).unwrap(), "b", "上書きされないこと");
+}
+
+#[test]
+fn test_delete_item_permanent_success() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("f.txt");
+    fs::write(&file, "x").unwrap();
+    delete_item(file.to_string_lossy().into_owned(), true).unwrap();
+    assert!(!file.exists());
+}
+
+#[test]
+fn test_delete_item_missing_failure() {
+    let dir = tempdir().unwrap();
+    let missing = dir.path().join("none");
+    assert!(delete_item(missing.to_string_lossy().into_owned(), true).is_err());
+}
+
+#[test]
+fn test_open_item_missing_failure() {
+    let dir = tempdir().unwrap();
+    let missing = dir.path().join("none");
+    assert!(open_item(missing.to_string_lossy().into_owned()).is_err());
+}
+
+#[test]
+fn test_open_in_editor_missing_failure() {
+    let dir = tempdir().unwrap();
+    let missing = dir.path().join("none");
+    assert!(open_in_editor(missing.to_string_lossy().into_owned()).is_err());
+}
+
+#[test]
+fn test_list_drives_success() {
+    let drives = list_drives();
+    assert!(!drives.is_empty(), "少なくとも 1 つのルートが返ること");
 }
