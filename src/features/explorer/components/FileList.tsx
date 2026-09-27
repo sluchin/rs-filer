@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useEffect, useRef, type ReactElement } from "react";
 import type { FileEntry } from "../types";
 import FileIcon from "./FileIcon";
 import FileItem from "./FileItem";
@@ -9,7 +9,7 @@ import FileItem from "./FileItem";
 interface FileListProps {
   /** 表示するエントリ一覧. */
   files: FileEntry[];
-  /** カーソル位置のインデックス. */
+  /** カーソル位置のインデックス. -1 は親ディレクトリの行 (`..`). */
   selectedIndex: number;
   /** このペインがアクティブかどうか. */
   isActive: boolean;
@@ -21,10 +21,51 @@ interface FileListProps {
   hasParent: boolean;
   /** `..` の行をダブルクリックしたときのハンドラー. */
   onParent: () => void;
+  /** `..` の行をクリックしたときのハンドラー. */
+  onParentClick: () => void;
   /** 項目クリック時のハンドラー. */
   onItemClick: (index: number, file: FileEntry) => void;
   /** 項目ダブルクリック時のハンドラー. */
   onItemOpen: (index: number, file: FileEntry) => void;
+}
+
+/**
+ * 親ディレクトリの行 (`..`). ファイルの行と同様に, カーソルを置ける.
+ *
+ * @param props - カーソルの状態とハンドラー.
+ * @returns 行のReact要素.
+ */
+function ParentRow({
+  cursor,
+  onClick,
+  onDoubleClick,
+}: {
+  cursor: "active" | "inactive" | "none";
+  onClick: () => void;
+  onDoubleClick: () => void;
+}): ReactElement {
+  const ref = useRef<HTMLLIElement>(null);
+
+  // カーソルが見える位置までスクロールする (jsdom には scrollIntoView が無い).
+  useEffect(() => {
+    if (cursor !== "none") {
+      ref.current?.scrollIntoView?.({ block: "nearest" });
+    }
+  }, [cursor]);
+
+  return (
+    <li
+      ref={ref}
+      className="file-row"
+      data-cursor={cursor}
+      aria-current={cursor === "active" ? "true" : undefined}
+      onClick={onClick}
+      onDoubleClick={onDoubleClick}
+    >
+      <FileIcon kind="parent" />
+      <span className="col-name">..</span>
+    </li>
+  );
 }
 
 /**
@@ -41,6 +82,7 @@ export default function FileList({
   showDetails,
   hasParent,
   onParent,
+  onParentClick,
   onItemClick,
   onItemOpen,
 }: FileListProps): ReactElement {
@@ -58,10 +100,13 @@ export default function FileList({
       </div>
       <ul className="file-rows">
         {hasParent && (
-          <li className="file-row" onDoubleClick={onParent}>
-            <FileIcon kind="parent" />
-            <span className="col-name">..</span>
-          </li>
+          <ParentRow
+            cursor={
+              selectedIndex !== -1 ? "none" : isActive ? "active" : "inactive"
+            }
+            onClick={onParentClick}
+            onDoubleClick={onParent}
+          />
         )}
         {files.map((file, idx) => (
           <FileItem

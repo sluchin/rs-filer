@@ -23,6 +23,8 @@ interface PaneProps {
   onPathSubmit: (value: string) => void;
   /** 絞り込み文字列の変更ハンドラー. null で絞り込みを解除する. */
   onFilterChange: (value: string | null) => void;
+  /** `..` の行クリックのハンドラー. */
+  onParentClick: () => void;
   /** 項目クリックのハンドラー. */
   onItemClick: (index: number, file: FileEntry) => void;
   /** 項目ダブルクリックのハンドラー. */
@@ -45,6 +47,7 @@ export default function Pane({
   isActive,
   onActivate,
   onParent,
+  onParentClick,
   onPathSubmit,
   onFilterChange,
   onItemClick,
@@ -84,6 +87,7 @@ export default function Pane({
         showDetails={state.showDetails}
         hasParent={getParentPath(state.currentPath) !== null}
         onParent={onParent}
+        onParentClick={onParentClick}
         onItemClick={onItemClick}
         onItemOpen={onItemOpen}
       />

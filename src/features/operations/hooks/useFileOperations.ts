@@ -1,10 +1,8 @@
 import { useCallback, useState } from "react";
 import log from "loglevel";
 import {
-  copyItem,
   createDirectory,
   createFile,
-  deleteItem,
   openInEditor,
   openItem,
   renameItem,
@@ -14,7 +12,7 @@ import type { FileEntry, PaneId, PaneState } from "../../explorer/types";
 import type { DialogState } from "../types";
 
 /**
- * ファイル操作 (作成・名前変更・削除・外部アプリで開く) を扱うフック.
+ * ファイル操作 (作成・名前変更・外部アプリで開く) を扱うフック.
  *
  * @param activePane - アクティブなペイン識別子.
  * @param leftPane - 左ペインの状態.
@@ -54,6 +52,28 @@ export function useFileOperations(
         onSubmit: (value) => {
           setDialog(null);
           onSubmit(value);
+        },
+      });
+    },
+    [],
+  );
+
+  /**
+   * はい/いいえで確認するダイアログを開きます.
+   *
+   * @param title - ダイアログの見出し.
+   * @param message - 確認する内容.
+   * @param onConfirm - 承諾したときの処理.
+   */
+  const openConfirm = useCallback(
+    (title: string, message: string, onConfirm: () => void): void => {
+      setDialog({
+        kind: "confirm",
+        title,
+        message,
+        onConfirm: () => {
+          setDialog(null);
+          onConfirm();
         },
       });
     },
@@ -158,52 +178,6 @@ export function useFileOperations(
     });
   }, [selectedEntry, activePane, leftPane, rightPane, attempt, loadDirectory]);
 
-  /**
-   * カーソル位置の項目を, 確認のうえ削除します.
-   *
-   * @param permanent - true の場合は完全に削除し, false の場合はゴミ箱へ移動する.
-   */
-  const startDelete = useCallback(
-    (permanent: boolean): void => {
-      const file = selectedEntry();
-      if (!file) {
-        return;
-      }
-      const pane = activePane;
-      const dir = (pane === "left" ? leftPane : rightPane).currentPath;
-      setDialog({
-        kind: "confirm",
-        title: permanent ? "完全に削除" : "ゴミ箱へ移動",
-        message: permanent
-          ? `「${file.name}」を完全に削除しますか? 元に戻せません. (y/n)`
-          : `「${file.name}」をゴミ箱へ移動しますか? (y/n)`,
-        onConfirm: () => {
-          setDialog(null);
-          attempt("削除", async () => {
-            await deleteItem(file.path, permanent);
-            await loadDirectory(pane, dir, { keepCursor: true });
-          });
-        },
-      });
-    },
-    [selectedEntry, activePane, leftPane, rightPane, attempt, loadDirectory],
-  );
-
-  /** カーソル位置の項目を, 対向ペインのディレクトリへコピーします. */
-  const copyToOpposite = useCallback((): void => {
-    const file = selectedEntry();
-    if (!file) {
-      return;
-    }
-    const targetPane: PaneId = activePane === "left" ? "right" : "left";
-    const targetDir = (targetPane === "left" ? leftPane : rightPane)
-      .currentPath;
-    attempt("コピー", async () => {
-      await copyItem(file.path, targetDir);
-      await loadDirectory(targetPane, targetDir, { keepCursor: true });
-    });
-  }, [selectedEntry, activePane, leftPane, rightPane, attempt, loadDirectory]);
-
   /** カーソル位置の項目を, 関連付けられた外部アプリで開きます. */
   const openExternal = useCallback((): void => {
     const file = selectedEntry();
@@ -224,11 +198,10 @@ export function useFileOperations(
     dialog,
     closeDialog,
     openPrompt,
+    openConfirm,
     startMkdir,
     startTouch,
     startRename,
-    startDelete,
-    copyToOpposite,
     openExternal,
     openEditor,
   };

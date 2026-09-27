@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, type ReactElement } from "react";
 import log from "loglevel";
 import BookmarkMenu from "./features/bookmarks/components/BookmarkMenu";
 import { useBookmarks } from "./features/bookmarks/hooks/useBookmarks";
+import OperationLogDialog from "./components/OperationLogDialog";
 import KeyHintBar from "./components/KeyHintBar";
 import StatusBar from "./components/StatusBar";
 import DualPaneContainer from "./features/explorer/components/DualPaneContainer";
@@ -14,6 +15,12 @@ import type { FileEntry, PaneId } from "./features/explorer/types";
 import { nextSort, sortLabel } from "./features/explorer/view";
 import type { Command } from "./features/keybindings/types";
 import { useKeymap } from "./features/keybindings/useKeymap";
+import TaskProgressModal from "./features/operations/components/TaskProgressModal";
+import { useTransfer } from "./features/operations/hooks/useTransfer";
+import PreviewPane from "./features/preview/components/PreviewPane";
+import { usePreview } from "./features/preview/hooks/usePreview";
+import { useNotice } from "./hooks/useNotice";
+import { useOperationLog } from "./hooks/useOperationLog";
 import OperationDialog from "./features/operations/components/OperationDialog";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
 
@@ -42,6 +49,19 @@ export default function App(): ReactElement {
     right: null,
   });
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
+  const [previewOn, setPreviewOn] = useState(false);
+  const operationLog = useOperationLog();
+  const { addLog } = operationLog;
+  const logError = useCallback(
+    (message: string): void => addLog("error", message),
+    [addLog],
+  );
+  const logInfo = useCallback(
+    (message: string): void => addLog("info", message),
+    [addLog],
+  );
+  const { notice, notify } = useNotice(logInfo);
   const bookmarks = useBookmarks();
   const {
     leftPane,
@@ -52,22 +72,42 @@ export default function App(): ReactElement {
     loadDirectory,
     setView,
     moveCursor,
-  } = useFileList();
+  } = useFileList(logError);
+  /** エラーを表示し, 操作ログにも記録する. */
+  const reportError = useCallback(
+    (message: string | null): void => {
+      setError(message);
+      if (message !== null) {
+        logError(message);
+      }
+    },
+    [setError, logError],
+  );
   const navigation = useNavigation(
     activePane,
     leftPane,
     rightPane,
     loadDirectory,
-    setError,
+    reportError,
   );
   const operations = useFileOperations(
     activePane,
     leftPane,
     rightPane,
     loadDirectory,
-    setError,
+    reportError,
   );
-  const marks = useMarks(activePane, updatePane, moveCursor, setError);
+  const transfer = useTransfer(
+    activePane,
+    leftPane,
+    rightPane,
+    updatePane,
+    loadDirectory,
+    reportError,
+    notify,
+    operations.openConfirm,
+  );
+  const marks = useMarks(activePane, updatePane, moveCursor, reportError);
   const { handleEnter } = navigation;
   const { openExternal } = operations;
 
@@ -103,7 +143,11 @@ export default function App(): ReactElement {
         moveCursor(activePane, 1);
         break;
       case "open":
-        openEntry(activePane, active.files[active.selectedIndex]);
+        if (active.selectedIndex < 0) {
+          navigation.handleParentDir(activePane);
+        } else {
+          openEntry(activePane, active.files[active.selectedIndex]);
+        }
         break;
       case "openExternal":
         operations.openExternal();
@@ -139,13 +183,31 @@ export default function App(): ReactElement {
         operations.startRename();
         break;
       case "copy":
-        operations.copyToOpposite();
+        transfer.startCopy(false);
+        break;
+      case "copyConfirm":
+        transfer.startCopy(true);
+        break;
+      case "move":
+        transfer.startMove(false);
+        break;
+      case "moveConfirm":
+        transfer.startMove(true);
         break;
       case "delete":
-        operations.startDelete(false);
+        transfer.startDelete(false);
         break;
       case "deletePermanent":
-        operations.startDelete(true);
+        transfer.startDelete(true);
+        break;
+      case "syncPane":
+        navigation.handleSyncPane();
+        break;
+      case "preview":
+        setPreviewOn((on) => !on);
+        break;
+      case "log":
+        setLogOpen(true);
         break;
       case "mark":
         marks.mark();
@@ -204,7 +266,11 @@ export default function App(): ReactElement {
 
   useKeymap(
     runCommand,
-    operations.dialog === null && navigation.drives === null && !bookmarkOpen,
+    operations.dialog === null &&
+      navigation.drives === null &&
+      !bookmarkOpen &&
+      !logOpen &&
+      transfer.task === null,
   );
 
   /**
@@ -231,6 +297,10 @@ export default function App(): ReactElement {
 
   const activeState = activePane === "left" ? leftPane : rightPane;
   const disk = useDiskSpace(activeState.currentPath);
+  const cursorFile = activeState.files[activeState.selectedIndex];
+  const previewState = usePreview(
+    previewOn && cursorFile && !cursorFile.is_dir ? cursorFile.path : null,
+  );
 
   return (
     <div className="app">
@@ -240,10 +310,19 @@ export default function App(): ReactElement {
         rightPane={rightPane}
         onActivate={setActivePane}
         onParent={navigation.handleParentDir}
+        onParentClick={(pane) => handleItemClick(pane, -1)}
         onPathSubmit={(pane, value) => loadDirectory(pane, value)}
         onFilterChange={(pane, value) => setView(pane, { filter: value })}
         onItemClick={handleItemClick}
         onItemOpen={handleItemOpen}
+        previewPane={
+          previewOn ? (activePane === "left" ? "right" : "left") : null
+        }
+        previewSlot={
+          previewOn ? (
+            <PreviewPane name={cursorFile?.name ?? ""} state={previewState} />
+          ) : null
+        }
         registerPathInput={(pane, element) => {
           pathInputs.current[pane] = element;
         }}
@@ -254,7 +333,10 @@ export default function App(): ReactElement {
       <KeyHintBar />
       <StatusBar
         error={error}
-        currentName={activeState.files[activeState.selectedIndex]?.name ?? ""}
+        notice={notice}
+        currentName={
+          activeState.selectedIndex < 0 ? ".." : (cursorFile?.name ?? "")
+        }
         info={[
           sortLabel(activeState.sort),
           `マーク: ${activeState.marks.length}`,
@@ -266,6 +348,15 @@ export default function App(): ReactElement {
         <OperationDialog
           dialog={operations.dialog}
           onClose={operations.closeDialog}
+        />
+      )}
+      {transfer.task && (
+        <TaskProgressModal task={transfer.task} onCancel={transfer.cancel} />
+      )}
+      {logOpen && (
+        <OperationLogDialog
+          entries={operationLog.entries}
+          onClose={() => setLogOpen(false)}
         />
       )}
       {bookmarkOpen && (

@@ -1,5 +1,11 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import type { DiskSpace, FileEntry } from "../features/explorer/types";
+import type {
+  TransferProgress,
+  TransferRequest,
+  TransferSummary,
+} from "../features/operations/types";
+import type { Preview } from "../features/preview/types";
 
 /**
  * 指定ディレクトリ内のファイル・ディレクトリ一覧を取得します.
@@ -18,16 +24,6 @@ export function readDirectory(path: string): Promise<FileEntry[]> {
  */
 export function getHomeDir(): Promise<string> {
   return invoke<string>("get_home_dir");
-}
-
-/**
- * ファイルまたはディレクトリを対象ディレクトリ配下へコピーします.
- *
- * @param srcPath - コピー元のパス.
- * @param destDir - コピー先のディレクトリパス.
- */
-export function copyItem(srcPath: string, destDir: string): Promise<void> {
-  return invoke<void>("copy_item", { srcPath, destDir });
 }
 
 /**
@@ -58,16 +54,6 @@ export function createFile(parent: string, name: string): Promise<void> {
  */
 export function renameItem(path: string, newName: string): Promise<void> {
   return invoke<void>("rename_item", { path, newName });
-}
-
-/**
- * ファイルまたはディレクトリを削除します.
- *
- * @param path - 対象のパス.
- * @param permanent - true の場合は完全に削除し, false の場合はゴミ箱へ移動する.
- */
-export function deleteItem(path: string, permanent: boolean): Promise<void> {
-  return invoke<void>("delete_item", { path, permanent });
 }
 
 /**
@@ -105,4 +91,54 @@ export function listDrives(): Promise<string[]> {
  */
 export function getDiskSpace(path: string): Promise<DiskSpace> {
   return invoke<DiskSpace>("get_disk_space", { path });
+}
+
+/**
+ * コピー・移動先に, 同名のエントリが既にあるかを調べます.
+ *
+ * @param sources - 対象のパス.
+ * @param destDir - 配置先のディレクトリ.
+ * @returns 同名のエントリが既にある対象の名前.
+ */
+export function checkConflicts(
+  sources: string[],
+  destDir: string,
+): Promise<string[]> {
+  return invoke<string[]>("check_conflicts", { sources, destDir });
+}
+
+/**
+ * コピー・移動・削除を実行します. 完了するまで待ち, 進捗は都度通知します.
+ *
+ * @param request - 依頼.
+ * @param onProgress - 進捗の通知先.
+ * @returns 結果. 中断された場合は `cancelled` が true.
+ */
+export function runTransfer(
+  request: TransferRequest,
+  onProgress: (progress: TransferProgress) => void,
+): Promise<TransferSummary> {
+  const channel = new Channel<TransferProgress>();
+  channel.onmessage = onProgress;
+  return invoke<TransferSummary>("run_transfer", {
+    request,
+    onProgress: channel,
+  });
+}
+
+/**
+ * 実行中のコピー・移動・削除を中断します.
+ */
+export function cancelTransfer(): Promise<void> {
+  return invoke<void>("cancel_transfer");
+}
+
+/**
+ * ファイルのプレビューを取得します.
+ *
+ * @param path - 対象のファイルのパス.
+ * @returns プレビュー.
+ */
+export function readPreview(path: string): Promise<Preview> {
+  return invoke<Preview>("read_preview", { path });
 }
