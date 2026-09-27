@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type ReactElement } from "react";
 import log from "loglevel";
 import BookmarkPane from "./features/bookmarks/components/BookmarkPane";
+import HistoryPane from "./features/explorer/components/HistoryPane";
 import { useBookmarks } from "./features/bookmarks/hooks/useBookmarks";
 import OperationLogDialog from "./components/OperationLogDialog";
 import KeyHintBar from "./components/KeyHintBar";
@@ -21,7 +22,12 @@ import type { Command } from "./features/keybindings/types";
 import { useKeymap } from "./features/keybindings/useKeymap";
 import TaskProgressModal from "./features/operations/components/TaskProgressModal";
 import { useTransfer } from "./features/operations/hooks/useTransfer";
-import { openTerminal, quitApp, runExternalCommand } from "./services/tauriApi";
+import {
+  getHomeDir,
+  openTerminal,
+  quitApp,
+  runExternalCommand,
+} from "./services/tauriApi";
 import PreviewPane from "./features/preview/components/PreviewPane";
 import { usePreview } from "./features/preview/hooks/usePreview";
 import { useNotice } from "./hooks/useNotice";
@@ -60,6 +66,10 @@ export default function App(): ReactElement {
     right: null,
   });
   const [bookmarkPanes, setBookmarkPanes] = useState<Record<PaneId, boolean>>({
+    left: false,
+    right: false,
+  });
+  const [historyPanes, setHistoryPanes] = useState<Record<PaneId, boolean>>({
     left: false,
     right: false,
   });
@@ -196,6 +206,11 @@ export default function App(): ReactElement {
         input?.select();
         break;
       }
+      case "gotoHome":
+        getHomeDir()
+          .then((home) => loadDirectory(activePane, home))
+          .catch((e) => reportError(String(e)));
+        break;
       case "drives":
         navigation.showDrives();
         break;
@@ -286,6 +301,9 @@ export default function App(): ReactElement {
       case "historyForward":
         navigation.handleHistory(1);
         break;
+      case "historyList":
+        setHistoryPanes((p) => ({ ...p, [activePane]: true }));
+        break;
       case "bookmarks":
         setBookmarkPanes((p) => ({ ...p, [activePane]: true }));
         break;
@@ -346,6 +364,7 @@ export default function App(): ReactElement {
     operations.dialog === null &&
       navigation.drives === null &&
       !bookmarkPanes[activePane] &&
+      !historyPanes[activePane] &&
       !logOpen &&
       !paletteOpen &&
       !helpOpen &&
@@ -405,6 +424,27 @@ export default function App(): ReactElement {
         }}
         onRemove={bookmarks.removeBookmark}
         onCancel={() => setBookmarkPanes((p) => ({ ...p, [paneId]: false }))}
+        onSwitchPane={switchPane}
+      />
+    );
+  });
+  (["left", "right"] as const).forEach((paneId) => {
+    if (!historyPanes[paneId]) {
+      return;
+    }
+    const state = paneId === "left" ? leftPane : rightPane;
+    paneOverrides[paneId] = (
+      <HistoryPane
+        paneId={paneId}
+        isActive={activePane === paneId}
+        onActivate={() => setActivePane(paneId)}
+        history={state.history}
+        historyIndex={state.historyIndex}
+        onSelect={(path, index) => {
+          setHistoryPanes((p) => ({ ...p, [paneId]: false }));
+          loadDirectory(paneId, path, { historyIndex: index });
+        }}
+        onCancel={() => setHistoryPanes((p) => ({ ...p, [paneId]: false }))}
         onSwitchPane={switchPane}
       />
     );
