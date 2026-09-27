@@ -48,7 +48,8 @@ src/
 │   │   │   ├── useFileList.ts          # ファイル一覧の取得・ファイル監視イベント連携
 │   │   │   ├── useDiskSpace.ts         # アクティブペインのディスク空き容量の取得
 │   │   │   ├── useNavigation.ts        # ディレクトリ移動・履歴 (戻る/進む/親へ)
-│   │   │   └── useFileSelection.ts     # カーソル移動・複数選択・マーク処理
+│   │   │   └── useMarks.ts             # マーク (複数選択) 処理
+│   │   ├── view.ts                     # 隠しファイル除外・絞り込み・ソート・パターン一致
 │   │   └── types.ts                    # FileEntry, PaneState, SortOption等の型定義
 │   │
 │   ├── operations/                     # ファイル操作・進捗管理 (Phase 3)

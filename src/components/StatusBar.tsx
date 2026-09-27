@@ -10,12 +10,14 @@ interface StatusBarProps {
   error: string | null;
   /** カーソル位置の項目の名前. */
   currentName: string;
+  /** ソート・マークなどの状態の表示. */
+  info: string;
   /** アクティブなペインのディスク容量. 不明な場合は null. */
   disk: DiskSpace | null;
 }
 
 /**
- * ステータスバー. 左にエラーまたはカーソル位置の名前, 右にディスクの空き容量を表示します.
+ * ステータスバー. 左にエラーまたはカーソル位置の名前, 中央にソート・マークの状態, 右にディスクの空き容量を表示します.
  *
  * @param props - コンポーネントのプロパティ.
  * @returns ステータスバーのReact要素.
@@ -23,6 +25,7 @@ interface StatusBarProps {
 export default function StatusBar({
   error,
   currentName,
+  info,
   disk,
 }: StatusBarProps): ReactElement {
   return (
@@ -32,6 +35,7 @@ export default function StatusBar({
       ) : (
         <span>{currentName}</span>
       )}
+      <span className="status-info">{info}</span>
       {disk && (
         <span>
           Free: {formatDiskSize(disk.free)}, Total: {formatDiskSize(disk.total)}
