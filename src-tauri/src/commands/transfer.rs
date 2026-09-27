@@ -172,18 +172,21 @@ fn copy_file(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop
     let mut buf = vec![0u8; CHUNK_SIZE];
     loop {
         if progress.check().is_err() {
+            // 書き込み中のハンドルを閉じてから消す (開いたままだと Windows などで削除できない).
             drop(writer);
             let _ = fs::remove_file(dst);
             return Err(Stop::Cancelled);
         }
         let n = reader.read(&mut buf)?;
         if n == 0 {
+            // 読み取り 0 バイトはファイル末尾.
             break;
         }
         writer.write_all(&buf[..n])?;
         progress.advance(n as u64, &name);
     }
     drop(writer);
+    // 権限だけコピーする. 失敗しても (読み取り専用の配置先など) コピー自体は成功として扱う.
     if let Ok(meta) = fs::metadata(src) {
         let _ = fs::set_permissions(dst, meta.permissions());
     }
@@ -296,6 +299,7 @@ fn plan_placements(request: &TransferRequest) -> Result<Vec<(PathBuf, PathBuf)>,
             dest_dir.display()
         ));
     }
+    // シンボリックリンクをたどった実体のパスで比較するため, 正規化しておく.
     let dest_canonical = fs::canonicalize(dest_dir).map_err(|e| e.to_string())?;
 
     let mut plan = Vec::new();
@@ -307,12 +311,14 @@ fn plan_placements(request: &TransferRequest) -> Result<Vec<(PathBuf, PathBuf)>,
         let dst = destination_of(&src, dest_dir)?;
         let src_canonical = fs::canonicalize(&src).map_err(|e| e.to_string())?;
         if src_canonical.parent() == Some(dest_canonical.as_path()) {
+            // 配置先が対象自身の親, つまり同じディレクトリへの配置は無意味なので拒否する.
             return Err(format!(
                 "Source and destination are the same: {}",
                 src.display()
             ));
         }
         if src_canonical.is_dir() && dest_canonical.starts_with(&src_canonical) {
+            // 配置先が対象ディレクトリの内側 (自分自身を含む) にある場合は, 無限ループになるため拒否する.
             return Err(format!(
                 "Cannot place a directory into itself: {}",
                 src.display()
@@ -348,6 +354,7 @@ fn move_one(
 ) -> Result<(), Stop> {
     if let Ok(meta) = fs::symlink_metadata(dst) {
         if meta.is_dir() {
+            // ディレクトリ同士の上書きは, 中身の統合が必要で挙動が分かりにくくなるため, 常に拒否する.
             return Err(Stop::Failed(format!(
                 "Destination directory already exists: {}",
                 dst.display()
@@ -359,9 +366,11 @@ fn move_one(
     }
     let size = tree_size(src);
     if renamer(src, dst).is_ok() {
+        // 名前の変更で移せた (同一ディスク内). 進捗はサイズ分をまとめて進める.
         progress.advance(size, &file_name_of(src));
         return Ok(());
     }
+    // 名前の変更に失敗した場合 (別のディスクへの移動など) は, コピーしてから元を消す.
     copy_tree(src, dst, progress)?;
     if src.is_dir() {
         fs::remove_dir_all(src)?;
@@ -395,6 +404,8 @@ pub fn transfer_with(
         return Err("No targets".to_string());
     }
     let mut processed = 0;
+    // 削除は件数, コピー・移動はバイト数で進捗を数えるため, 種類ごとに全体量の求め方が異なる.
+    // try_for_each は, 途中の要素が Err (中断・失敗) を返した時点でそこで止まり, 残りは処理しない.
     let result = match request.kind {
         TransferKind::Delete => {
             let mut progress = Progress {
@@ -412,6 +423,7 @@ pub fn transfer_with(
             })
         }
         kind => {
+            // 配置先の検証をすべて済ませてから実行する (途中まで進めて後から失敗させない).
             let plan = plan_placements(request)?;
             let total = plan.iter().map(|(src, _)| tree_size(src)).sum();
             let mut progress = Progress {
@@ -432,6 +444,7 @@ pub fn transfer_with(
             })
         }
     };
+    // 中断は呼び出し側の想定内の結果として Ok で返し, それ以外の失敗だけをエラーにする.
     match result {
         Ok(()) => Ok(TransferSummary {
             processed,

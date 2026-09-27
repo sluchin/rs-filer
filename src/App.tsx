@@ -50,8 +50,11 @@ if (import.meta.env.DEV) {
 
 /**
  * rsfiler のメインアプリケーションコンポーネント.
- * 2ペインによるディレクトリの閲覧, キーボードによるカーソル移動・ディレクトリ移動, および
- * ファイル・ディレクトリの作成・名前変更・削除・外部アプリで開く操作を提供します.
+ *
+ * 2 ペインによるディレクトリの閲覧・キーボード中心の操作 (カーソル移動, マーク, ソート・絞り込み,
+ * 作成・名前変更・削除, 対向ペインへのコピー・移動, プレビュー, ブックマーク・移動履歴の一覧,
+ * コマンドパレット・ヘルプ, 外部アプリ・ターミナル・外部コマンド, テーマ・フォントサイズ) を
+ * ひとまとめに提供します. キー入力の解決は `runCommand` に集約し, 各機能のフックへ振り分けます.
  *
  * @returns rsfiler のメインUI要素.
  */
@@ -185,6 +188,7 @@ export default function App(): ReactElement {
         moveCursor(activePane, Infinity);
         break;
       case "open":
+        // selectedIndex が -1 のときは, 一覧の先頭にある `..` の行にカーソルがある.
         if (active.selectedIndex < 0) {
           navigation.handleParentDir(activePane);
         } else {
@@ -291,6 +295,7 @@ export default function App(): ReactElement {
         filterInputs.current[activePane]?.focus();
         break;
       case "cancel":
+        // 絞り込み中でなければ, キャンセルできるものが無いので何もしない.
         if (active.filter !== null) {
           setView(activePane, { filter: null });
         }
@@ -359,6 +364,9 @@ export default function App(): ReactElement {
     runCommand(command);
   };
 
+  // ダイアログ・パレット・ブックマークや履歴の一覧など, 文字入力や別の操作を待っている間は,
+  // グローバルなキー操作 (カーソル移動など) を無効にする. アクティブなペインのみを見るのは,
+  // 一覧をブックマーク・履歴に差し替えていても, 反対側のペインは通常どおり操作できるようにするため.
   const pending = useKeymap(
     runCommand,
     operations.dialog === null &&
@@ -401,7 +409,10 @@ export default function App(): ReactElement {
     previewOn && cursorFile && !cursorFile.is_dir ? cursorFile.path : null,
   );
 
-  /** ペインの通常表示を差し替える内容. プレビューは対向ペイン, ブックマークは要求したペイン (両方あり得る) に出す. */
+  /**
+   * ペインの通常表示を差し替える内容.
+   * プレビューは対向ペイン, ブックマーク・履歴は要求したペイン (どちらも左右両方あり得る) に出す.
+   */
   const paneOverrides: Partial<Record<PaneId, ReactElement>> = {};
   if (previewOn) {
     paneOverrides[activePane === "left" ? "right" : "left"] = (
@@ -510,6 +521,7 @@ export default function App(): ReactElement {
       <KeyHintBar />
       <StatusBar
         error={error}
+        // プレフィクスキー入力中は, 続きを待っていることが分かるよう通知の末尾に付け足す.
         notice={pending ? `${notice ?? ""} [${pending}-]`.trim() : notice}
         currentName={
           activeState.selectedIndex < 0 ? ".." : (cursorFile?.name ?? "")

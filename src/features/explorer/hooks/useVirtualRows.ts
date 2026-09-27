@@ -93,8 +93,10 @@ export function useVirtualRows(
       const top = index * rowHeight;
       const bottom = top + rowHeight;
       if (top < element.scrollTop) {
+        // 表示領域より上にはみ出している: 行の上端が見えるまで戻す.
         element.scrollTop = top;
       } else if (bottom > element.scrollTop + element.clientHeight) {
+        // 表示領域より下にはみ出している: 行の下端が見えるまで進める.
         element.scrollTop = bottom - element.clientHeight;
       }
     },

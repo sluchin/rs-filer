@@ -80,7 +80,6 @@ fn is_hidden(name: &str, metadata: &fs::Metadata) -> bool {
 /// 成功した場合は [`FileEntry`] のベクトルを包んだ [`Ok`] を返し,
 /// ディレクトリが存在しないかアクセス権限がない場合はエラー文字列を含む [`Err`] を返します.
 fn scan_directory(path: &str) -> Result<Vec<FileEntry>, String> {
-    //info!("ディレクトリ読み取り開始: {}", path);
     let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
     let mut files = Vec::new();
 
@@ -193,6 +192,7 @@ const MAX_COMPLETIONS: usize = 200;
 ///
 /// 名前順に並べた候補 (最大 200 件). ディレクトリを読めない場合は空.
 fn complete_path_with(input: &str, home: Option<&Path>) -> Vec<String> {
+    // 区切り文字より前をディレクトリ (表示のまま残す), 後ろを絞り込み条件の前方一致文字列として扱う.
     let Some(split) = input.rfind(['/', '\\']) else {
         return Vec::new();
     };
@@ -204,6 +204,7 @@ fn complete_path_with(input: &str, home: Option<&Path>) -> Vec<String> {
     let Ok(entries) = fs::read_dir(&dir) else {
         return Vec::new();
     };
+    // Windows は大文字小文字を区別しないファイルシステムのため, 比較前に小文字へ揃える.
     let fold = |s: &str| {
         if cfg!(windows) {
             s.to_lowercase()
@@ -217,10 +218,12 @@ fn complete_path_with(input: &str, home: Option<&Path>) -> Vec<String> {
         .filter(|e| e.path().is_dir())
         .map(|e| e.file_name().to_string_lossy().into_owned())
         .filter(|name| fold(name).starts_with(&wanted))
+        // 隠しディレクトリは, 絞り込み条件自体が `.` から始まる場合だけ候補にする.
         .filter(|name| !name.starts_with('.') || prefix.starts_with('.'))
         .collect();
     names.sort();
     names.truncate(MAX_COMPLETIONS);
+    // 入力と同じ書き方 (`~` を展開しない) のディレクトリ部分に, 見つかった名前をつなげて返す.
     names
         .into_iter()
         .map(|name| format!("{}{}/", typed_dir, name))

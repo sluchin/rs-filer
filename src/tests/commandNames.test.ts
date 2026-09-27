@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   commandNames,
   commonPrefix,
-  describeCommandName,
   resolveCommandName,
 } from "../features/keybindings/commandNames";
 
@@ -16,7 +15,7 @@ describe("commandNames", () => {
   });
 });
 
-describe("resolveCommandName / describeCommandName", () => {
+describe("resolveCommandName", () => {
   it.each([
     ["cursorDown", "cursorDown"],
     ["CURSORDOWN", "cursorDown"],
@@ -25,13 +24,11 @@ describe("resolveCommandName / describeCommandName", () => {
     ["exit", "quit"],
   ])("正常系: %s は %s に解決されること", (name, expected) => {
     expect(resolveCommandName(name)).toBe(expected);
-    expect(describeCommandName(name)).not.toBe("");
   });
 
   it("異常系: 存在しない名前や palette は null になること", () => {
     expect(resolveCommandName("no-such-command")).toBeNull();
     expect(resolveCommandName("palette")).toBeNull();
-    expect(describeCommandName("no-such-command")).toBe("");
   });
 });
 

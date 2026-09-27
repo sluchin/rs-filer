@@ -88,14 +88,3 @@ export function resolveCommandName(name: string): Command | null {
     Object.entries(ALIASES).find(([alias]) => alias === wanted)?.[1];
   return found && found !== "palette" ? found : null;
 }
-
-/**
- * コマンド名の説明を返します. 別名の場合は, 対応するコマンドの説明です.
- *
- * @param name - コマンド名 (`commandNames` が返すもの).
- * @returns 説明.
- */
-export function describeCommandName(name: string): string {
-  const command = resolveCommandName(name);
-  return command ? COMMAND_DESCRIPTIONS[command] : "";
-}

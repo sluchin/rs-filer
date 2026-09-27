@@ -1,4 +1,4 @@
-//! 設定ファイルを読み込むコマンド.
+//! 設定ファイル (キーマップ・アプリ設定) の読み込み・書き込みを行うコマンド.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
