@@ -22,7 +22,7 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 - `src/`: フロントエンド (React / TypeScript)。テストは `src/tests/` に置く (`setup.ts` は vitest の setupFiles)。
 - `src-tauri/`: バックエンド (Rust)。
   - `src/lib.rs`: Tauri の初期化と IPC ハンドラーの登録 (`run`)。
-  - `src/commands.rs`: フロントエンドから呼ぶ IPC コマンド (`#[tauri::command]`)。
+  - `src/commands/`: フロントエンドから呼ぶ IPC コマンド (`#[tauri::command]`)。`fs.rs` (一覧・ホーム・ドライブ・ディスク容量)、`ops.rs` (コピー・作成・名前変更・削除)、`open.rs` (外部アプリ・エディタで開く) に分け、`mod.rs` で再エクスポートする。
   - `src/main.rs`: エントリポイント。
   - `tests/`: 結合テスト (`commands_test.rs`)。
   - `capabilities/default.json`: Tauri v2 の権限設定。
@@ -37,9 +37,9 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 
 ### 共通
 
-- フロントエンドとバックエンドは、Tauri の IPC (`invoke` とコマンド) だけで結ぶ。コマンドの名前・引数・戻り値を変えるときは、`src-tauri/src/commands.rs`、`src-tauri/src/lib.rs` の `generate_handler!`、フロントエンドの `invoke` 呼び出し、両方のテストを、まとめて直す。
+- フロントエンドとバックエンドは、Tauri の IPC (`invoke` とコマンド) だけで結ぶ。コマンドの名前・引数・戻り値を変えるときは、`src-tauri/src/commands/` 配下、`src-tauri/src/lib.rs` の `generate_handler!`、フロントエンドの `invoke` 呼び出し、両方のテストを、まとめて直す。
 - Rust の構造体を IPC で返すときは、`serde::Serialize` を派生する。フロントエンドの型 (`FileEntry` など) は、そのフィールド名 (`is_dir` のようなスネークケース) に合わせる。
-- 新しく IPC コマンドを追加したら、`lib.rs` の `generate_handler!` に登録する。ファイルシステムやシェルなどのプラグインを使う場合は、`capabilities/default.json` の権限も追加する。
+- 新しく IPC コマンドを追加したら、`lib.rs` の `generate_handler!` に、サブモジュール込みのパス (`commands::ops::copy_item` など) で登録する。ファイルシステムやシェルなどのプラグインを使う場合は、`capabilities/default.json` の権限も追加する。
 - ドキュメントコメントは日本語で書く。文末は「.」を使う既存の書き方に合わせる (`/// ... します.`、`* @param` など)。
 - コメントに、`// ---` や `// ===` のような、装飾の記号を入れない。
 
