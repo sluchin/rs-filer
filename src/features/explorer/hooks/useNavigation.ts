@@ -6,7 +6,7 @@ import type { LoadOptions } from "./useFileList";
 import type { FileEntry, PaneId, PaneState } from "../types";
 
 /**
- * ディレクトリ移動 (親へ・入る・再読み込み・ドライブ切り替え) を扱うフック.
+ * ディレクトリ移動 (親へ・入る・再読み込み・履歴・ドライブ切り替え) を扱うフック.
  *
  * @param activePane - アクティブなペイン識別子.
  * @param leftPane - 左ペインの状態.
@@ -69,6 +69,24 @@ export function useNavigation(
   }, [activePane, leftPane, rightPane, loadDirectory]);
 
   /**
+   * アクティブなペインを, 履歴の中で前後に移動します. 端では何もしません.
+   *
+   * @param delta - 移動量 (-1 で戻る, 1 で進む).
+   */
+  const handleHistory = useCallback(
+    (delta: number): void => {
+      const current = activePane === "left" ? leftPane : rightPane;
+      const index = current.historyIndex + delta;
+      if (index >= 0 && index < current.history.length) {
+        loadDirectory(activePane, current.history[index], {
+          historyIndex: index,
+        });
+      }
+    },
+    [activePane, leftPane, rightPane, loadDirectory],
+  );
+
+  /**
    * ドライブ選択ダイアログを開きます.
    */
   const showDrives = useCallback(async (): Promise<void> => {
@@ -104,6 +122,7 @@ export function useNavigation(
     handleParentDir,
     handleEnter,
     handleReload,
+    handleHistory,
     showDrives,
     closeDrives,
     selectDrive,

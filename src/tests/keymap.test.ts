@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { PREFIX_CTRL_X, resolveKey } from "../features/keybindings/keymap";
+import {
+  PREFIX_CTRL_C,
+  PREFIX_CTRL_X,
+  PREFIX_STAR,
+  resolveKey,
+} from "../features/keybindings/keymap";
 
 /** 修飾キーなしのキー入力を作るヘルパー. */
 const key = (
@@ -25,7 +30,6 @@ describe("resolveKey", () => {
     ["f", "open"],
     ["l", "open"],
     ["Backspace", "parent"],
-    ["u", "parent"],
     ["h", "parent"],
     ["^", "parent"],
     ["g", "goto"],
@@ -42,6 +46,15 @@ describe("resolveKey", () => {
     ["D", "deletePermanent"],
     ["x", "openExternal"],
     ["e", "openEditor"],
+    [" ", "mark"],
+    ["u", "unmark"],
+    ["U", "unmarkAll"],
+    [".", "toggleHidden"],
+    ["s", "cycleSort"],
+    ["i", "toggleDetails"],
+    ["/", "filter"],
+    ["b", "bookmarks"],
+    ["Escape", "cancel"],
   ])("正常系: 単独キー %s はコマンド %s になること", (k, command) => {
     expect(resolveKey(key(k), null)).toEqual({ command });
   });
@@ -49,6 +62,51 @@ describe("resolveKey", () => {
   it("正常系: Shift+Delete は完全削除になること", () => {
     expect(resolveKey(key("Delete", { shiftKey: true }), null)).toEqual({
       command: "deletePermanent",
+    });
+  });
+
+  it("正常系: Ctrl+A / Ctrl+S / Alt+B / Alt+矢印がコマンドになること", () => {
+    expect(resolveKey(key("a", { ctrlKey: true }), null)).toEqual({
+      command: "markAll",
+    });
+    expect(resolveKey(key("s", { ctrlKey: true }), null)).toEqual({
+      command: "filter",
+    });
+    expect(resolveKey(key("b", { altKey: true }), null)).toEqual({
+      command: "addBookmark",
+    });
+    expect(resolveKey(key("ArrowLeft", { altKey: true }), null)).toEqual({
+      command: "historyBack",
+    });
+    expect(resolveKey(key("ArrowRight", { altKey: true }), null)).toEqual({
+      command: "historyForward",
+    });
+  });
+
+  it("正常系: * の後に * / u / t / s でマーク操作になること", () => {
+    expect(resolveKey(key("*"), null)).toEqual({ prefix: PREFIX_STAR });
+    expect(resolveKey(key("*"), PREFIX_STAR)).toEqual({ command: "markAll" });
+    expect(resolveKey(key("u"), PREFIX_STAR)).toEqual({ command: "unmarkAll" });
+    expect(resolveKey(key("t"), PREFIX_STAR)).toEqual({
+      command: "invertMarks",
+    });
+    expect(resolveKey(key("s"), PREFIX_STAR)).toEqual({
+      command: "markPattern",
+    });
+  });
+
+  it("正常系: C-c の後に < / > で履歴の移動, C-x の後に . で隠しファイルの切り替えになること", () => {
+    expect(resolveKey(key("c", { ctrlKey: true }), null)).toEqual({
+      prefix: PREFIX_CTRL_C,
+    });
+    expect(resolveKey(key("<"), PREFIX_CTRL_C)).toEqual({
+      command: "historyBack",
+    });
+    expect(resolveKey(key(">"), PREFIX_CTRL_C)).toEqual({
+      command: "historyForward",
+    });
+    expect(resolveKey(key("."), PREFIX_CTRL_X)).toEqual({
+      command: "toggleHidden",
     });
   });
 

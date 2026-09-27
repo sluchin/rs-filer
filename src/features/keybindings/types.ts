@@ -17,7 +17,22 @@ export type Command =
   | "rename"
   | "copy"
   | "delete"
-  | "deletePermanent";
+  | "deletePermanent"
+  | "mark"
+  | "unmark"
+  | "markAll"
+  | "unmarkAll"
+  | "invertMarks"
+  | "markPattern"
+  | "toggleHidden"
+  | "cycleSort"
+  | "toggleDetails"
+  | "filter"
+  | "cancel"
+  | "historyBack"
+  | "historyForward"
+  | "bookmarks"
+  | "addBookmark";
 
 /**
  * キー入力を解決した結果.

@@ -13,6 +13,10 @@ interface FileListProps {
   selectedIndex: number;
   /** このペインがアクティブかどうか. */
   isActive: boolean;
+  /** マークされているエントリのパス. */
+  marks: string[];
+  /** 詳細 (サイズ・更新日時・属性) の列を表示するかどうか. */
+  showDetails: boolean;
   /** 親ディレクトリへ移動できるかどうか. true の場合は先頭に `..` の行を表示する. */
   hasParent: boolean;
   /** `..` の行をダブルクリックしたときのハンドラー. */
@@ -33,6 +37,8 @@ export default function FileList({
   files,
   selectedIndex,
   isActive,
+  marks,
+  showDetails,
   hasParent,
   onParent,
   onItemClick,
@@ -42,9 +48,13 @@ export default function FileList({
     <div className="file-list">
       <div className="file-header">
         <span className="col-name">ファイル名</span>
-        <span className="col-size">サイズ</span>
-        <span className="col-date">更新日時</span>
-        <span className="col-attr">属性</span>
+        {showDetails && (
+          <>
+            <span className="col-size">サイズ</span>
+            <span className="col-date">更新日時</span>
+            <span className="col-attr">属性</span>
+          </>
+        )}
       </div>
       <ul className="file-rows">
         {hasParent && (
@@ -60,6 +70,8 @@ export default function FileList({
             cursor={
               selectedIndex !== idx ? "none" : isActive ? "active" : "inactive"
             }
+            marked={marks.includes(file.path)}
+            showDetails={showDetails}
             onClick={() => onItemClick(idx, file)}
             onDoubleClick={() => onItemOpen(idx, file)}
           />

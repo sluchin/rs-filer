@@ -825,3 +825,440 @@ describe("App (分岐の網羅)", () => {
     expect(icons).toEqual(["parent", "dir", "file"]);
   });
 });
+
+/** ホームに 4 件 (ディレクトリ 1, ファイル 3 (うち隠し 1)) を持つ, Phase 4 用の invoke のモックを設定する. */
+function mockPhase4(files?: () => unknown[]): void {
+  const base = (name: string, over: Record<string, unknown> = {}) => ({
+    name,
+    path: `/mock/home/${name}`,
+    is_dir: false,
+    size: 10,
+    modified: 1000,
+    readonly: false,
+    hidden: false,
+    ...over,
+  });
+  mockedInvoke.mockImplementation((cmd, args) => {
+    if (cmd === "get_home_dir") return Promise.resolve("/mock/home");
+    if (cmd === "read_directory" && pathOf(args) === "/mock/home") {
+      return Promise.resolve(
+        files
+          ? files()
+          : [
+              base("FolderA", { is_dir: true }),
+              base("a.txt", { size: 30 }),
+              base("b.md", { size: 20, modified: 2000 }),
+              base(".hidden", { hidden: true, size: 1 }),
+            ],
+      );
+    }
+    if (cmd === "read_directory" && pathOf(args) === "/mock/home/FolderA") {
+      return Promise.resolve([base("in.txt")]);
+    }
+    return Promise.resolve(cmd === "read_directory" ? [] : undefined);
+  });
+}
+
+/** 左ペインのマークされている行の名前を返す. */
+const markedNames = (): string[] =>
+  paneOf("left")
+    .queryAllByRole("listitem")
+    .filter((li) => li.getAttribute("data-marked") === "true")
+    .map((li) => li.querySelector(".file-name")?.textContent ?? "");
+
+/** 左ペインの行の名前 (`..` を除く) を返す. */
+const leftNames = (): string[] =>
+  paneOf("left")
+    .getAllByRole("listitem")
+    .filter(
+      (li) =>
+        li.classList.contains("file-row") &&
+        li.querySelector("[class~='file-name']"),
+    )
+    .map((li) => li.querySelector(".file-name")?.textContent ?? "");
+
+/** ステータスバーの文字列を返す. */
+const statusText = (): string =>
+  document.querySelector(".status-bar")?.textContent ?? "";
+
+describe("App (マーク)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: Space でマークしてカーソルが下へ動き, u で解除して下へ動くこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+
+    await user.keyboard(" ");
+    expect(markedNames()).toEqual(["FolderA"]);
+    expect(cursorNames()).toEqual(["a.txt"]);
+    expect(statusText()).toContain("マーク: 1");
+
+    await user.keyboard("k");
+    await user.keyboard("u");
+    expect(markedNames()).toEqual([]);
+    expect(cursorNames()).toEqual(["a.txt"]);
+  });
+
+  it("正常系: 最後の行でマークしても範囲外へ出ず, 同じ行を 2 回マークしても重複しないこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}");
+    await user.keyboard(" ");
+    await user.keyboard(" ");
+    expect(markedNames()).toEqual(["b.md"]);
+    expect(statusText()).toContain("マーク: 1");
+  });
+
+  it("正常系: * * と Ctrl+A で全マーク, * u と U で全解除, * t で反転できること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+
+    await user.keyboard("**");
+    expect(markedNames()).toHaveLength(3);
+    await user.keyboard("*u");
+    expect(markedNames()).toEqual([]);
+
+    await user.keyboard("{Control>}a{/Control}");
+    expect(markedNames()).toHaveLength(3);
+    await user.keyboard("U");
+    expect(markedNames()).toEqual([]);
+
+    await user.keyboard(" ");
+    await user.keyboard("*t");
+    expect(markedNames()).toEqual(["a.txt", "b.md"]);
+  });
+
+  it("正常系: * s でワイルドカードによるパターンマークができ, 既存のマークは維持されること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard(" ");
+
+    await user.keyboard("*s");
+    expect(
+      screen.getByRole("dialog", { name: /パターンでマーク/ }),
+    ).toBeInTheDocument();
+    await user.keyboard("*.txt{Enter}");
+
+    expect(markedNames().sort()).toEqual(["FolderA", "a.txt"]);
+  });
+
+  it("正常系: * s で /正規表現/ によるマークができること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("*s");
+    await user.keyboard("/^b\\./{Enter}");
+    expect(markedNames()).toEqual(["b.md"]);
+  });
+
+  it("異常系: 不正な正規表現ではエラーが表示され, 空のパターンでは何も起きないこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+
+    await user.keyboard("*s");
+    await user.keyboard("{Enter}");
+    expect(markedNames()).toEqual([]);
+    expect(screen.queryByText(/パターンが不正/)).not.toBeInTheDocument();
+
+    await user.keyboard("*s");
+    await user.keyboard("/(/{Enter}");
+    expect(screen.getByText(/エラー: パターンが不正です/)).toBeInTheDocument();
+    expect(markedNames()).toEqual([]);
+  });
+
+  it("境界: 項目の無いディレクトリで Space を押しても何も起きないこと", async () => {
+    mockPhase4(() => []);
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findAllByDisplayValue("/mock/home");
+    await user.keyboard(" ");
+    expect(statusText()).toContain("マーク: 0");
+  });
+
+  it("正常系: ディレクトリを移動するとマークが解除され, 再読み込みでは維持されること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("j ");
+    expect(markedNames()).toEqual(["a.txt"]);
+
+    await user.keyboard("{F5}");
+    await waitFor(() => expect(markedNames()).toEqual(["a.txt"]));
+
+    await user.keyboard("kk{Enter}");
+    await paneOf("left").findByText("in.txt");
+    expect(statusText()).toContain("マーク: 0");
+  });
+
+  it("正常系: 再読み込みで消えたファイルのマークは外れること", async () => {
+    let gone = false;
+    mockPhase4(() =>
+      gone
+        ? []
+        : [
+            {
+              name: "x.txt",
+              path: "/mock/home/x.txt",
+              is_dir: false,
+              size: 1,
+              modified: 1,
+              readonly: false,
+              hidden: false,
+            },
+          ],
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    await paneOf("left").findByText("x.txt");
+    await user.keyboard(" ");
+    expect(statusText()).toContain("マーク: 1");
+    gone = true;
+    await user.keyboard("{F5}");
+    await waitFor(() => expect(statusText()).toContain("マーク: 0"));
+  });
+});
+
+describe("App (表示・ソート・絞り込み)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: 起動時は隠しファイルが非表示で, . と C-x . で表示が切り替わること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    expect(leftNames()).not.toContain(".hidden");
+    expect(statusText()).toContain("隠しファイル非表示");
+
+    await user.keyboard(".");
+    expect(leftNames()).toContain(".hidden");
+    expect(statusText()).not.toContain("隠しファイル非表示");
+
+    await user.keyboard("{Control>}x{/Control}.");
+    expect(leftNames()).not.toContain(".hidden");
+    expect(statusText()).toContain("隠しファイル非表示");
+  });
+
+  it("正常系: 隠しファイルの表示を切り替えてもカーソルは同じ項目に残ること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("jj");
+    expect(cursorNames()).toEqual(["b.md"]);
+    await user.keyboard(".");
+    expect(leftNames()).toContain(".hidden");
+    expect(cursorNames()).toEqual(["b.md"]);
+  });
+
+  it("正常系: s でソートが順に切り替わり, 一周すると元に戻ること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    expect(statusText()).toContain("名前 ↑");
+
+    await user.keyboard("s");
+    expect(statusText()).toContain("名前 ↓");
+    expect(leftNames()).toEqual(["FolderA", "b.md", "a.txt"]);
+
+    await user.keyboard("ss");
+    expect(statusText()).toContain("拡張子 ↓");
+
+    await user.keyboard("ss");
+    expect(statusText()).toContain("サイズ ↓");
+    expect(leftNames()).toEqual(["FolderA", "a.txt", "b.md"]);
+
+    await user.keyboard("ss");
+    expect(statusText()).toContain("更新日時 ↓");
+    expect(leftNames()[1]).toBe("b.md");
+
+    await user.keyboard("s");
+    expect(statusText()).toContain("名前 ↑");
+  });
+
+  it("正常系: i で詳細の列が隠れ, もう一度で戻ること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    expect(paneOf("left").getByText("サイズ")).toBeInTheDocument();
+
+    await user.keyboard("i");
+    expect(paneOf("left").queryByText("サイズ")).not.toBeInTheDocument();
+    expect(paneOf("right").getByText("サイズ")).toBeInTheDocument();
+    expect(paneOf("left").queryByText("d-w-")).not.toBeInTheDocument();
+
+    await user.keyboard("i");
+    expect(paneOf("left").getByText("サイズ")).toBeInTheDocument();
+  });
+
+  it("正常系: / で絞り込み入力欄が開き, 入力に合わせて一覧が絞り込まれること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+
+    await user.keyboard("/");
+    expect(screen.getByLabelText("left filter")).toHaveFocus();
+    await user.keyboard("TXT");
+    expect(leftNames()).toEqual(["a.txt"]);
+
+    await user.keyboard("{Enter}");
+    expect(screen.getByLabelText("left filter")).not.toHaveFocus();
+    expect(leftNames()).toEqual(["a.txt"]);
+    expect(cursorNames()).toEqual(["a.txt"]);
+  });
+
+  it("正常系: 絞り込み中に / や Ctrl+S を押すと入力欄へ戻り, Esc で絞り込みが解除されること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("/md{Enter}");
+
+    await user.keyboard("{Control>}s{/Control}");
+    expect(screen.getByLabelText("left filter")).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByLabelText("left filter")).not.toBeInTheDocument();
+    expect(leftNames()).toHaveLength(3);
+  });
+
+  it("正常系: 入力欄の外で Esc を押しても絞り込みが解除され, 絞り込みが無ければ何も起きないこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Escape}");
+    expect(leftNames()).toHaveLength(3);
+
+    await user.keyboard("/md{Enter}{Escape}");
+    expect(screen.queryByLabelText("left filter")).not.toBeInTheDocument();
+    expect(leftNames()).toHaveLength(3);
+  });
+
+  it("正常系: ディレクトリを移動すると絞り込みが解除されること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("/Folder{Enter}{Enter}");
+    await paneOf("left").findByText("in.txt");
+    expect(screen.queryByLabelText("left filter")).not.toBeInTheDocument();
+  });
+
+  it("正常系: パス入力欄で Esc を押すと入力が元のパスに戻ること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("g");
+    await user.keyboard("xyz");
+    expect(screen.getAllByLabelText("left path")[0]).toHaveValue("xyz");
+    await user.keyboard("{Escape}");
+    expect(screen.getAllByLabelText("left path")[0]).toHaveValue("/mock/home");
+  });
+});
+
+describe("App (履歴・ブックマーク)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it("正常系: Alt+← / Alt+→ と C-c < / C-c > で履歴を戻る・進むことができ, 端では何も起きないこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
+    expect(leftNames()).toContain("a.txt");
+
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
+    await waitFor(() => expect(leftNames()).toContain("a.txt"));
+    expect(cursorNames()).toEqual(["FolderA"]);
+
+    await user.keyboard("{Alt>}{ArrowRight}{/Alt}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("{Alt>}{ArrowRight}{/Alt}");
+    expect(leftNames()).toEqual(["in.txt"]);
+
+    await user.keyboard("{Control>}c{/Control}<");
+    await waitFor(() => expect(leftNames()).toContain("a.txt"));
+    await user.keyboard("{Control>}c{/Control}>");
+    await paneOf("left").findByText("in.txt");
+  });
+
+  it("正常系: 履歴を戻った後に別のディレクトリへ移動すると, 進む履歴は捨てられること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
+    await waitFor(() => expect(leftNames()).toContain("a.txt"));
+
+    await user.keyboard("g");
+    await user.keyboard("/mock/home/FolderA{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("{Alt>}{ArrowRight}{/Alt}");
+    expect(leftNames()).toEqual(["in.txt"]);
+  });
+
+  it("正常系: b で一覧が開き, 登録がまだ無いことが表示されること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("b");
+    expect(
+      screen.getByRole("dialog", { name: "ブックマーク" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("登録されていません.")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: M-b でカレントディレクトリが登録され, 選ぶとそこへ移動できること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await user.keyboard("{Alt>}b{/Alt}");
+    expect(
+      screen.getByRole("button", { name: "/mock/home/FolderA" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "現在のディレクトリを解除" }),
+    ).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await user.keyboard("h");
+    await waitFor(() => expect(leftNames()).toContain("a.txt"));
+    await user.keyboard("b");
+    await user.click(
+      screen.getByRole("button", { name: "/mock/home/FolderA" }),
+    );
+    await paneOf("left").findByText("in.txt");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: 一覧のボタンで, 現在のディレクトリの登録・解除と ×  での解除ができること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("b");
+
+    await user.click(
+      screen.getByRole("button", { name: "現在のディレクトリを登録" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "/mock/home" }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "現在のディレクトリを解除" }),
+    );
+    expect(screen.getByText("登録されていません.")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "現在のディレクトリを登録" }),
+    );
+    await user.click(screen.getByRole("button", { name: "/mock/home を解除" }));
+    expect(screen.getByText("登録されていません.")).toBeInTheDocument();
+  });
+
+  it("正常系: 右ペインがアクティブなときは, 右ペインの履歴を戻れること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Tab}{Enter}");
+    await paneOf("right").findByText("in.txt");
+
+    await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
+
+    await waitFor(() =>
+      expect(paneOf("right").getByText("a.txt")).toBeInTheDocument(),
+    );
+  });
+});
