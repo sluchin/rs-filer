@@ -15,6 +15,15 @@ npm run tauri build
 
 生成されたパッケージは **`src-tauri/target/release/bundle/`** 配下に各フォーマットごとに格納されます。
 
+### GitHub Actions でのビルド
+
+`.github/workflows/release.yml` が, Linux・Windows・macOS 向けのパッケージを自動でビルドします.
+
+- **タグを push したとき** (`v*`, 例: `v1.0.1`): ビルドした成果物が GitHub Releases のドラフトにアップロードされます. Windows は, インストーラー (`.msi` / `.exe`) に加えて, exe 単体のポータブル版 `rsfiler_<タグ>_windows_x64_portable.zip` も付きます.
+- **手動実行** (Actions タブの「Release」から「Run workflow」): タグを打たずにビルドできます. 成果物は, 実行結果の Artifacts (`rsfiler-<OS>`) からダウンロードします.
+
+通常の push や Pull Request で動く CI (`ci.yml`) は, 検査のみでパッケージは作りません.
+
 ---
 
 ## 2. OS 別のインストール手順
