@@ -25,6 +25,12 @@ const PLAIN_KEYS: Record<string, Command> = {
   F2: "rename",
   r: "rename",
   c: "copy",
+  C: "copyConfirm",
+  m: "move",
+  M: "moveConfirm",
+  O: "syncPane",
+  v: "preview",
+  H: "log",
   Delete: "delete",
   d: "delete",
   D: "deletePermanent",
@@ -68,7 +74,7 @@ const PREFIX_KEYS: Record<
   { plain: Record<string, Command>; ctrl: Record<string, Command> }
 > = {
   [PREFIX_CTRL_X]: {
-    plain: { o: "switchPane", ".": "toggleHidden" },
+    plain: { o: "switchPane", ".": "toggleHidden", "4": "syncPane" },
     ctrl: { f: "touch" },
   },
   [PREFIX_CTRL_C]: {

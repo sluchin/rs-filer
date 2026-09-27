@@ -98,7 +98,9 @@ cargo install cargo-tarpaulin
 
 * **`src-tauri/src/commands/`**
 * `fs.rs`: ディレクトリ走査 (`read_directory`)、ホームディレクトリ取得 (`get_home_dir`)、ドライブ一覧、ディスク容量。
-* `ops.rs`: コピー・作成・名前変更・削除。
+* `ops.rs`: 作成・名前変更。
+* `transfer.rs`: コピー・移動・削除 (別スレッドで実行し、進捗を Channel で通知。中断に対応)。
+* `preview.rs`: テキスト・画像・バイナリのプレビュー。
 * `open.rs`: 関連付けアプリ・エディタで開く。
 
 

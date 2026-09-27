@@ -46,6 +46,12 @@ describe("resolveKey", () => {
     ["D", "deletePermanent"],
     ["x", "openExternal"],
     ["e", "openEditor"],
+    ["m", "move"],
+    ["C", "copyConfirm"],
+    ["M", "moveConfirm"],
+    ["O", "syncPane"],
+    ["v", "preview"],
+    ["H", "log"],
     [" ", "mark"],
     ["u", "unmark"],
     ["U", "unmarkAll"],
@@ -107,6 +113,9 @@ describe("resolveKey", () => {
     });
     expect(resolveKey(key("."), PREFIX_CTRL_X)).toEqual({
       command: "toggleHidden",
+    });
+    expect(resolveKey(key("4"), PREFIX_CTRL_X)).toEqual({
+      command: "syncPane",
     });
   });
 
