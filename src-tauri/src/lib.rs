@@ -13,7 +13,7 @@ pub use commands::copy_item;
 ///
 /// 以下の処理を順に実行します:
 /// 1. デフォルトの Tauri ビルダーの初期化
-/// 2. フロントエンドから呼び出し可能な IPC ハンドラーの登録 (`read_directory`, `get_home_dir`, `copy_item`)
+/// 2. フロントエンドから呼び出し可能な IPC ハンドラーの登録 (`commands` モジュールの各コマンド)
 /// 3. コンテキストの生成とアプリケーションループのスタート
 ///
 /// # Panics
@@ -27,7 +27,15 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::read_directory,
             commands::get_home_dir,
-            commands::copy_item
+            commands::copy_item,
+            commands::create_directory,
+            commands::create_file,
+            commands::rename_item,
+            commands::delete_item,
+            commands::open_item,
+            commands::open_in_editor,
+            commands::list_drives,
+            commands::get_disk_space
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
