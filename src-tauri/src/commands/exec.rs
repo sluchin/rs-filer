@@ -40,6 +40,7 @@ fn build_command(command: &str, paths: &[String]) -> String {
         .collect::<Vec<_>>()
         .join(" ");
     if paths.is_empty() {
+        // 対象が無ければ, プレースホルダの有無に関わらずコマンドをそのまま使う.
         command.to_string()
     } else if command.contains("%f") {
         command.replace("%f", &joined)

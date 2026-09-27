@@ -67,7 +67,8 @@ export function openItem(path: string): Promise<void> {
 }
 
 /**
- * 環境変数 `VISUAL` / `EDITOR` のエディタでパスを開きます.
+ * エディタでパスを開きます. `config.json` の `editor`, 無ければ環境変数 `VISUAL` / `EDITOR`,
+ * どちらも無ければ既定のアプリケーションを使います.
  *
  * @param path - 開く対象のパス.
  */

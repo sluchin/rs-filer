@@ -27,6 +27,7 @@ export function getParentPath(path: string): string | null {
 
   segments.pop();
   if (segments.length === rootDepth && (isDrive || isUnc)) {
+    // ルート直下まで上がった場合, ドライブは `C:/`, UNC は `//server/share` の形に戻す.
     return isUnc ? `//${segments.join("/")}` : `${segments[0]}/`;
   }
   return (
