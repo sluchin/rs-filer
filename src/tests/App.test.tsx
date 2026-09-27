@@ -491,6 +491,40 @@ describe("App (キーボード操作)", () => {
     await user.keyboard("{Alt>}g{/Alt}");
     expect(screen.getAllByLabelText("left path")[0]).toHaveFocus();
   });
+
+  it("正常系: ~ でホームディレクトリへ移動できること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    mockedInvoke.mockClear();
+
+    await user.keyboard("~");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("get_home_dir"),
+    );
+    await waitFor(() =>
+      expect(paneOf("left").getByText("FolderA")).toBeInTheDocument(),
+    );
+  });
+
+  it("異常系: ホームディレクトリの取得に失敗するとエラーが表示されること", async () => {
+    mockHome((cmd) =>
+      cmd === "get_home_dir" ? Promise.reject("取得できません") : undefined,
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    // 起動時のホーム取得はルートへの静かなフォールバックなので, まずそちらの表示を待つ.
+    await screen.findAllByDisplayValue("/");
+
+    await user.keyboard("~");
+
+    expect(
+      await screen.findByText("エラー: 取得できません"),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("App (作成・名前変更・削除)", () => {
@@ -1362,6 +1396,162 @@ describe("App (履歴・ブックマーク)", () => {
     await waitFor(() =>
       expect(paneOf("right").getByText("a.txt")).toBeInTheDocument(),
     );
+  });
+});
+
+describe("App (履歴一覧)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: M-h でアクティブなペインの表示が履歴一覧に切り替わり, 現在地に印が付くこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await user.keyboard("{Alt>}h{/Alt}");
+
+    const rows = paneOf("left").getAllByRole("listitem");
+    expect(rows.map((li) => li.textContent)).toEqual([
+      "/mock/home",
+      "/mock/home/FolderA現在地",
+    ]);
+    expect(paneOf("right").getByText("FolderA")).toBeInTheDocument();
+  });
+
+  it("正常系: C-c h でも履歴一覧が開くこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}c{/Control}h");
+    expect(
+      paneOf("left")
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["/mock/home現在地"]);
+  });
+
+  it("正常系: カーソルは現在地から始まり, j/k で動かして Enter で, 隣り合わない位置へも直接移動できること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("h");
+    await waitFor(() => expect(leftNames()).toContain("a.txt"));
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    // 履歴: [/mock/home, /mock/home/FolderA, /mock/home, /mock/home/FolderA] (現在地は末尾).
+
+    await user.keyboard("{Alt>}h{/Alt}");
+    await user.keyboard("kkk");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(paneOf("left").getByText("FolderA")).toBeInTheDocument(),
+    );
+  });
+
+  it("正常系: ダブルクリックでも直接移動できること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await user.keyboard("{Alt>}h{/Alt}");
+    await user.dblClick(paneOf("left").getByText("/mock/home"));
+
+    await waitFor(() =>
+      expect(paneOf("left").getByText("FolderA")).toBeInTheDocument(),
+    );
+  });
+
+  it("正常系: Esc では何も移動せず, 通常のペイン表示に戻ること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await user.keyboard("{Alt>}h{/Alt}");
+    await user.keyboard("{Escape}");
+
+    expect(paneOf("left").getByText("in.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: Tab を押すと, 一覧を表示したままもう一方のペインがアクティブになり, もう一度で戻ること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}h{/Alt}");
+    expect(screen.getByRole("region", { name: "left pane" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+
+    await user.keyboard("{Tab}");
+    expect(screen.getByRole("region", { name: "left pane" })).toHaveAttribute(
+      "data-active",
+      "false",
+    );
+    expect(screen.getByRole("region", { name: "right pane" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    await user.keyboard("j");
+    expect(paneOf("right").getByText("a.txt").closest("li")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+
+    await user.keyboard("{Tab}");
+    expect(screen.getByRole("region", { name: "left pane" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+  });
+
+  it("正常系: 右ペインで開くと右ペインの履歴が表示され, 左ペインは通常のまま操作できること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Tab}{Enter}");
+    await paneOf("right").findByText("in.txt");
+
+    await user.keyboard("{Alt>}h{/Alt}");
+
+    expect(paneOf("right").getByText("/mock/home")).toBeInTheDocument();
+    expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
+  });
+
+  it("境界: 割り当てのないキーを押しても何も起きないこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}h{/Alt}");
+    await user.keyboard("z");
+    expect(paneOf("left").getByText("/mock/home")).toHaveClass("file-name");
+  });
+
+  it("正常系: ↑/↓ でもカーソルが動き, 先頭・末尾より外へは出ないこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await user.keyboard("{Alt>}h{/Alt}");
+    expect(
+      paneOf("left").getByText("/mock/home/FolderA").closest("li"),
+    ).toHaveAttribute("aria-current", "true");
+
+    await user.keyboard("{ArrowDown}");
+    expect(
+      paneOf("left").getByText("/mock/home/FolderA").closest("li"),
+    ).toHaveAttribute("aria-current", "true");
+
+    await user.keyboard("{ArrowUp}");
+    expect(
+      paneOf("left").getByText("/mock/home").closest("li"),
+    ).toHaveAttribute("aria-current", "true");
+    await user.keyboard("{ArrowUp}");
+    expect(
+      paneOf("left").getByText("/mock/home").closest("li"),
+    ).toHaveAttribute("aria-current", "true");
   });
 });
 
