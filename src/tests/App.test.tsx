@@ -224,7 +224,13 @@ describe("App (Dual Pane)", () => {
 
 /** モックで, 個別に扱わなかったコマンドの既定の戻り値を返す. */
 function defaultResult(cmd: string): unknown {
-  if (cmd === "read_directory" || cmd === "check_conflicts") return [];
+  if (
+    cmd === "read_directory" ||
+    cmd === "check_conflicts" ||
+    cmd === "complete_path"
+  )
+    return [];
+  if (cmd === "load_keymap") return {};
   if (cmd === "run_transfer") return { processed: 1, cancelled: false };
   return undefined;
 }
@@ -556,14 +562,12 @@ describe("App (作成・名前変更・削除)", () => {
     );
   });
 
-  it("正常系: 枠外クリックでダイアログが閉じ, 枠内クリックでは閉じないこと", async () => {
+  it("正常系: ミニバッファ内をクリックしても閉じないこと", async () => {
     mockHome();
     const user = await renderLoaded();
     await user.keyboard("N");
     await user.click(screen.getByRole("dialog"));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    await user.click(screen.getByRole("dialog").parentElement as HTMLElement);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("正常系: r で名前を変更でき, 同じ名前ならバックエンドを呼ばないこと", async () => {
@@ -1242,65 +1246,101 @@ describe("App (履歴・ブックマーク)", () => {
     expect(leftNames()).toEqual(["in.txt"]);
   });
 
-  it("正常系: b で一覧が開き, 登録がまだ無いことが表示されること", async () => {
+  it("正常系: b でアクティブなペインの表示がブックマーク一覧に切り替わり, 登録がまだ無いことが表示されること", async () => {
     mockPhase4();
     const user = await renderLoaded();
     await user.keyboard("b");
-    expect(
-      screen.getByRole("dialog", { name: "ブックマーク" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("登録されていません.")).toBeInTheDocument();
+    expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
+    expect(paneOf("right").getByText("FolderA")).toBeInTheDocument();
+
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
   });
 
-  it("正常系: M-b でカレントディレクトリが登録され, 選ぶとそこへ移動できること", async () => {
+  it("正常系: M-b でカレントディレクトリが登録され, Enter で選んだ先へ移動して通常表示へ戻ること", async () => {
     mockPhase4();
     const user = await renderLoaded();
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
 
     await user.keyboard("{Alt>}b{/Alt}");
-    expect(
-      screen.getByRole("button", { name: "/mock/home/FolderA" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "現在のディレクトリを解除" }),
-    ).toBeInTheDocument();
+    expect(paneOf("left").getByText("/mock/home/FolderA")).toBeInTheDocument();
     await user.keyboard("{Escape}");
 
     await user.keyboard("h");
     await waitFor(() => expect(leftNames()).toContain("a.txt"));
     await user.keyboard("b");
-    await user.click(
-      screen.getByRole("button", { name: "/mock/home/FolderA" }),
-    );
+    await user.keyboard("{Enter}");
+
     await paneOf("left").findByText("in.txt");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("正常系: 一覧のボタンで, 現在のディレクトリの登録・解除と ×  での解除ができること", async () => {
+  it("正常系: ダブルクリックでもそのディレクトリへ移動して通常表示へ戻ること", async () => {
     mockPhase4();
     const user = await renderLoaded();
-    await user.keyboard("b");
+    await user.keyboard("{Alt>}b{/Alt}");
+    await user.dblClick(paneOf("left").getByText("/mock/home"));
+    await waitFor(() => expect(leftNames()).toContain("a.txt"));
+  });
 
-    await user.click(
-      screen.getByRole("button", { name: "現在のディレクトリを登録" }),
+  it("正常系: 右ペインで開くと右ペインに表示され, もう一方の左ペインは通常のまま操作できること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Tab}");
+    await user.keyboard("{Alt>}b{/Alt}");
+    expect(paneOf("right").getByText("/mock/home")).toBeInTheDocument();
+    expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
+
+    await user.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(paneOf("right").getByText("FolderA")).toBeInTheDocument(),
     );
+    expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
+  });
+
+  it("正常系: j/k でカーソルが動き, d でカーソル位置のブックマークを解除できること (一覧にはとどまる)", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}b{/Alt}");
+    await user.keyboard("{Escape}");
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("{Alt>}b{/Alt}");
+
     expect(
-      screen.getByRole("button", { name: "/mock/home" }),
-    ).toBeInTheDocument();
+      paneOf("left")
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["/mock/home", "/mock/home/FolderA"]);
 
-    await user.click(
-      screen.getByRole("button", { name: "現在のディレクトリを解除" }),
-    );
-    expect(screen.getByText("登録されていません.")).toBeInTheDocument();
+    await user.keyboard("j");
+    await user.keyboard("d");
+    expect(paneOf("left").getByText("/mock/home")).toBeInTheDocument();
+    expect(
+      paneOf("left").queryByText("/mock/home/FolderA"),
+    ).not.toBeInTheDocument();
 
-    await user.click(
-      screen.getByRole("button", { name: "現在のディレクトリを登録" }),
-    );
-    await user.click(screen.getByRole("button", { name: "/mock/home を解除" }));
-    expect(screen.getByText("登録されていません.")).toBeInTheDocument();
+    await user.keyboard("u");
+    expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
+  });
+
+  it("境界: 先頭の行で ↑ を押してもカーソルが範囲外へ出ないこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}b{/Alt}");
+    await user.keyboard("{ArrowUp}");
+    expect(
+      paneOf("left").getByText("/mock/home").closest("li"),
+    ).toHaveAttribute("aria-current", "true");
+  });
+
+  it("正常系: Delete キーでもカーソル位置のブックマークを解除できること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}b{/Alt}");
+    await user.keyboard("{Delete}");
+    expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
   });
 
   it("正常系: 右ペインがアクティブなときは, 右ペインの履歴を戻れること", async () => {
@@ -1999,5 +2039,506 @@ describe("App (プレビュー)", () => {
     await paneOf("left").findByText("usr");
     await user.keyboard("kk");
     expect(cursorNames()).toEqual(["usr"]);
+  });
+});
+
+describe("App (ページ送り・先頭末尾・パス補完・パレット・終了)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  /** 6 件のファイルを持つホームを設定する. */
+  function mockManyFiles(): void {
+    mockedInvoke.mockImplementation((cmd, args) => {
+      if (cmd === "get_home_dir") return Promise.resolve("/mock/home");
+      if (cmd === "read_directory" && pathOf(args) === "/mock/home") {
+        return Promise.resolve(
+          Array.from({ length: 6 }, (_, i) => ({
+            name: `f${i}.txt`,
+            path: `/mock/home/f${i}.txt`,
+            is_dir: false,
+            size: 1,
+            modified: 1,
+            readonly: false,
+            hidden: false,
+          })),
+        );
+      }
+      return Promise.resolve(defaultResult(cmd as string));
+    });
+  }
+
+  it("正常系: PageUp/PageDown と C-v/M-v で 10 行ずつ動き, 範囲外に出ないこと", async () => {
+    mockManyFiles();
+    const user = userEvent.setup();
+    render(<App />);
+    await paneOf("left").findByText("f0.txt");
+    expect(cursorNames()).toEqual(["f0.txt"]);
+
+    await user.keyboard("{PageDown}");
+    expect(cursorNames()).toEqual(["f5.txt"]);
+
+    await user.keyboard("{PageUp}");
+    expect(cursorNames()).toEqual([""]);
+
+    await user.keyboard("{Control>}v{/Control}");
+    expect(cursorNames()).toEqual(["f5.txt"]);
+    await user.keyboard("{Alt>}v{/Alt}");
+    expect(cursorNames()).toEqual([""]);
+  });
+
+  it("正常系: Home/End と M-</M-> で先頭・末尾に動くこと", async () => {
+    mockManyFiles();
+    const user = userEvent.setup();
+    render(<App />);
+    await paneOf("left").findByText("f0.txt");
+    await user.keyboard("j");
+    expect(cursorNames()).toEqual(["f1.txt"]);
+
+    await user.keyboard("{End}");
+    expect(cursorNames()).toEqual(["f5.txt"]);
+    await user.keyboard("{Home}");
+    expect(cursorNames()).toEqual([""]);
+
+    await user.keyboard("{Alt>}>{/Alt}");
+    expect(cursorNames()).toEqual(["f5.txt"]);
+    await user.keyboard("{Alt>}<{/Alt}");
+    expect(cursorNames()).toEqual([""]);
+  });
+
+  it("正常系: g でパス入力欄へ移り, Tab でディレクトリを補完できること", async () => {
+    mockHome((cmd, args) => {
+      if (cmd === "complete_path" && pathOf(args) === undefined)
+        return undefined;
+      return undefined;
+    });
+    mockedInvoke.mockImplementation((cmd, args) => {
+      if (cmd === "get_home_dir") return Promise.resolve("/mock/home");
+      if (cmd === "read_directory" && pathOf(args) === "/mock/home") {
+        return Promise.resolve([
+          { name: "FolderA", path: "/mock/home/FolderA", is_dir: true },
+        ]);
+      }
+      if (cmd === "complete_path") {
+        const input = (args as { input: string }).input;
+        return Promise.resolve(
+          input === "/mock/home/Fol" ? ["/mock/home/FolderA/"] : [],
+        );
+      }
+      return Promise.resolve(defaultResult(cmd as string));
+    });
+    const user = await renderLoaded();
+
+    await user.keyboard("g");
+    await user.keyboard("/mock/home/Fol");
+    await user.keyboard("{Tab}");
+
+    await waitFor(() =>
+      expect(screen.getAllByLabelText("left path")[0]).toHaveValue(
+        "/mock/home/FolderA/",
+      ),
+    );
+  });
+
+  it("異常系: パス補完に候補が無ければ, 入力はそのままであること", async () => {
+    mockHome((cmd) =>
+      cmd === "complete_path" ? Promise.resolve([]) : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("g");
+    await user.keyboard("zzz");
+    await user.keyboard("{Tab}");
+    expect(screen.getAllByLabelText("left path")[0]).toHaveValue("zzz");
+  });
+
+  it("正常系: M-x でパレットが開き, コマンド名を入力して実行できること (候補の一覧は表示しない)", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}x{/Alt}");
+    expect(
+      screen.getByRole("dialog", { name: "コマンドの実行" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "toggleHidden" })).toBeNull();
+
+    expect(statusText()).toContain("隠しファイル非表示");
+
+    await user.keyboard("toggleHidden{Enter}");
+    expect(statusText()).not.toContain("隠しファイル非表示");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: 入力して Enter で, 一意に決まる名前が実行されること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}");
+    await user.keyboard("cursorDo{Enter}");
+    expect(cursorNames()).toEqual(["b.txt"]);
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("正常系: Tab で共通の先頭部分まで補完され, 候補が複数のままなら実行されないこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}");
+    await user.keyboard("cursor");
+    await user.keyboard("{Tab}");
+    await user.keyboard("{Enter}");
+    expect(screen.getByText(/件が一致しています/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("正常系: Tab で入力が, 共通の先頭部分まで伸びること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}");
+    await user.keyboard("curs");
+    await user.keyboard("{Tab}");
+    expect(screen.getByLabelText("コマンド名")).toHaveValue("cursor");
+  });
+
+  it("異常系: 一致しない名前で Enter を押すと, その旨が表示されること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}");
+    await user.keyboard("no-such-command{Enter}");
+    expect(
+      screen.getByText("該当するコマンドがありません."),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: パレット内で ↑/↓ と M-p/M-n により, 実行した名前の履歴をたどれること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}");
+    await user.keyboard("toggleHidden{Enter}");
+
+    await user.keyboard("{Alt>}x{/Alt}");
+    await user.keyboard("cycleSort{Enter}");
+
+    await user.keyboard("{Alt>}x{/Alt}");
+    const input = screen.getByLabelText("コマンド名");
+    await user.type(input, "{ArrowUp}");
+    expect(input).toHaveValue("cycleSort");
+    await user.type(input, "{ArrowUp}");
+    expect(input).toHaveValue("toggleHidden");
+    await user.type(input, "{ArrowDown}");
+    expect(input).toHaveValue("cycleSort");
+    await user.type(input, "{Alt>}n{/Alt}");
+    expect(input).toHaveValue("");
+  });
+
+  it("境界: 実行履歴が無い状態でパレットの履歴キーを押しても, 何も起きないこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}");
+    const input = screen.getByLabelText("コマンド名");
+    await user.type(input, "{Alt>}p{/Alt}");
+    expect(input).toHaveValue("");
+  });
+
+  it("正常系: パレットは Esc で閉じられ, 開いている間は他のキー操作が効かないこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.keyboard("{Alt>}x{/Alt}");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("正常系: q または C-x C-c で終了が呼ばれること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("q");
+    expect(mockedInvoke).toHaveBeenCalledWith("quit_app");
+
+    mockedInvoke.mockClear();
+    await user.keyboard("{Control>}x{/Control}{Control>}c{/Control}");
+    expect(mockedInvoke).toHaveBeenCalledWith("quit_app");
+  });
+
+  it("異常系: 終了の要求に失敗しても, 画面は動作を続けること", async () => {
+    mockHome((cmd) =>
+      cmd === "quit_app" ? Promise.reject("失敗") : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("q");
+    await user.keyboard("j");
+    expect(cursorNames()).toEqual(["b.txt"]);
+  });
+
+  it("正常系: 入力途中のキーの並びが, ステータスバーに表示されること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}");
+    expect(statusText()).toContain("[C-x-]");
+    await user.keyboard(".");
+    expect(statusText()).not.toContain("[C-x-]");
+  });
+
+  it("異常系: ユーザーのキーマップ設定が不正な場合, 操作ログに警告が記録されること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_keymap"
+        ? Promise.resolve({ "X-k": "cursorDown" })
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("load_keymap"),
+    );
+    await user.keyboard("H");
+    expect(
+      within(screen.getByRole("dialog")).getByText(/キーの表記が不正です/),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: ユーザーのキーマップ設定で, 割り当てを上書きできること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_keymap"
+        ? Promise.resolve({ "C-j": "cursorDown" })
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("load_keymap"),
+    );
+    await user.keyboard("{Control>}j{/Control}");
+    expect(cursorNames()).toEqual(["b.txt"]);
+  });
+
+  it("異常系: パレットで, 一致するがコマンドとして解決できない (通常は起きない) 場合はエラーになること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}");
+    await user.keyboard("refresh{Enter}");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("read_directory", {
+        path: "/mock/home",
+      }),
+    );
+  });
+
+  it("異常系: パス補完の取得に失敗しても, 入力はそのままであること", async () => {
+    mockHome((cmd) =>
+      cmd === "complete_path" ? Promise.reject("補完できません") : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("g");
+    await user.keyboard("zzz");
+    await user.keyboard("{Tab}");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("complete_path", {
+        input: "zzz",
+      }),
+    );
+    expect(screen.getAllByLabelText("left path")[0]).toHaveValue("zzz");
+  });
+
+  it("境界: パレットで Tab を押しても, 補完で入力が伸びない場合は変わらないこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}");
+    await user.keyboard("cursorDown");
+    await user.keyboard("{Tab}");
+    expect(screen.getByLabelText("コマンド名")).toHaveValue("cursorDown");
+  });
+});
+
+describe("App (ヘルプ)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: ? でコマンド一覧が開き, キーと説明が表示され, 閉じるボタンで閉じること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("?");
+    const dialog = screen.getByRole("dialog", { name: "コマンド一覧" });
+    expect(within(dialog).getByText("cursorDown")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Down.*C-n.*j/)).toBeInTheDocument();
+    expect(within(dialog).getByText("カーソルを下へ")).toBeInTheDocument();
+    expect(within(dialog).getByText(/refresh→reload/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "閉じる" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: : でパレットが開き, help と入力して実行するとコマンド一覧が開くこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard(":");
+    expect(
+      screen.getByRole("dialog", { name: "コマンドの実行" }),
+    ).toBeInTheDocument();
+    await user.keyboard("help{Enter}");
+
+    expect(
+      screen.getByRole("dialog", { name: "コマンド一覧" }),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: ユーザーのキーマップ設定で上書きされた割り当ても, 一覧に反映されること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_keymap"
+        ? Promise.resolve({ "C-j": "cursorDown" })
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("load_keymap"),
+    );
+
+    await user.keyboard("?");
+    expect(
+      within(screen.getByRole("dialog")).getByText(/Down.*C-n.*j.*C-j/),
+    ).toBeInTheDocument();
+  });
+
+  it("境界: すべての割り当てを解除したコマンドは, キー欄が空で表示されること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_keymap"
+        ? Promise.resolve({ q: null, "C-x C-c": null })
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("load_keymap"),
+    );
+
+    await user.keyboard("?");
+    const row = within(screen.getByRole("dialog"))
+      .getByText("quit")
+      .closest("tr") as HTMLElement;
+    expect(within(row).getAllByRole("cell")[0]).toHaveTextContent("");
+  });
+});
+
+describe("App (ブックマーク一覧の境界)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it("境界: 割り当てのないキーを押しても何も起きないこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}b{/Alt}");
+    await user.keyboard("z");
+    expect(paneOf("left").getByText("/mock/home")).toHaveClass("file-name");
+  });
+
+  it("正常系: ブックマーク一覧の表示中に Tab を押すと, もう一方のペインがアクティブになり (ブラウザ既定のフォーカス移動は起きない), そちらを通常どおり操作できること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}b{/Alt}");
+    expect(screen.getByRole("region", { name: "left pane" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+
+    await user.keyboard("{Tab}");
+
+    expect(document.activeElement).not.toBe(
+      screen.getAllByLabelText("right path")[0],
+    );
+    expect(screen.getByRole("region", { name: "left pane" })).toHaveAttribute(
+      "data-active",
+      "false",
+    );
+    expect(screen.getByRole("region", { name: "right pane" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    // ブックマーク一覧は表示され続け, カーソルは非アクティブの表示になる.
+    expect(
+      paneOf("left").getByText("/mock/home").closest("li"),
+    ).toHaveAttribute("data-cursor", "inactive");
+
+    // アクティブになった右ペインは, 通常どおりキー操作できる.
+    await user.keyboard("j");
+    expect(paneOf("right").getByText("a.txt").closest("li")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  it("正常系: もう一度 Tab を押すと, ブックマーク一覧の側へ戻り, 一覧のキー操作が復帰すること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}b{/Alt}");
+    await user.keyboard("{Tab}");
+
+    await user.keyboard("{Tab}");
+
+    expect(screen.getByRole("region", { name: "left pane" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    expect(
+      paneOf("left").getByText("/mock/home").closest("li"),
+    ).toHaveAttribute("data-cursor", "active");
+    await user.keyboard("{Escape}");
+    expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
+  });
+
+  it("正常系: 左右それぞれでブックマークを表示させると, 両方が同時に表示されたままになること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}b{/Alt}");
+    expect(paneOf("left").getByText("/mock/home")).toBeInTheDocument();
+
+    await user.keyboard("{Tab}");
+    await user.keyboard("{Enter}");
+    await paneOf("right").findByText("in.txt");
+    await user.keyboard("b");
+
+    // 左ペインのブックマーク一覧は消えず, 両方が同時に見えている
+    // (ブックマークの登録先はペインごとではなく共通なので, どちらにも同じ一覧が出る).
+    expect(paneOf("left").getByText("/mock/home")).toBeInTheDocument();
+    expect(paneOf("right").getByText("/mock/home")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "left pane" })).toHaveAttribute(
+      "data-active",
+      "false",
+    );
+    expect(screen.getByRole("region", { name: "right pane" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+
+    // 左のブックマーク一覧をクリックすると, そちらがアクティブになる (右は表示されたまま).
+    await user.click(paneOf("left").getByText("/mock/home"));
+    expect(screen.getByRole("region", { name: "left pane" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    expect(paneOf("right").getByText("/mock/home")).toBeInTheDocument();
+
+    // それぞれで Esc すると, それぞれ独立して通常表示に戻る.
+    await user.keyboard("{Escape}");
+    expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
+    expect(paneOf("right").getByText("/mock/home")).toBeInTheDocument();
+
+    await user.keyboard("{Tab}");
+    await user.keyboard("{Escape}");
+    await paneOf("right").findByText("in.txt");
+  });
+
+  it("境界: 何も登録されていない状態で Enter や Delete を押しても何も起きないこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("b");
+    await user.keyboard("{Enter}");
+    expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
+    await user.keyboard("{Delete}");
+    expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
+    await user.keyboard("u");
+    expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
   });
 });

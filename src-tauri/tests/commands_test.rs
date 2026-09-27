@@ -1,7 +1,7 @@
 use rsfiler::commands::{
-    check_conflicts, create_directory, create_file, get_home_dir, list_drives, open_in_editor,
-    open_item, read_directory, rename_item, transfer, TransferKind, TransferRequest,
-    TransferSummary,
+    check_conflicts, complete_path, create_directory, create_file, get_home_dir, list_drives,
+    load_keymap, open_in_editor, open_item, read_directory, rename_item, transfer, TransferKind,
+    TransferRequest, TransferSummary,
 };
 use std::fs::{self, File};
 use std::io::Write;
@@ -284,4 +284,19 @@ fn test_open_in_editor_missing_failure() {
 fn test_list_drives_success() {
     let drives = list_drives();
     assert!(!drives.is_empty(), "少なくとも 1 つのルートが返ること");
+}
+
+#[test]
+fn test_complete_path_integration() {
+    let dir = tempdir().unwrap();
+    fs::create_dir_all(dir.path().join("sub")).unwrap();
+    let input = format!("{}/s", dir.path().display());
+    let candidates = complete_path(input);
+    assert_eq!(candidates, vec![format!("{}/sub/", dir.path().display())]);
+}
+
+#[test]
+fn test_load_keymap_integration() {
+    // 実際のユーザー設定を読む. 存在しなくても Err にはならないこと.
+    assert!(load_keymap().is_ok());
 }

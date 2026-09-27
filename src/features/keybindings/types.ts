@@ -1,44 +1,57 @@
 /**
+ * キー入力から呼び出されるファイラのコマンド識別子の一覧.
+ */
+export const COMMANDS = [
+  "cursorUp",
+  "cursorDown",
+  "pageUp",
+  "pageDown",
+  "cursorFirst",
+  "cursorLast",
+  "open",
+  "openExternal",
+  "openEditor",
+  "parent",
+  "goto",
+  "drives",
+  "reload",
+  "switchPane",
+  "mkdir",
+  "touch",
+  "rename",
+  "copy",
+  "copyConfirm",
+  "move",
+  "moveConfirm",
+  "syncPane",
+  "preview",
+  "log",
+  "delete",
+  "deletePermanent",
+  "mark",
+  "unmark",
+  "markAll",
+  "unmarkAll",
+  "invertMarks",
+  "markPattern",
+  "toggleHidden",
+  "cycleSort",
+  "toggleDetails",
+  "filter",
+  "cancel",
+  "historyBack",
+  "historyForward",
+  "bookmarks",
+  "addBookmark",
+  "palette",
+  "help",
+  "quit",
+] as const;
+
+/**
  * キー入力から呼び出されるファイラのコマンド識別子.
  */
-export type Command =
-  | "cursorUp"
-  | "cursorDown"
-  | "open"
-  | "openExternal"
-  | "openEditor"
-  | "parent"
-  | "goto"
-  | "drives"
-  | "reload"
-  | "switchPane"
-  | "mkdir"
-  | "touch"
-  | "rename"
-  | "copy"
-  | "copyConfirm"
-  | "move"
-  | "moveConfirm"
-  | "syncPane"
-  | "preview"
-  | "log"
-  | "delete"
-  | "deletePermanent"
-  | "mark"
-  | "unmark"
-  | "markAll"
-  | "unmarkAll"
-  | "invertMarks"
-  | "markPattern"
-  | "toggleHidden"
-  | "cycleSort"
-  | "toggleDetails"
-  | "filter"
-  | "cancel"
-  | "historyBack"
-  | "historyForward"
-  | "bookmarks"
-  | "addBookmark";
+export type Command = (typeof COMMANDS)[number];
 
 /**
  * キー入力を解決した結果.
