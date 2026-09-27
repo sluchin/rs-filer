@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, type ReactElement } from "react";
 import log from "loglevel";
-import BookmarkMenu from "./features/bookmarks/components/BookmarkMenu";
+import BookmarkPane from "./features/bookmarks/components/BookmarkPane";
 import { useBookmarks } from "./features/bookmarks/hooks/useBookmarks";
 import OperationLogDialog from "./components/OperationLogDialog";
 import KeyHintBar from "./components/KeyHintBar";
@@ -13,16 +13,25 @@ import { useNavigation } from "./features/explorer/hooks/useNavigation";
 import DriveSelector from "./features/explorer/components/DriveSelector";
 import type { FileEntry, PaneId } from "./features/explorer/types";
 import { nextSort, sortLabel } from "./features/explorer/view";
+import CommandPalette from "./features/keybindings/components/CommandPalette";
+import HelpDialog from "./features/keybindings/components/HelpDialog";
+import { resolveCommandName } from "./features/keybindings/commandNames";
+import { useUserKeymap } from "./features/keybindings/hooks/useUserKeymap";
 import type { Command } from "./features/keybindings/types";
 import { useKeymap } from "./features/keybindings/useKeymap";
 import TaskProgressModal from "./features/operations/components/TaskProgressModal";
 import { useTransfer } from "./features/operations/hooks/useTransfer";
+import { quitApp } from "./services/tauriApi";
 import PreviewPane from "./features/preview/components/PreviewPane";
 import { usePreview } from "./features/preview/hooks/usePreview";
 import { useNotice } from "./hooks/useNotice";
+import { useHistoryNav } from "./hooks/useHistoryNav";
 import { useOperationLog } from "./hooks/useOperationLog";
 import OperationDialog from "./features/operations/components/OperationDialog";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
+
+/** ページ送り (`PageUp` / `PageDown`) で動かす行数. */
+const PAGE_SIZE = 10;
 
 // 開発環境では debug 以上, 本番では warn 以上を出力.
 if (import.meta.env.DEV) {
@@ -48,9 +57,16 @@ export default function App(): ReactElement {
     left: null,
     right: null,
   });
-  const [bookmarkOpen, setBookmarkOpen] = useState(false);
+  const [bookmarkPanes, setBookmarkPanes] = useState<Record<PaneId, boolean>>({
+    left: false,
+    right: false,
+  });
   const [logOpen, setLogOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [previewOn, setPreviewOn] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteValue, setPaletteValue] = useState("");
+  const paletteHistory = useHistoryNav();
   const operationLog = useOperationLog();
   const { addLog } = operationLog;
   const logError = useCallback(
@@ -62,6 +78,7 @@ export default function App(): ReactElement {
     [addLog],
   );
   const { notice, notify } = useNotice(logInfo);
+  const keymap = useUserKeymap(logError);
   const bookmarks = useBookmarks();
   const {
     leftPane,
@@ -141,6 +158,18 @@ export default function App(): ReactElement {
         break;
       case "cursorDown":
         moveCursor(activePane, 1);
+        break;
+      case "pageUp":
+        moveCursor(activePane, -PAGE_SIZE);
+        break;
+      case "pageDown":
+        moveCursor(activePane, PAGE_SIZE);
+        break;
+      case "cursorFirst":
+        moveCursor(activePane, -Infinity);
+        break;
+      case "cursorLast":
+        moveCursor(activePane, Infinity);
         break;
       case "open":
         if (active.selectedIndex < 0) {
@@ -255,22 +284,46 @@ export default function App(): ReactElement {
         navigation.handleHistory(1);
         break;
       case "bookmarks":
-        setBookmarkOpen(true);
+        setBookmarkPanes((p) => ({ ...p, [activePane]: true }));
         break;
       case "addBookmark":
         bookmarks.toggleBookmark(active.currentPath);
-        setBookmarkOpen(true);
+        setBookmarkPanes((p) => ({ ...p, [activePane]: true }));
+        break;
+      case "palette":
+        setPaletteValue("");
+        setPaletteOpen(true);
+        break;
+      case "help":
+        setHelpOpen(true);
+        break;
+      case "quit":
+        quitApp().catch((e) => log.warn("[React] 終了に失敗:", e));
         break;
     }
   };
 
-  useKeymap(
+  /**
+   * コマンドパレットで実行されたコマンド名を, コマンドとして実行する.
+   */
+  const executeCommandName = (name: string): void => {
+    // コマンドパレットは常に有効なコマンド名を渡すので, command は必ず求まる.
+    const command = resolveCommandName(name) as Command;
+    paletteHistory.record(name);
+    setPaletteOpen(false);
+    runCommand(command);
+  };
+
+  const pending = useKeymap(
     runCommand,
     operations.dialog === null &&
       navigation.drives === null &&
-      !bookmarkOpen &&
+      !bookmarkPanes[activePane] &&
       !logOpen &&
+      !paletteOpen &&
+      !helpOpen &&
       transfer.task === null,
+    keymap,
   );
 
   /**
@@ -302,6 +355,34 @@ export default function App(): ReactElement {
     previewOn && cursorFile && !cursorFile.is_dir ? cursorFile.path : null,
   );
 
+  /** ペインの通常表示を差し替える内容. プレビューは対向ペイン, ブックマークは要求したペイン (両方あり得る) に出す. */
+  const paneOverrides: Partial<Record<PaneId, ReactElement>> = {};
+  if (previewOn) {
+    paneOverrides[activePane === "left" ? "right" : "left"] = (
+      <PreviewPane name={cursorFile?.name ?? ""} state={previewState} />
+    );
+  }
+  (["left", "right"] as const).forEach((paneId) => {
+    if (!bookmarkPanes[paneId]) {
+      return;
+    }
+    paneOverrides[paneId] = (
+      <BookmarkPane
+        paneId={paneId}
+        isActive={activePane === paneId}
+        bookmarks={bookmarks.bookmarks}
+        onActivate={() => setActivePane(paneId)}
+        onSelect={(path) => {
+          setBookmarkPanes((p) => ({ ...p, [paneId]: false }));
+          loadDirectory(paneId, path);
+        }}
+        onRemove={bookmarks.removeBookmark}
+        onCancel={() => setBookmarkPanes((p) => ({ ...p, [paneId]: false }))}
+        onSwitchPane={switchPane}
+      />
+    );
+  });
+
   return (
     <div className="app">
       <DualPaneContainer
@@ -315,14 +396,7 @@ export default function App(): ReactElement {
         onFilterChange={(pane, value) => setView(pane, { filter: value })}
         onItemClick={handleItemClick}
         onItemOpen={handleItemOpen}
-        previewPane={
-          previewOn ? (activePane === "left" ? "right" : "left") : null
-        }
-        previewSlot={
-          previewOn ? (
-            <PreviewPane name={cursorFile?.name ?? ""} state={previewState} />
-          ) : null
-        }
+        overrides={paneOverrides}
         registerPathInput={(pane, element) => {
           pathInputs.current[pane] = element;
         }}
@@ -330,10 +404,42 @@ export default function App(): ReactElement {
           filterInputs.current[pane] = element;
         }}
       />
+      {/* コマンド入力・作成・名前変更・削除確認・ドライブ選択・ブックマークは,
+          ダイアログではなく画面下部のミニバッファ (xyzzy/Emacs 風) に表示する. */}
+      {operations.dialog && (
+        <OperationDialog
+          dialog={operations.dialog}
+          onClose={operations.closeDialog}
+        />
+      )}
+      {navigation.drives && (
+        <DriveSelector
+          drives={navigation.drives}
+          onSelect={navigation.selectDrive}
+          onClose={navigation.closeDrives}
+        />
+      )}
+      {paletteOpen && (
+        <CommandPalette
+          value={paletteValue}
+          onChange={setPaletteValue}
+          onExecute={executeCommandName}
+          onHistory={(delta) => {
+            const found = paletteHistory.move(delta, paletteValue);
+            if (found !== null) {
+              setPaletteValue(found);
+            }
+          }}
+          onClose={() => setPaletteOpen(false)}
+        />
+      )}
+      {helpOpen && (
+        <HelpDialog keymap={keymap} onClose={() => setHelpOpen(false)} />
+      )}
       <KeyHintBar />
       <StatusBar
         error={error}
-        notice={notice}
+        notice={pending ? `${notice ?? ""} [${pending}-]`.trim() : notice}
         currentName={
           activeState.selectedIndex < 0 ? ".." : (cursorFile?.name ?? "")
         }
@@ -344,12 +450,6 @@ export default function App(): ReactElement {
         ].join(" / ")}
         disk={disk}
       />
-      {operations.dialog && (
-        <OperationDialog
-          dialog={operations.dialog}
-          onClose={operations.closeDialog}
-        />
-      )}
       {transfer.task && (
         <TaskProgressModal task={transfer.task} onCancel={transfer.cancel} />
       )}
@@ -357,28 +457,6 @@ export default function App(): ReactElement {
         <OperationLogDialog
           entries={operationLog.entries}
           onClose={() => setLogOpen(false)}
-        />
-      )}
-      {bookmarkOpen && (
-        <BookmarkMenu
-          bookmarks={bookmarks.bookmarks}
-          currentPath={activeState.currentPath}
-          onSelect={(path) => {
-            setBookmarkOpen(false);
-            loadDirectory(activePane, path);
-          }}
-          onToggleCurrent={() =>
-            bookmarks.toggleBookmark(activeState.currentPath)
-          }
-          onRemove={bookmarks.removeBookmark}
-          onClose={() => setBookmarkOpen(false)}
-        />
-      )}
-      {navigation.drives && (
-        <DriveSelector
-          drives={navigation.drives}
-          onSelect={navigation.selectDrive}
-          onClose={navigation.closeDrives}
         />
       )}
     </div>

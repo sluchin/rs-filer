@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import Modal from "../../../components/Modal";
+import Minibuffer from "../../../components/Minibuffer";
 
 /**
  * DriveSelector コンポーネントのプロパティ.
@@ -25,7 +25,7 @@ export default function DriveSelector({
   onClose,
 }: DriveSelectorProps): ReactElement {
   return (
-    <Modal title="ドライブの選択" onClose={onClose}>
+    <Minibuffer title="ドライブの選択" onClose={onClose}>
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
         {drives.map((root, index) => (
           <button
@@ -38,6 +38,6 @@ export default function DriveSelector({
           </button>
         ))}
       </div>
-    </Modal>
+    </Minibuffer>
   );
 }
