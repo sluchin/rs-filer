@@ -1,5 +1,6 @@
-import { useEffect, useRef, type ReactElement } from "react";
+import { useEffect, type ReactElement } from "react";
 import type { FileEntry } from "../types";
+import { useVirtualRows } from "../hooks/useVirtualRows";
 import FileIcon from "./FileIcon";
 import FileItem from "./FileItem";
 
@@ -37,25 +38,18 @@ interface FileListProps {
  */
 function ParentRow({
   cursor,
+  measureRef,
   onClick,
   onDoubleClick,
 }: {
   cursor: "active" | "inactive" | "none";
+  measureRef: (element: HTMLElement | null) => void;
   onClick: () => void;
   onDoubleClick: () => void;
 }): ReactElement {
-  const ref = useRef<HTMLLIElement>(null);
-
-  // カーソルが見える位置までスクロールする (jsdom には scrollIntoView が無い).
-  useEffect(() => {
-    if (cursor !== "none") {
-      ref.current?.scrollIntoView?.({ block: "nearest" });
-    }
-  }, [cursor]);
-
   return (
     <li
-      ref={ref}
+      ref={measureRef}
       className="file-row"
       data-cursor={cursor}
       aria-current={cursor === "active" ? "true" : undefined}
@@ -70,6 +64,9 @@ function ParentRow({
 
 /**
  * ファイル一覧. 列見出しと各行を表示します.
+ *
+ * 行数が多いときは, 画面に映る分の前後だけを描画する仮想スクロールで表示します
+ * (コンテナや行の高さが測れるまでは, これまでどおりすべての行を描画します).
  *
  * @param props - コンポーネントのプロパティ.
  * @returns 一覧のReact要素.
@@ -86,6 +83,58 @@ export default function FileList({
   onItemClick,
   onItemOpen,
 }: FileListProps): ReactElement {
+  const totalCount = files.length + (hasParent ? 1 : 0);
+  const {
+    containerRef,
+    measureRowRef,
+    start,
+    end,
+    paddingTop,
+    paddingBottom,
+    scrollToIndex,
+  } = useVirtualRows(totalCount);
+  // カーソルの, 「..」を含めた行番号 (仮想スクロールの座標系).
+  const cursorRow = hasParent ? selectedIndex + 1 : selectedIndex;
+
+  useEffect(() => {
+    scrollToIndex(cursorRow);
+  }, [cursorRow, scrollToIndex]);
+
+  const rows: ReactElement[] = [];
+  for (let row = start; row < end; row++) {
+    const rowMeasureRef = row === start ? measureRowRef : () => {};
+    if (hasParent && row === 0) {
+      rows.push(
+        <ParentRow
+          key=".."
+          cursor={
+            selectedIndex !== -1 ? "none" : isActive ? "active" : "inactive"
+          }
+          measureRef={rowMeasureRef}
+          onClick={onParentClick}
+          onDoubleClick={onParent}
+        />,
+      );
+      continue;
+    }
+    const idx = hasParent ? row - 1 : row;
+    const file = files[idx];
+    rows.push(
+      <FileItem
+        key={file.path}
+        file={file}
+        cursor={
+          selectedIndex !== idx ? "none" : isActive ? "active" : "inactive"
+        }
+        marked={marks.includes(file.path)}
+        showDetails={showDetails}
+        measureRef={rowMeasureRef}
+        onClick={() => onItemClick(idx, file)}
+        onDoubleClick={() => onItemOpen(idx, file)}
+      />,
+    );
+  }
+
   return (
     <div className="file-list">
       <div className="file-header">
@@ -98,29 +147,14 @@ export default function FileList({
           </>
         )}
       </div>
-      <ul className="file-rows">
-        {hasParent && (
-          <ParentRow
-            cursor={
-              selectedIndex !== -1 ? "none" : isActive ? "active" : "inactive"
-            }
-            onClick={onParentClick}
-            onDoubleClick={onParent}
-          />
+      <ul className="file-rows" ref={containerRef}>
+        {paddingTop > 0 && (
+          <li aria-hidden="true" style={{ height: paddingTop }} />
         )}
-        {files.map((file, idx) => (
-          <FileItem
-            key={file.path}
-            file={file}
-            cursor={
-              selectedIndex !== idx ? "none" : isActive ? "active" : "inactive"
-            }
-            marked={marks.includes(file.path)}
-            showDetails={showDetails}
-            onClick={() => onItemClick(idx, file)}
-            onDoubleClick={() => onItemOpen(idx, file)}
-          />
-        ))}
+        {rows}
+        {paddingBottom > 0 && (
+          <li aria-hidden="true" style={{ height: paddingBottom }} />
+        )}
       </ul>
     </div>
   );

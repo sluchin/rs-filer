@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactElement } from "react";
+import type { ReactElement } from "react";
 import {
   formatAttributes,
   formatDate,
@@ -19,6 +19,8 @@ interface FileItemProps {
   marked: boolean;
   /** 詳細 (サイズ・更新日時・属性) を表示するかどうか. */
   showDetails: boolean;
+  /** 行の高さを測るための ref コールバック (仮想スクロール用). */
+  measureRef: (element: HTMLElement | null) => void;
   /** クリック時のハンドラー. */
   onClick: () => void;
   /** ダブルクリック時のハンドラー. */
@@ -36,21 +38,13 @@ export default function FileItem({
   cursor,
   marked,
   showDetails,
+  measureRef,
   onClick,
   onDoubleClick,
 }: FileItemProps): ReactElement {
-  const ref = useRef<HTMLLIElement>(null);
-
-  // カーソルが見える位置までスクロールする (jsdom には scrollIntoView が無い).
-  useEffect(() => {
-    if (cursor !== "none") {
-      ref.current?.scrollIntoView?.({ block: "nearest" });
-    }
-  }, [cursor]);
-
   return (
     <li
-      ref={ref}
+      ref={measureRef}
       className="file-row"
       data-cursor={cursor}
       data-marked={marked}

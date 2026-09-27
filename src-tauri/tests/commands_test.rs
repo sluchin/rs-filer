@@ -37,7 +37,8 @@ fn test_read_directory_integration() {
     fs::create_dir(&dir_a).unwrap();
 
     // 実行
-    let result = read_directory(test_dir.to_str().unwrap().to_string());
+    let result =
+        tauri::async_runtime::block_on(read_directory(test_dir.to_str().unwrap().to_string()));
     assert!(result.is_ok(), "ディレクトリの読み取りに成功すること");
 
     let entries = result.unwrap();
@@ -62,7 +63,9 @@ fn test_read_directory_integration() {
 
 #[test]
 fn test_read_directory_non_existent_integration() {
-    let result = read_directory("/non_existent_path_rsfiler_12345".to_string());
+    let result = tauri::async_runtime::block_on(read_directory(
+        "/non_existent_path_rsfiler_12345".to_string(),
+    ));
     assert!(result.is_err(), "存在しないパスの場合は Err が返ること");
 }
 
