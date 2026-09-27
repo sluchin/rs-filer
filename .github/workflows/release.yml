@@ -24,11 +24,11 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # 1. Node.jsのセットアップ
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: 'npm' # または 'pnpm', 'yarn'
@@ -37,7 +37,8 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          # universal-apple-darwin は Rust のターゲットではないため, macOS は 2 つのアーキテクチャを個別に入れる.
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
 
       # 3. Rustのビルドキャッシュ（高速化）
       - name: Rust Cache
@@ -85,7 +86,7 @@ jobs:
 
       # 8. 成果物を Artifacts にも保存する (手動実行時はここからダウンロードする)
       - name: Upload bundles as artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: rsfiler-${{ matrix.os }}
           path: |
