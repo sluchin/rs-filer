@@ -90,14 +90,17 @@ src/
 │   │       ├── CommandPalette.tsx      # M-x / : コマンドパレット (ミニバッファ, 候補一覧は表示しない)
 │   │       └── HelpDialog.tsx          # ? / :help のコマンド一覧 (キー割り当て・説明)
 │   │
-│   └── bookmarks/                      # ブックマーク・お気に入りディレクトリ
-│       ├── components/
-│       │   └── BookmarkPane.tsx        # ペインの表示をブックマーク一覧に差し替えるビュー
-│       └── hooks/
-│           └── useBookmarks.ts
+│   ├── bookmarks/                      # ブックマーク・お気に入りディレクトリ
+│   │   ├── components/
+│   │   │   └── BookmarkPane.tsx        # ペインの表示をブックマーク一覧に差し替えるビュー
+│   │   └── hooks/
+│   │       └── useBookmarks.ts
+│   │
+│   └── settings/                       # アプリ設定 (Phase 7)
+│       └── types.ts                    # AppConfig, Theme, FontSize と, 切り替え順
 │
 ├── hooks/                              # アプリ全体共通のカスタムフック
-│   ├── useSettings.ts                  # 設定 (テーマ, 隠しファイル表示等)
+│   ├── useSettings.ts                  # 設定の読み込み・保存 (テーマ・フォントサイズの切り替え)
 │   ├── useHistoryNav.ts                # ミニバッファの入力履歴参照
 │   ├── useNotice.ts                    # 完了通知の一定時間表示
 │   └── useOperationLog.ts              # 操作ログの保持
@@ -130,11 +133,12 @@ src-tauri/src/
 │   ├── fs.rs                           # 一覧取得, ホームディレクトリ, ドライブ一覧, ディスク容量
 │   ├── ops.rs                          # ディレクトリ/ファイル作成, リネーム
 │   ├── transfer.rs                     # コピー/移動/ゴミ箱・完全削除 (進捗通知・中断対応)
-│   ├── open.rs                         # 関連付けアプリ・エディタで開く
+│   ├── open.rs                         # 関連付けアプリ・エディタで開く, ターミナルを開く
+│   ├── exec.rs                         # 選択したファイルに対する外部コマンドの実行
 │   ├── watcher.rs                      # カレントディレクトリ変更監視の開始・停止
 │   ├── search.rs                       # 高速ファイル検索
 │   ├── preview.rs                      # テキスト(文字コード自動判別)/画像/バイナリのプレビューデータ取得
-│   ├── config.rs                       # キーマップ設定ファイル (keymap.json) の読み込み
+│   ├── config.rs                       # 設定ファイルの読み書き (keymap.json / config.json)
 │   └── app.rs                          # 終了 (quit_app)
 │
 └── core/                               # ドメインロジック (OS依存処理・最適化実装)

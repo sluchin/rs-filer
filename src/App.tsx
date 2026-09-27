@@ -21,12 +21,14 @@ import type { Command } from "./features/keybindings/types";
 import { useKeymap } from "./features/keybindings/useKeymap";
 import TaskProgressModal from "./features/operations/components/TaskProgressModal";
 import { useTransfer } from "./features/operations/hooks/useTransfer";
-import { quitApp } from "./services/tauriApi";
+import { openTerminal, quitApp, runExternalCommand } from "./services/tauriApi";
 import PreviewPane from "./features/preview/components/PreviewPane";
 import { usePreview } from "./features/preview/hooks/usePreview";
 import { useNotice } from "./hooks/useNotice";
 import { useHistoryNav } from "./hooks/useHistoryNav";
 import { useOperationLog } from "./hooks/useOperationLog";
+import { useSettings } from "./hooks/useSettings";
+import { targetsOf } from "./features/operations/hooks/useTransfer";
 import OperationDialog from "./features/operations/components/OperationDialog";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
 
@@ -79,6 +81,7 @@ export default function App(): ReactElement {
   );
   const { notice, notify } = useNotice(logInfo);
   const keymap = useUserKeymap(logError);
+  const settings = useSettings();
   const bookmarks = useBookmarks();
   const {
     leftPane,
@@ -297,6 +300,30 @@ export default function App(): ReactElement {
       case "help":
         setHelpOpen(true);
         break;
+      case "openTerminal":
+        openTerminal(active.currentPath).catch((e) => reportError(String(e)));
+        break;
+      case "externalCommand":
+        operations.openPrompt(
+          "外部コマンド実行 (例: xdg-open %f)",
+          (command) => {
+            const paths = targetsOf(active).map((f) => f.path);
+            if (paths.length === 0) {
+              reportError("対象の項目が選択されていません.");
+              return;
+            }
+            runExternalCommand(command, paths).catch((e) =>
+              reportError(String(e)),
+            );
+          },
+        );
+        break;
+      case "cycleTheme":
+        settings.cycleTheme();
+        break;
+      case "cycleFontSize":
+        settings.cycleFontSize();
+        break;
       case "quit":
         quitApp().catch((e) => log.warn("[React] 終了に失敗:", e));
         break;
@@ -384,7 +411,11 @@ export default function App(): ReactElement {
   });
 
   return (
-    <div className="app">
+    <div
+      className="app"
+      data-theme={settings.config.theme}
+      data-font-size={settings.config.font_size}
+    >
       <DualPaneContainer
         activePane={activePane}
         leftPane={leftPane}

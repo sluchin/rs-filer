@@ -231,6 +231,14 @@ function defaultResult(cmd: string): unknown {
   )
     return [];
   if (cmd === "load_keymap") return {};
+  if (cmd === "load_config") {
+    return {
+      theme: "classic",
+      font_size: "medium",
+      editor: null,
+      terminal: null,
+    };
+  }
   if (cmd === "run_transfer") return { processed: 1, cancelled: false };
   return undefined;
 }
@@ -2540,5 +2548,200 @@ describe("App (ブックマーク一覧の境界)", () => {
     expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
     await user.keyboard("u");
     expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
+  });
+});
+
+describe("App (外部連携・テーマ・フォントサイズ)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: ! と M-! でカレントディレクトリのターミナルが開くこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("!");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("open_terminal", {
+        path: "/mock/home",
+      }),
+    );
+
+    mockedInvoke.mockClear();
+    await user.keyboard("{Alt>}!{/Alt}");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("open_terminal", {
+        path: "/mock/home",
+      }),
+    );
+  });
+
+  it("異常系: ターミナルを開けなかった場合はエラーが表示されること", async () => {
+    mockHome((cmd) =>
+      cmd === "open_terminal" ? Promise.reject("起動できません") : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("!");
+    expect(
+      await screen.findByText("エラー: 起動できません"),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: X / & でコマンドを入力すると, カーソル位置の項目に対して実行されること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("j");
+
+    await user.keyboard("X");
+    expect(
+      screen.getByRole("dialog", { name: /外部コマンド実行/ }),
+    ).toBeInTheDocument();
+    await user.keyboard("xdg-open %f{Enter}");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("run_external_command", {
+        command: "xdg-open %f",
+        paths: ["/mock/home/b.txt"],
+      }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.keyboard("k&");
+    await user.keyboard("echo{Enter}");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("run_external_command", {
+        command: "echo",
+        paths: ["/mock/home/FolderA"],
+      }),
+    );
+  });
+
+  it("正常系: マークがあれば, マークした全件に対してコマンドが実行されること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("  X");
+    await user.keyboard("echo{Enter}");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("run_external_command", {
+        command: "echo",
+        paths: ["/mock/home/FolderA", "/mock/home/b.txt"],
+      }),
+    );
+  });
+
+  it("異常系: 対象が選択されていない場合はエラーが表示され, コマンドは実行されないこと", async () => {
+    mockedInvoke.mockImplementation((cmd) =>
+      cmd === "get_home_dir" ? Promise.resolve("/empty") : Promise.resolve([]),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findAllByDisplayValue("/empty");
+
+    await user.keyboard("Xecho{Enter}");
+
+    expect(
+      screen.getByText("エラー: 対象の項目が選択されていません."),
+    ).toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "run_external_command",
+      expect.anything(),
+    );
+  });
+
+  it("異常系: コマンドの実行に失敗するとエラーが表示されること", async () => {
+    mockHome((cmd) =>
+      cmd === "run_external_command"
+        ? Promise.reject("実行できません")
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("Xecho{Enter}");
+    expect(
+      await screen.findByText("エラー: 実行できません"),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: M-t でテーマが切り替わり, 設定ファイルへ保存されること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    expect(document.querySelector(".app")).toHaveAttribute(
+      "data-theme",
+      "classic",
+    );
+
+    await user.keyboard("{Alt>}t{/Alt}");
+
+    expect(document.querySelector(".app")).toHaveAttribute(
+      "data-theme",
+      "dark",
+    );
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("save_config", {
+        config: expect.objectContaining({ theme: "dark" }),
+      }),
+    );
+
+    await user.keyboard("{Alt>}t{/Alt}");
+    expect(document.querySelector(".app")).toHaveAttribute(
+      "data-theme",
+      "classic",
+    );
+  });
+
+  it("正常系: M-0 でフォントサイズが small→medium→large→small と切り替わること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    const app = () => document.querySelector(".app") as HTMLElement;
+    expect(app()).toHaveAttribute("data-font-size", "medium");
+
+    await user.keyboard("{Alt>}0{/Alt}");
+    expect(app()).toHaveAttribute("data-font-size", "large");
+    await user.keyboard("{Alt>}0{/Alt}");
+    expect(app()).toHaveAttribute("data-font-size", "small");
+    await user.keyboard("{Alt>}0{/Alt}");
+    expect(app()).toHaveAttribute("data-font-size", "medium");
+  });
+
+  it("正常系: 起動時に読み込んだ設定 (テーマ・フォントサイズ) が反映されること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_config"
+        ? Promise.resolve({
+            theme: "dark",
+            font_size: "large",
+            editor: null,
+            terminal: null,
+          })
+        : undefined,
+    );
+    await renderLoaded();
+    await waitFor(() =>
+      expect(document.querySelector(".app")).toHaveAttribute(
+        "data-theme",
+        "dark",
+      ),
+    );
+    expect(document.querySelector(".app")).toHaveAttribute(
+      "data-font-size",
+      "large",
+    );
+  });
+
+  it("異常系: 設定の読み込み・保存に失敗しても, 既定値のまま画面は動作すること", async () => {
+    mockHome((cmd) => {
+      if (cmd === "load_config") return Promise.reject("読み込み失敗");
+      if (cmd === "save_config") return Promise.reject("保存失敗");
+      return undefined;
+    });
+    const user = await renderLoaded();
+    expect(document.querySelector(".app")).toHaveAttribute(
+      "data-theme",
+      "classic",
+    );
+    await user.keyboard("{Alt>}t{/Alt}");
+    expect(document.querySelector(".app")).toHaveAttribute(
+      "data-theme",
+      "dark",
+    );
   });
 });

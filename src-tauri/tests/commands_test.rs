@@ -1,7 +1,7 @@
 use rsfiler::commands::{
     check_conflicts, complete_path, create_directory, create_file, get_home_dir, list_drives,
-    load_keymap, open_in_editor, open_item, read_directory, rename_item, transfer, TransferKind,
-    TransferRequest, TransferSummary,
+    load_config, load_keymap, open_in_editor, open_item, read_directory, rename_item,
+    run_external_command, transfer, TransferKind, TransferRequest, TransferSummary,
 };
 use std::fs::{self, File};
 use std::io::Write;
@@ -299,4 +299,17 @@ fn test_complete_path_integration() {
 fn test_load_keymap_integration() {
     // 実際のユーザー設定を読む. 存在しなくても Err にはならないこと.
     assert!(load_keymap().is_ok());
+}
+
+#[test]
+fn test_load_config_integration() {
+    // 実際のユーザー設定を読む. 存在しなくても Err にはならないこと.
+    assert!(load_config().is_ok());
+}
+
+#[test]
+fn test_run_external_command_no_existing_targets_integration() {
+    let dir = tempdir().unwrap();
+    let missing = dir.path().join("none").to_string_lossy().into_owned();
+    assert!(run_external_command("echo".to_string(), vec![missing]).is_err());
 }

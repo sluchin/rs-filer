@@ -1,5 +1,6 @@
-//! ファイルを関連付けられたアプリケーションまたはエディタで開くコマンド.
+//! ファイルを関連付けられたアプリケーションまたはエディタで開く, およびターミナルを開くコマンド.
 
+use super::config::load_config_from;
 use std::path::Path;
 use std::process::Command;
 
@@ -83,12 +84,116 @@ fn open_in_editor_with(path: &Path, editor: Option<&str>) -> Result<(), String> 
 /// # Returns
 ///
 /// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
+#[cfg(not(tarpaulin_include))]
 #[tauri::command]
 pub fn open_in_editor(path: String) -> Result<(), String> {
-    let editor = std::env::var("VISUAL")
-        .or_else(|_| std::env::var("EDITOR"))
-        .ok();
+    let config_editor = load_config_from(dirs::config_dir().as_deref())?.editor;
+    let editor = config_editor
+        .or_else(|| std::env::var("VISUAL").ok())
+        .or_else(|| std::env::var("EDITOR").ok());
     open_in_editor_with(Path::new(&path), editor.as_deref())
+}
+
+/// 現在の OS で試す, ターミナルの候補 (プログラム名, 追加の引数).
+///
+/// 先頭から順に起動を試み, 最初に成功したもので処理を終えます.
+fn terminal_candidates() -> Vec<(&'static str, Vec<&'static str>)> {
+    if cfg!(target_os = "windows") {
+        vec![("cmd", vec!["/C", "start", "cmd"])]
+    } else if cfg!(target_os = "macos") {
+        vec![("open", vec!["-a", "Terminal"])]
+    } else {
+        vec![
+            ("x-terminal-emulator", vec![]),
+            ("gnome-terminal", vec![]),
+            ("konsole", vec![]),
+            ("xfce4-terminal", vec![]),
+            ("xterm", vec![]),
+        ]
+    }
+}
+
+/// ターミナルを開くコマンドの候補を返します. 設定で指定されていれば, それだけを候補にします.
+///
+/// # Arguments
+///
+/// * `configured` - 設定 (`config.json`) の `terminal`. 空文字や空白のみの場合は無指定として扱う.
+///
+/// # Returns
+///
+/// (プログラム名, 追加の引数) の候補一覧.
+fn candidates_for(configured: Option<&str>) -> Vec<(String, Vec<String>)> {
+    match configured.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(cmd) => vec![(cmd.to_string(), Vec::new())],
+        None => terminal_candidates()
+            .into_iter()
+            .map(|(program, args)| {
+                (
+                    program.to_string(),
+                    args.into_iter().map(String::from).collect(),
+                )
+            })
+            .collect(),
+    }
+}
+
+/// カレントディレクトリでターミナルを開く実処理. 候補を順に `spawner` で起動します.
+///
+/// # Arguments
+///
+/// * `dir` - ターミナルの作業ディレクトリにするパス.
+/// * `candidates` - 試す (プログラム名, 追加の引数) の一覧.
+/// * `spawner` - 実際に起動する関数. 成功したら `true` を返す.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok(())`], `dir` がディレクトリでない場合やすべての候補が失敗した場合は
+/// エラー文字列を含む [`Err`].
+fn open_terminal_with(
+    dir: &Path,
+    candidates: &[(String, Vec<String>)],
+    spawner: &dyn Fn(&str, &[String], &Path) -> bool,
+) -> Result<(), String> {
+    if !dir.is_dir() {
+        return Err(format!("Not a directory: {}", dir.display()));
+    }
+    if candidates
+        .iter()
+        .any(|(program, args)| spawner(program, args, dir))
+    {
+        Ok(())
+    } else {
+        Err("Failed to start a terminal".to_string())
+    }
+}
+
+/// カレントディレクトリでターミナルを開きます.
+///
+/// 設定 (`config.json`) の `terminal` があればそれを, 無ければ OS ごとの既定のターミナルを
+/// 順に試します.
+///
+/// # Arguments
+///
+/// * `path` - ターミナルの作業ディレクトリにするパス.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
+#[cfg(not(tarpaulin_include))]
+#[tauri::command]
+pub fn open_terminal(path: String) -> Result<(), String> {
+    let terminal = load_config_from(dirs::config_dir().as_deref())?.terminal;
+    open_terminal_with(
+        Path::new(&path),
+        &candidates_for(terminal.as_deref()),
+        &|program, args, dir| {
+            Command::new(program)
+                .args(args)
+                .current_dir(dir)
+                .spawn()
+                .is_ok()
+        },
+    )
 }
 
 #[cfg(test)]

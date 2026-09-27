@@ -88,6 +88,12 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   "M-x": "palette",
   ":": "palette",
   "?": "help",
+  "!": "openTerminal",
+  "M-!": "openTerminal",
+  X: "externalCommand",
+  "&": "externalCommand",
+  "M-t": "cycleTheme",
+  "M-0": "cycleFontSize",
   q: "quit",
   "C-x C-c": "quit",
 };

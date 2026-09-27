@@ -1,7 +1,8 @@
 /**
  * 階層パスを解析し, 1つ上の親ディレクトリのパスを返します.
  *
- * Windows のドライブレター (`C:/`) とバックスラッシュ区切りにも対応します.
+ * Windows のドライブレター (`C:/`), バックスラッシュ区切り, UNC パス (`\\server\share\...`) にも
+ * 対応します. ルート (`/`, ドライブレターの直下, UNC の共有直下) では, それ以上は上がれません.
  *
  * @param path - 対象のディレクトリパス.
  * @returns 親ディレクトリのパス. 移動できない場合 (パスが空またはルート) は null.
@@ -14,15 +15,24 @@ export function getParentPath(path: string): string | null {
     return null;
   }
 
+  const isUnc = normalizedPath.startsWith("//");
+  const isDrive = /^[a-zA-Z]:$/.test(segments[0]);
+  // ルートの深さ: 通常のパスは 0 (「/」), ドライブレターは 1 (「C:/」),
+  // UNC は 2 (「//server/share」, サーバー名と共有名の 2 段).
+  const rootDepth = isUnc ? 2 : isDrive ? 1 : 0;
+
+  if (segments.length <= rootDepth) {
+    return null;
+  }
+
   segments.pop();
-  const isWindowsRoot = /^[a-zA-Z]:$/.test(segments[0] ?? "");
-  if (segments.length === 0) {
-    return "/";
+  if (segments.length === rootDepth && (isDrive || isUnc)) {
+    return isUnc ? `//${segments.join("/")}` : `${segments[0]}/`;
   }
-  if (isWindowsRoot && segments.length === 1) {
-    return `${segments[0]}/`;
-  }
-  return (normalizedPath.startsWith("/") ? "/" : "") + segments.join("/");
+  return (
+    (isUnc ? "//" : normalizedPath.startsWith("/") ? "/" : "") +
+    segments.join("/")
+  );
 }
 
 /**

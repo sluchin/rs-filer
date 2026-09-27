@@ -46,6 +46,10 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   addBookmark: "ブックマークへ登録 / 解除",
   palette: "コマンドの実行",
   help: "コマンド一覧の表示",
+  openTerminal: "カレントディレクトリでターミナルを開く",
+  externalCommand: "選択したファイルに外部コマンドを実行",
+  cycleTheme: "テーマの切り替え",
+  cycleFontSize: "フォントサイズの切り替え",
   quit: "終了",
 };
 
