@@ -119,9 +119,15 @@ fn scan_directory(path: &str) -> Result<Vec<FileEntry>, String> {
 /// ディレクトリが存在しないかアクセス権限がない場合はエラー文字列を含む [`Err`] を返します.
 #[tauri::command]
 pub async fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
-    tauri::async_runtime::spawn_blocking(move || scan_directory(&path))
+    log::debug!("ディレクトリ読み取り開始: {}", path);
+    let target = path.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || scan_directory(&target))
         .await
-        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+    if let Err(e) = &result {
+        log::error!("ディレクトリ読み取り失敗: {} ({})", path, e);
+    }
+    result
 }
 
 /// 実行環境におけるユーザーのホームディレクトリの絶対パスを取得します.
@@ -134,7 +140,11 @@ pub async fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
 pub fn get_home_dir() -> Result<String, String> {
     dirs::home_dir()
         .map(|p| p.to_string_lossy().into_owned())
-        .ok_or_else(|| "ホームディレクトリを取得できませんでした.".to_string())
+        .ok_or_else(|| {
+            let message = "ホームディレクトリを取得できませんでした.".to_string();
+            log::error!("{}", message);
+            message
+        })
 }
 
 /// 利用可能なドライブのルートパスを返します.
@@ -169,8 +179,14 @@ pub struct DiskSpace {
 /// 成功した場合は [`DiskSpace`], 取得に失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command]
 pub fn get_disk_space(path: String) -> Result<DiskSpace, String> {
-    let free = fs4::available_space(&path).map_err(|e| e.to_string())?;
-    let total = fs4::total_space(&path).map_err(|e| e.to_string())?;
+    let free = fs4::available_space(&path).map_err(|e| {
+        log::error!("ディスク容量取得失敗: {} ({})", path, e);
+        e.to_string()
+    })?;
+    let total = fs4::total_space(&path).map_err(|e| {
+        log::error!("ディスク容量取得失敗: {} ({})", path, e);
+        e.to_string()
+    })?;
     Ok(DiskSpace { free, total })
 }
 
