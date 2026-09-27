@@ -71,7 +71,9 @@ fn load_keymap_from(config_dir: Option<&Path>) -> Result<HashMap<String, Option<
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
 pub fn load_keymap() -> Result<HashMap<String, Option<String>>, String> {
-    load_keymap_from(dirs::config_dir().as_deref())
+    load_keymap_from(dirs::config_dir().as_deref()).inspect_err(|e| {
+        log::error!("キーマップ設定読み込み失敗: {}", e);
+    })
 }
 
 /// テーマ (配色).
@@ -212,7 +214,9 @@ fn save_config_to(config_dir: Option<&Path>, config: &AppConfig) -> Result<(), S
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
 pub fn load_config() -> Result<AppConfig, String> {
-    load_config_from(dirs::config_dir().as_deref())
+    load_config_from(dirs::config_dir().as_deref()).inspect_err(|e| {
+        log::error!("アプリ設定読み込み失敗: {}", e);
+    })
 }
 
 /// ユーザーのアプリ設定を書き込みます.
@@ -228,7 +232,11 @@ pub fn load_config() -> Result<AppConfig, String> {
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
 pub fn save_config(config: AppConfig) -> Result<(), String> {
-    save_config_to(dirs::config_dir().as_deref(), &config)
+    save_config_to(dirs::config_dir().as_deref(), &config).inspect_err(|e| {
+        log::error!("アプリ設定書き込み失敗: {}", e);
+    })?;
+    log::info!("アプリ設定書き込み完了");
+    Ok(())
 }
 
 #[cfg(test)]
