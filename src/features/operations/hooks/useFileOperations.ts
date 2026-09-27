@@ -40,6 +40,27 @@ export function useFileOperations(
   const closeDialog = useCallback((): void => setDialog(null), []);
 
   /**
+   * 文字列を 1 つ入力させるダイアログを開きます.
+   *
+   * @param title - ダイアログの見出し.
+   * @param onSubmit - 入力を確定したときの処理.
+   */
+  const openPrompt = useCallback(
+    (title: string, onSubmit: (value: string) => void): void => {
+      setDialog({
+        kind: "prompt",
+        title,
+        initialValue: "",
+        onSubmit: (value) => {
+          setDialog(null);
+          onSubmit(value);
+        },
+      });
+    },
+    [],
+  );
+
+  /**
    * 操作を実行し, 失敗した場合はエラーを表示します.
    *
    * @param label - ログに出す操作名.
@@ -202,6 +223,7 @@ export function useFileOperations(
   return {
     dialog,
     closeDialog,
+    openPrompt,
     startMkdir,
     startTouch,
     startRename,

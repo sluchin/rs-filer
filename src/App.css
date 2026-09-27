@@ -146,6 +146,29 @@ body,
   flex: none;
 }
 
+.file-row[data-marked="true"] {
+  color: #cc0000;
+  font-weight: bold;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px 2px;
+}
+
+.filter-bar input {
+  flex: 1;
+  font: inherit;
+  border: 1px solid #828790;
+  padding: 0 2px;
+}
+
+.status-info {
+  color: #444444;
+}
+
 .key-hint-bar {
   border-top: 1px solid #a0a0a0;
   padding: 2px 2px 0;

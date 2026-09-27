@@ -15,6 +15,10 @@ interface FileItemProps {
   file: FileEntry;
   /** カーソルの状態. アクティブなペインでは濃く, 非アクティブなペインでは薄く示す. */
   cursor: "active" | "inactive" | "none";
+  /** マークされているかどうか. */
+  marked: boolean;
+  /** 詳細 (サイズ・更新日時・属性) を表示するかどうか. */
+  showDetails: boolean;
   /** クリック時のハンドラー. */
   onClick: () => void;
   /** ダブルクリック時のハンドラー. */
@@ -30,6 +34,8 @@ interface FileItemProps {
 export default function FileItem({
   file,
   cursor,
+  marked,
+  showDetails,
   onClick,
   onDoubleClick,
 }: FileItemProps): ReactElement {
@@ -47,15 +53,20 @@ export default function FileItem({
       ref={ref}
       className="file-row"
       data-cursor={cursor}
+      data-marked={marked}
       aria-current={cursor === "active" ? "true" : undefined}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
     >
       <FileIcon kind={file.is_dir ? "dir" : "file"} />
       <span className="col-name file-name">{file.name}</span>
-      <span className="col-size">{formatSize(file)}</span>
-      <span className="col-date">{formatDate(file.modified)}</span>
-      <span className="col-attr">{formatAttributes(file)}</span>
+      {showDetails && (
+        <>
+          <span className="col-size">{formatSize(file)}</span>
+          <span className="col-date">{formatDate(file.modified)}</span>
+          <span className="col-attr">{formatAttributes(file)}</span>
+        </>
+      )}
     </li>
   );
 }

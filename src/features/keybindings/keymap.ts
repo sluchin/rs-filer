@@ -13,7 +13,6 @@ const PLAIN_KEYS: Record<string, Command> = {
   x: "openExternal",
   e: "openEditor",
   Backspace: "parent",
-  u: "parent",
   h: "parent",
   "^": "parent",
   ArrowLeft: "parent",
@@ -29,20 +28,81 @@ const PLAIN_KEYS: Record<string, Command> = {
   Delete: "delete",
   d: "delete",
   D: "deletePermanent",
+  " ": "mark",
+  u: "unmark",
+  U: "unmarkAll",
+  ".": "toggleHidden",
+  s: "cycleSort",
+  i: "toggleDetails",
+  "/": "filter",
+  b: "bookmarks",
+  Escape: "cancel",
 };
 
-/** `C-x` プレフィクスの後に続くキー (Ctrl 併用) の割り当て. */
-const CTRL_X_CTRL_KEYS: Record<string, Command> = {
-  f: "touch",
+/** Ctrl を併用する単独キーに対するコマンドの割り当て. */
+const CTRL_KEYS: Record<string, Command> = {
+  l: "reload",
+  a: "markAll",
+  s: "filter",
 };
 
-/** `C-x` プレフィクスの後に続く単独キーの割り当て. */
-const CTRL_X_PLAIN_KEYS: Record<string, Command> = {
-  o: "switchPane",
+/** Alt を併用する単独キーに対するコマンドの割り当て. */
+const ALT_KEYS: Record<string, Command> = {
+  g: "goto",
+  d: "drives",
+  b: "addBookmark",
+  ArrowLeft: "historyBack",
+  ArrowRight: "historyForward",
 };
 
 /** プレフィクスキー `C-x` の識別子. */
 export const PREFIX_CTRL_X = "C-x";
+/** プレフィクスキー `C-c` の識別子. */
+export const PREFIX_CTRL_C = "C-c";
+/** プレフィクスキー `*` の識別子. */
+export const PREFIX_STAR = "*";
+
+/** プレフィクスの後に続くキーに対するコマンドの割り当て. `ctrl` は Ctrl を併用するキー. */
+const PREFIX_KEYS: Record<
+  string,
+  { plain: Record<string, Command>; ctrl: Record<string, Command> }
+> = {
+  [PREFIX_CTRL_X]: {
+    plain: { o: "switchPane", ".": "toggleHidden" },
+    ctrl: { f: "touch" },
+  },
+  [PREFIX_CTRL_C]: {
+    plain: { "<": "historyBack", ">": "historyForward" },
+    ctrl: {},
+  },
+  [PREFIX_STAR]: {
+    plain: {
+      "*": "markAll",
+      u: "unmarkAll",
+      t: "invertMarks",
+      s: "markPattern",
+    },
+    ctrl: {},
+  },
+};
+
+/** Ctrl を併用して, プレフィクスになるキー. */
+const CTRL_PREFIXES: Record<string, string> = {
+  x: PREFIX_CTRL_X,
+  c: PREFIX_CTRL_C,
+};
+
+/**
+ * 割り当て表から, キーに対するコマンドを引きます.
+ */
+function lookup(
+  table: Record<string, Command>,
+  key: string,
+): Command | undefined {
+  return Object.prototype.hasOwnProperty.call(table, key)
+    ? table[key]
+    : undefined;
+}
 
 /**
  * キー入力を, コマンドまたはプレフィクスに解決します.
@@ -60,34 +120,32 @@ export function resolveKey(
 ): KeyResolution {
   const { key, ctrlKey, altKey, metaKey } = event;
 
-  if (prefix === PREFIX_CTRL_X) {
+  if (prefix !== null) {
+    const keys = PREFIX_KEYS[prefix];
     const command = ctrlKey
-      ? CTRL_X_CTRL_KEYS[key.toLowerCase()]
-      : CTRL_X_PLAIN_KEYS[key];
+      ? lookup(keys.ctrl, key.toLowerCase())
+      : lookup(keys.plain, key);
     return command ? { command } : {};
   }
 
-  if (metaKey) {
+  if (metaKey || (ctrlKey && altKey)) {
     return {};
   }
-  if (ctrlKey && !altKey) {
-    if (key === "x") {
-      return { prefix: PREFIX_CTRL_X };
+  if (ctrlKey) {
+    if (Object.prototype.hasOwnProperty.call(CTRL_PREFIXES, key)) {
+      return { prefix: CTRL_PREFIXES[key] };
     }
-    return key === "l" ? { command: "reload" } : {};
+    return { command: lookup(CTRL_KEYS, key) };
   }
-  if (altKey && !ctrlKey) {
-    if (key === "g") {
-      return { command: "goto" };
-    }
-    return key === "d" ? { command: "drives" } : {};
-  }
-  if (ctrlKey || altKey) {
-    return {};
+  if (altKey) {
+    return { command: lookup(ALT_KEYS, key) };
   }
 
+  if (key === PREFIX_STAR) {
+    return { prefix: PREFIX_STAR };
+  }
   if (key === "Delete" && event.shiftKey) {
     return { command: "deletePermanent" };
   }
-  return { command: PLAIN_KEYS[key] };
+  return { command: lookup(PLAIN_KEYS, key) };
 }

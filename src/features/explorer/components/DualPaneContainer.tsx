@@ -16,16 +16,18 @@ interface DualPaneContainerProps {
   onActivate: (pane: PaneId) => void;
   /** 親ディレクトリへ移動するハンドラー. */
   onParent: (pane: PaneId) => void;
-  /** パス入力の変更ハンドラー. */
-  onPathChange: (pane: PaneId, value: string) => void;
   /** パス入力の確定ハンドラー. */
-  onPathSubmit: (pane: PaneId) => void;
+  onPathSubmit: (pane: PaneId, value: string) => void;
+  /** 絞り込み文字列の変更ハンドラー. null で絞り込みを解除する. */
+  onFilterChange: (pane: PaneId, value: string | null) => void;
   /** 項目クリックのハンドラー. */
   onItemClick: (pane: PaneId, index: number, file: FileEntry) => void;
   /** 項目ダブルクリックのハンドラー. */
   onItemOpen: (pane: PaneId, index: number, file: FileEntry) => void;
   /** パス入力欄の要素を登録するハンドラー. */
   registerPathInput: (pane: PaneId, element: HTMLInputElement | null) => void;
+  /** 絞り込み入力欄の要素を登録するハンドラー. */
+  registerFilterInput: (pane: PaneId, element: HTMLInputElement | null) => void;
 }
 
 /**
@@ -40,11 +42,12 @@ export default function DualPaneContainer({
   rightPane,
   onActivate,
   onParent,
-  onPathChange,
   onPathSubmit,
+  onFilterChange,
   onItemClick,
   onItemOpen,
   registerPathInput,
+  registerFilterInput,
 }: DualPaneContainerProps): ReactElement {
   const renderPane = (paneId: PaneId, state: PaneState): ReactElement => (
     <Pane
@@ -53,11 +56,12 @@ export default function DualPaneContainer({
       isActive={activePane === paneId}
       onActivate={() => onActivate(paneId)}
       onParent={() => onParent(paneId)}
-      onPathChange={(value) => onPathChange(paneId, value)}
-      onPathSubmit={() => onPathSubmit(paneId)}
+      onPathSubmit={(value) => onPathSubmit(paneId, value)}
+      onFilterChange={(value) => onFilterChange(paneId, value)}
       onItemClick={(index, file) => onItemClick(paneId, index, file)}
       onItemOpen={(index, file) => onItemOpen(paneId, index, file)}
       pathInputRef={(element) => registerPathInput(paneId, element)}
+      filterInputRef={(element) => registerFilterInput(paneId, element)}
     />
   );
 
