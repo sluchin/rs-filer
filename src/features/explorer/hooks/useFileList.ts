@@ -2,12 +2,21 @@ import { useCallback, useEffect, useState } from "react";
 import log from "loglevel";
 import { getHomeDir, readDirectory } from "../../../services/tauriApi";
 import type { FileEntry, PaneId, PaneState } from "../types";
+import { deriveFiles } from "../view";
 
 /** ペインの初期状態. */
 const INITIAL_PANE: PaneState = {
   currentPath: "/",
   files: [],
+  allFiles: [],
   selectedIndex: 0,
+  marks: [],
+  showHidden: false,
+  showDetails: true,
+  sort: { key: "name", desc: false },
+  filter: null,
+  history: [],
+  historyIndex: -1,
 };
 
 /**
@@ -18,12 +27,21 @@ export interface LoadOptions {
   keepCursor?: boolean;
   /** 読み込み後にカーソルを合わせる項目の名前. */
   selectName?: string;
+  /** 履歴の中の位置へ移動する場合の, その位置 (戻る・進む用). 指定しない場合は, 新しいディレクトリを履歴へ追加する. */
+  historyIndex?: number;
 }
+
+/**
+ * 表示の設定として変更できる項目.
+ */
+export type ViewPatch = Partial<
+  Pick<PaneState, "showHidden" | "showDetails" | "sort" | "filter">
+>;
 
 /**
  * 読み込み後のカーソル位置を決めます.
  *
- * @param files - 読み込んだエントリ一覧.
+ * @param files - 表示するエントリ一覧.
  * @param previous - 読み込み前のカーソル位置.
  * @param options - カーソル位置に関するオプション.
  * @returns 新しいカーソル位置.
@@ -77,9 +95,11 @@ export function useFileList() {
   /**
    * 指定されたパスのディレクトリ内容を取得し, 対象ペインの状態を更新します.
    *
+   * ディレクトリが変わった場合は, マークと絞り込みを解除し, 履歴へ追加します.
+   *
    * @param pane - 更新対象のペイン識別子.
    * @param targetPath - 読み込み対象のディレクトリ絶対パス.
-   * @param options - カーソル位置に関するオプション.
+   * @param options - カーソル位置・履歴に関するオプション.
    */
   const loadDirectory = useCallback(
     async (
@@ -93,18 +113,62 @@ export function useFileList() {
 
         const result = await readDirectory(targetPath);
 
-        updatePane(pane, (prev) => ({
-          ...prev,
-          currentPath: targetPath,
-          files: result,
-          selectedIndex: cursorAfterLoad(result, prev.selectedIndex, options),
-        }));
+        updatePane(pane, (prev) => {
+          const moved = targetPath !== prev.currentPath;
+          const filter = moved ? null : prev.filter;
+          const files = deriveFiles(result, { ...prev, filter });
+          const existing = new Set(result.map((f) => f.path));
+          let { history, historyIndex } = prev;
+          if (options.historyIndex !== undefined) {
+            historyIndex = options.historyIndex;
+          } else if (history[historyIndex] !== targetPath) {
+            history = [...history.slice(0, historyIndex + 1), targetPath];
+            historyIndex = history.length - 1;
+          }
+          return {
+            ...prev,
+            currentPath: targetPath,
+            allFiles: result,
+            files,
+            filter,
+            marks: moved ? [] : prev.marks.filter((m) => existing.has(m)),
+            selectedIndex: cursorAfterLoad(files, prev.selectedIndex, options),
+            history,
+            historyIndex,
+          };
+        });
 
         log.info(`[React] ${pane}ペイン 取得完了: ${result.length} 件`);
       } catch (e) {
         log.error(`[React] ${pane}ペイン 読み込み失敗:`, e);
         setError(String(e));
       }
+    },
+    [updatePane],
+  );
+
+  /**
+   * 指定したペインの表示設定 (隠しファイル・詳細表示・ソート・絞り込み) を変更します.
+   * カーソルは, 同じ名前の項目があればその項目に合わせます.
+   *
+   * @param pane - 対象のペイン識別子.
+   * @param patch - 変更する設定.
+   */
+  const setView = useCallback(
+    (pane: PaneId, patch: ViewPatch): void => {
+      updatePane(pane, (prev) => {
+        const next = { ...prev, ...patch };
+        const files = deriveFiles(next.allFiles, next);
+        const name = prev.files[prev.selectedIndex]?.name;
+        return {
+          ...next,
+          files,
+          selectedIndex: cursorAfterLoad(files, prev.selectedIndex, {
+            selectName: name,
+            keepCursor: true,
+          }),
+        };
+      });
     },
     [updatePane],
   );
@@ -152,6 +216,7 @@ export function useFileList() {
     setError,
     updatePane,
     loadDirectory,
+    setView,
     moveCursor,
   };
 }

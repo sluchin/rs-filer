@@ -1,13 +1,17 @@
 import { useCallback, useRef, useState, type ReactElement } from "react";
 import log from "loglevel";
+import BookmarkMenu from "./features/bookmarks/components/BookmarkMenu";
+import { useBookmarks } from "./features/bookmarks/hooks/useBookmarks";
 import KeyHintBar from "./components/KeyHintBar";
 import StatusBar from "./components/StatusBar";
 import DualPaneContainer from "./features/explorer/components/DualPaneContainer";
 import { useDiskSpace } from "./features/explorer/hooks/useDiskSpace";
 import { useFileList } from "./features/explorer/hooks/useFileList";
+import { useMarks } from "./features/explorer/hooks/useMarks";
 import { useNavigation } from "./features/explorer/hooks/useNavigation";
 import DriveSelector from "./features/explorer/components/DriveSelector";
 import type { FileEntry, PaneId } from "./features/explorer/types";
+import { nextSort, sortLabel } from "./features/explorer/view";
 import type { Command } from "./features/keybindings/types";
 import { useKeymap } from "./features/keybindings/useKeymap";
 import OperationDialog from "./features/operations/components/OperationDialog";
@@ -33,6 +37,12 @@ export default function App(): ReactElement {
     left: null,
     right: null,
   });
+  const filterInputs = useRef<Record<PaneId, HTMLInputElement | null>>({
+    left: null,
+    right: null,
+  });
+  const [bookmarkOpen, setBookmarkOpen] = useState(false);
+  const bookmarks = useBookmarks();
   const {
     leftPane,
     rightPane,
@@ -40,6 +50,7 @@ export default function App(): ReactElement {
     setError,
     updatePane,
     loadDirectory,
+    setView,
     moveCursor,
   } = useFileList();
   const navigation = useNavigation(
@@ -56,6 +67,7 @@ export default function App(): ReactElement {
     loadDirectory,
     setError,
   );
+  const marks = useMarks(activePane, updatePane, moveCursor, setError);
   const { handleEnter } = navigation;
   const { openExternal } = operations;
 
@@ -135,12 +147,64 @@ export default function App(): ReactElement {
       case "deletePermanent":
         operations.startDelete(true);
         break;
+      case "mark":
+        marks.mark();
+        break;
+      case "unmark":
+        marks.unmark();
+        break;
+      case "markAll":
+        marks.markAll();
+        break;
+      case "unmarkAll":
+        marks.unmarkAll();
+        break;
+      case "invertMarks":
+        marks.invertMarks();
+        break;
+      case "markPattern":
+        operations.openPrompt(
+          "パターンでマーク (例: *.txt または /正規表現/)",
+          marks.markPattern,
+        );
+        break;
+      case "toggleHidden":
+        setView(activePane, { showHidden: !active.showHidden });
+        break;
+      case "cycleSort":
+        setView(activePane, { sort: nextSort(active.sort) });
+        break;
+      case "toggleDetails":
+        setView(activePane, { showDetails: !active.showDetails });
+        break;
+      case "filter":
+        setView(activePane, { filter: active.filter ?? "" });
+        filterInputs.current[activePane]?.focus();
+        break;
+      case "cancel":
+        if (active.filter !== null) {
+          setView(activePane, { filter: null });
+        }
+        break;
+      case "historyBack":
+        navigation.handleHistory(-1);
+        break;
+      case "historyForward":
+        navigation.handleHistory(1);
+        break;
+      case "bookmarks":
+        setBookmarkOpen(true);
+        break;
+      case "addBookmark":
+        bookmarks.toggleBookmark(active.currentPath);
+        setBookmarkOpen(true);
+        break;
     }
   };
 
   useKeymap(
     runCommand,
-    operations.dialog === null && navigation.drives === null,
+    operations.dialog === null && navigation.drives === null && !bookmarkOpen,
   );
 
   /**
@@ -176,31 +240,47 @@ export default function App(): ReactElement {
         rightPane={rightPane}
         onActivate={setActivePane}
         onParent={navigation.handleParentDir}
-        onPathChange={(pane, value) =>
-          updatePane(pane, (p) => ({ ...p, currentPath: value }))
-        }
-        onPathSubmit={(pane) =>
-          loadDirectory(
-            pane,
-            (pane === "left" ? leftPane : rightPane).currentPath,
-          )
-        }
+        onPathSubmit={(pane, value) => loadDirectory(pane, value)}
+        onFilterChange={(pane, value) => setView(pane, { filter: value })}
         onItemClick={handleItemClick}
         onItemOpen={handleItemOpen}
         registerPathInput={(pane, element) => {
           pathInputs.current[pane] = element;
+        }}
+        registerFilterInput={(pane, element) => {
+          filterInputs.current[pane] = element;
         }}
       />
       <KeyHintBar />
       <StatusBar
         error={error}
         currentName={activeState.files[activeState.selectedIndex]?.name ?? ""}
+        info={[
+          sortLabel(activeState.sort),
+          `マーク: ${activeState.marks.length}`,
+          ...(activeState.showHidden ? [] : ["隠しファイル非表示"]),
+        ].join(" / ")}
         disk={disk}
       />
       {operations.dialog && (
         <OperationDialog
           dialog={operations.dialog}
           onClose={operations.closeDialog}
+        />
+      )}
+      {bookmarkOpen && (
+        <BookmarkMenu
+          bookmarks={bookmarks.bookmarks}
+          currentPath={activeState.currentPath}
+          onSelect={(path) => {
+            setBookmarkOpen(false);
+            loadDirectory(activePane, path);
+          }}
+          onToggleCurrent={() =>
+            bookmarks.toggleBookmark(activeState.currentPath)
+          }
+          onRemove={bookmarks.removeBookmark}
+          onClose={() => setBookmarkOpen(false)}
         />
       )}
       {navigation.drives && (
