@@ -6,6 +6,7 @@ import {
   FONT_SIZE_CYCLE,
   THEME_CYCLE,
   type AppConfig,
+  type ColumnWidths,
 } from "../features/settings/types";
 
 /**
@@ -76,5 +77,19 @@ export function useSettings() {
     [config.font_size, update],
   );
 
-  return { config, cycleTheme, cycleFontSize };
+  /** ペインの列幅を更新します. */
+  const updatePaneColumnWidth = useCallback(
+    (paneId: "left" | "right", widths: ColumnWidths): void => {
+      const current = config.pane_column_widths || { left: {}, right: {} };
+      update({
+        pane_column_widths: {
+          ...current,
+          [paneId]: widths,
+        },
+      });
+    },
+    [config.pane_column_widths, update],
+  );
+
+  return { config, cycleTheme, cycleFontSize, update, updatePaneColumnWidth };
 }

@@ -185,27 +185,40 @@ body,
 
 .col-name {
   flex: 1;
-  min-width: 0;
+  min-width: 30px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 0 4px;
 }
 
 .col-size {
   width: 72px;
+  min-width: 30px;
   text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 0 4px;
   box-sizing: border-box;
 }
 
 .col-date {
   width: 136px;
+  min-width: 30px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 0 4px;
   box-sizing: border-box;
 }
 
 .col-attr {
   width: 52px;
+  min-width: 30px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 0 4px;
   box-sizing: border-box;
 }
