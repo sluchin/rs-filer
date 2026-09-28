@@ -1,5 +1,12 @@
-import { useEffect, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
 import type { FileEntry } from "../types";
+import type { ColumnWidths } from "../../../features/settings/types";
 import { useVirtualRows } from "../hooks/useVirtualRows";
 import FileIcon from "./FileIcon";
 import FileItem from "./FileItem";
@@ -28,6 +35,10 @@ interface FileListProps {
   onItemClick: (index: number, file: FileEntry) => void;
   /** 項目ダブルクリック時のハンドラー. */
   onItemOpen: (index: number, file: FileEntry) => void;
+  /** 列幅設定. */
+  columnWidths?: ColumnWidths;
+  /** 列幅が変更されたときのハンドラー. */
+  onColumnWidthChange?: (widths: ColumnWidths) => void;
 }
 
 /**
@@ -41,11 +52,16 @@ function ParentRow({
   measureRef,
   onClick,
   onDoubleClick,
+  colNameStyle,
 }: {
   cursor: "active" | "inactive" | "none";
   measureRef: (element: HTMLElement | null) => void;
   onClick: () => void;
   onDoubleClick: () => void;
+  colNameStyle?: React.CSSProperties;
+  colSizeStyle?: React.CSSProperties;
+  colDateStyle?: React.CSSProperties;
+  colAttrStyle?: React.CSSProperties;
 }): ReactElement {
   return (
     <li
@@ -57,7 +73,9 @@ function ParentRow({
       onDoubleClick={onDoubleClick}
     >
       <FileIcon kind="parent" />
-      <span className="col-name">..</span>
+      <span className="col-name" style={colNameStyle}>
+        ..
+      </span>
     </li>
   );
 }
@@ -82,7 +100,15 @@ export default function FileList({
   onParentClick,
   onItemClick,
   onItemOpen,
+  columnWidths = {},
+  onColumnWidthChange,
 }: FileListProps): ReactElement {
+  const [draggingColumn, setDraggingColumn] = useState<
+    "col_name" | "col_size" | "col_date" | "col_attr" | null
+  >(null);
+  const [dragStartX, setDragStartX] = useState(0);
+  const headerRef = useRef<HTMLDivElement>(null);
+
   const totalCount = files.length + (hasParent ? 1 : 0);
   const {
     containerRef,
@@ -100,6 +126,157 @@ export default function FileList({
     scrollToIndex(cursorRow);
   }, [cursorRow, scrollToIndex]);
 
+  // テキスト幅を測定します.
+  const measureTextWidth = useCallback((text: string): number => {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) return 0;
+    const style = window.getComputedStyle(document.body);
+    context.font = `${style.fontSize} ${style.fontFamily}`;
+    return context.measureText(text).width;
+  }, []);
+
+  // 列の最大幅を計算します.
+  const getAutoFitWidth = useCallback(
+    (column: "col_name" | "col_size" | "col_date" | "col_attr"): number => {
+      let maxWidth = 0;
+      if (column === "col_name") {
+        maxWidth = Math.max(
+          measureTextWidth("ファイル名") + 8,
+          ...files.map((f) => measureTextWidth(f.name) + 8),
+        );
+      } else if (column === "col_size") {
+        maxWidth = Math.max(
+          measureTextWidth("サイズ") + 8,
+          ...files.map((f) => measureTextWidth(f.size?.toString() ?? "") + 8),
+        );
+      } else if (column === "col_date") {
+        maxWidth = Math.max(
+          measureTextWidth("更新日時") + 8,
+          ...files.map(
+            (f) => measureTextWidth(f.modified?.toString() ?? "") + 8,
+          ),
+        );
+      } else if (column === "col_attr") {
+        maxWidth = Math.max(
+          measureTextWidth("属性") + 8,
+          ...files.map(
+            (f) => measureTextWidth(f.attributes?.toString() ?? "") + 8,
+          ),
+        );
+      }
+      return Math.max(maxWidth, 30);
+    },
+    [files, measureTextWidth],
+  );
+
+  // 各列のスタイル.
+  const colNameStyle: React.CSSProperties = columnWidths.col_name
+    ? {
+        width: `${columnWidths.col_name}px`,
+        flex: "none",
+      }
+    : {
+        flex: 1,
+      };
+
+  const colSizeStyle: React.CSSProperties = columnWidths.col_size
+    ? {
+        width: `${columnWidths.col_size}px`,
+        flex: "none",
+      }
+    : undefined;
+
+  const colDateStyle: React.CSSProperties = columnWidths.col_date
+    ? {
+        width: `${columnWidths.col_date}px`,
+        flex: "none",
+      }
+    : undefined;
+
+  const colAttrStyle: React.CSSProperties = columnWidths.col_attr
+    ? {
+        width: `${columnWidths.col_attr}px`,
+        flex: "none",
+      }
+    : undefined;
+
+  // ファイルリスト全体のスタイル.
+  const fileListStyle: React.CSSProperties = {
+    cursor: draggingColumn ? "col-resize" : "auto",
+  };
+
+  // ヘッダーの列区切り目を検出します (4px幅).
+  const detectColumn = useCallback(
+    (x: number): "col_name" | "col_size" | "col_date" | "col_attr" | null => {
+      if (!headerRef.current) return null;
+      const spans = headerRef.current.querySelectorAll(
+        ".col-name, .col-size, .col-date, .col-attr",
+      );
+      const columns = ["col_name", "col_size", "col_date", "col_attr"];
+
+      for (let i = 0; i < spans.length - 1; i++) {
+        const rect = spans[i].getBoundingClientRect();
+        const colEnd = rect.right;
+        if (Math.abs(x - colEnd) < 4) {
+          return columns[i] as
+            "col_name" | "col_size" | "col_date" | "col_attr";
+        }
+      }
+      return null;
+    },
+    [],
+  );
+
+  // ドラッグ開始.
+  const handleHeaderMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const col = detectColumn(e.clientX);
+      if (col) {
+        setDraggingColumn(col);
+        setDragStartX(e.clientX);
+        e.preventDefault();
+      }
+    },
+    [detectColumn],
+  );
+
+  // ドラッグ中.
+  useEffect(() => {
+    if (!draggingColumn) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = e.clientX - dragStartX;
+      const newWidths = { ...columnWidths };
+      const current = newWidths[draggingColumn] ?? 0;
+      newWidths[draggingColumn] = Math.max(30, current + delta);
+      onColumnWidthChange?.(newWidths);
+      setDragStartX(e.clientX);
+    };
+    const handleMouseUp = () => {
+      setDraggingColumn(null);
+    };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [draggingColumn, dragStartX, columnWidths, onColumnWidthChange]);
+
+  // ダブルクリックでauto-fit.
+  const handleHeaderDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const col = detectColumn(e.clientX);
+      if (col) {
+        const newWidth = getAutoFitWidth(col);
+        const newWidths = { ...columnWidths, [col]: newWidth };
+        onColumnWidthChange?.(newWidths);
+        e.preventDefault();
+      }
+    },
+    [detectColumn, getAutoFitWidth, columnWidths, onColumnWidthChange],
+  );
+
   const rows: ReactElement[] = [];
   for (let row = start; row < end; row++) {
     // 行の高さはどれも同じ想定なので, 描画する範囲の先頭の行だけを測ればよい.
@@ -114,6 +291,10 @@ export default function FileList({
           measureRef={rowMeasureRef}
           onClick={onParentClick}
           onDoubleClick={onParent}
+          colNameStyle={colNameStyle}
+          colSizeStyle={colSizeStyle}
+          colDateStyle={colDateStyle}
+          colAttrStyle={colAttrStyle}
         />,
       );
       continue;
@@ -132,19 +313,39 @@ export default function FileList({
         measureRef={rowMeasureRef}
         onClick={() => onItemClick(idx, file)}
         onDoubleClick={() => onItemOpen(idx, file)}
+        colNameStyle={colNameStyle}
+        colSizeStyle={colSizeStyle}
+        colDateStyle={colDateStyle}
+        colAttrStyle={colAttrStyle}
       />,
     );
   }
 
   return (
-    <div className="file-list">
-      <div className="file-header">
-        <span className="col-name">ファイル名</span>
+    <div className="file-list" style={fileListStyle}>
+      <div
+        className="file-header"
+        ref={headerRef}
+        onMouseDown={handleHeaderMouseDown}
+        onDoubleClick={handleHeaderDoubleClick}
+        style={{
+          userSelect: draggingColumn ? "none" : "auto",
+        }}
+      >
+        <span className="col-name" style={colNameStyle}>
+          ファイル名
+        </span>
         {showDetails && (
           <>
-            <span className="col-size">サイズ</span>
-            <span className="col-date">更新日時</span>
-            <span className="col-attr">属性</span>
+            <span className="col-size" style={colSizeStyle}>
+              サイズ
+            </span>
+            <span className="col-date" style={colDateStyle}>
+              更新日時
+            </span>
+            <span className="col-attr" style={colAttrStyle}>
+              属性
+            </span>
           </>
         )}
       </div>

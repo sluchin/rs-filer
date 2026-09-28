@@ -52,6 +52,9 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   externalCommand: "選択したファイルに外部コマンドを実行",
   cycleTheme: "テーマの切り替え",
   cycleFontSize: "フォントサイズの切り替え",
+  resizeColumnWider: "選択中の列を広くする",
+  resizeColumnNarrower: "選択中の列を狭くする",
+  autoFitColumn: "選択中の列の幅を自動調整",
   quit: "終了",
 };
 
