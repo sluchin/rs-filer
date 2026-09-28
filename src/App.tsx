@@ -513,12 +513,10 @@ export default function App(): ReactElement {
         registerFilterInput={(pane, element) => {
           filterInputs.current[pane] = element;
         }}
-        paneColumnWidths={
-          settings.config.pane_column_widths || {
-            left: {},
-            right: {},
-          }
-        }
+        paneColumnWidths={{
+          left: settings.config.pane_column_widths?.left ?? {},
+          right: settings.config.pane_column_widths?.right ?? {},
+        }}
         onColumnWidthChange={(paneId, widths) =>
           settings.updatePaneColumnWidth(paneId, widths)
         }
