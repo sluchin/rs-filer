@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import type { FileEntry, PaneId, PaneState } from "../types";
+import type { ColumnWidths } from "../../../features/settings/types";
 import Pane from "./Pane";
 
 /**
@@ -32,6 +33,10 @@ interface DualPaneContainerProps {
   registerPathInput: (pane: PaneId, element: HTMLInputElement | null) => void;
   /** 絞り込み入力欄の要素を登録するハンドラー. */
   registerFilterInput: (pane: PaneId, element: HTMLInputElement | null) => void;
+  /** ペイン毎の列幅設定. */
+  paneColumnWidths?: Record<"left" | "right", ColumnWidths>;
+  /** 列幅が変更されたときのハンドラー. */
+  onColumnWidthChange?: (paneId: PaneId, widths: ColumnWidths) => void;
 }
 
 /**
@@ -54,6 +59,8 @@ export default function DualPaneContainer({
   overrides,
   registerPathInput,
   registerFilterInput,
+  paneColumnWidths,
+  onColumnWidthChange,
 }: DualPaneContainerProps): ReactElement {
   const renderPane = (paneId: PaneId, state: PaneState): ReactElement =>
     overrides[paneId] ?? (
@@ -70,6 +77,8 @@ export default function DualPaneContainer({
         onItemOpen={(index, file) => onItemOpen(paneId, index, file)}
         pathInputRef={(element) => registerPathInput(paneId, element)}
         filterInputRef={(element) => registerFilterInput(paneId, element)}
+        paneColumnWidths={paneColumnWidths}
+        onColumnWidthChange={onColumnWidthChange}
       />
     );
 

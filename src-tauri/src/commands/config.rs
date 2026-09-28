@@ -98,6 +98,34 @@ pub enum FontSize {
     Large,
 }
 
+/// ファイル一覧の列幅設定.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+pub struct ColumnWidths {
+    /// ファイル名の列の幅 (px).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub col_name: Option<u32>,
+    /// サイズの列の幅 (px).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub col_size: Option<u32>,
+    /// 更新日時の列の幅 (px).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub col_date: Option<u32>,
+    /// 属性の列の幅 (px).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub col_attr: Option<u32>,
+}
+
+/// ペイン毎の列幅設定.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+pub struct PaneColumnWidths {
+    /// 左ペインの列幅.
+    #[serde(default)]
+    pub left: ColumnWidths,
+    /// 右ペインの列幅.
+    #[serde(default)]
+    pub right: ColumnWidths,
+}
+
 /// アプリケーションの設定.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 #[serde(default)]
@@ -110,6 +138,9 @@ pub struct AppConfig {
     pub editor: Option<String>,
     /// ターミナルのコマンド. 指定が無い場合は OS ごとの既定のターミナルを順に試す.
     pub terminal: Option<String>,
+    /// ファイル一覧の列幅 (ペイン毎).
+    #[serde(default)]
+    pub pane_column_widths: PaneColumnWidths,
 }
 
 impl Default for AppConfig {
@@ -119,6 +150,7 @@ impl Default for AppConfig {
             font_size: FontSize::Medium,
             editor: None,
             terminal: None,
+            pane_column_widths: PaneColumnWidths::default(),
         }
     }
 }
@@ -316,6 +348,7 @@ mod tests {
             font_size: FontSize::Large,
             editor: Some("code".to_string()),
             terminal: Some("konsole".to_string()),
+            pane_column_widths: PaneColumnWidths::default(),
         };
 
         write_config(&path, &config).unwrap();

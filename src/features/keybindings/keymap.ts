@@ -97,6 +97,8 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   "&": "externalCommand",
   "M-t": "cycleTheme",
   "M-0": "cycleFontSize",
+  ">": "resizeColumnWider",
+  "<": "resizeColumnNarrower",
   q: "quit",
   "C-x C-c": "quit",
 };
