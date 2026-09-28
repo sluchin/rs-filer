@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import type { FileEntry, PaneId, PaneState } from "../types";
+import type { ColumnWidths } from "../../../features/settings/types";
 import { getParentPath } from "../../../utils/path";
 import QuickFilterBar from "../../search/components/QuickFilterBar";
 import FileList from "./FileList";
@@ -33,6 +34,10 @@ interface PaneProps {
   pathInputRef: (element: HTMLInputElement | null) => void;
   /** 絞り込み入力欄の要素を受け取る ref コールバック. */
   filterInputRef: (element: HTMLInputElement | null) => void;
+  /** ペイン毎の列幅設定. */
+  paneColumnWidths?: Record<"left" | "right", ColumnWidths>;
+  /** 列幅が変更されたときのハンドラー (paneId と幅を渡す). */
+  onColumnWidthChange?: (paneId: PaneId, widths: ColumnWidths) => void;
 }
 
 /**
@@ -54,7 +59,10 @@ export default function Pane({
   onItemOpen,
   pathInputRef,
   filterInputRef,
+  paneColumnWidths,
+  onColumnWidthChange,
 }: PaneProps): ReactElement {
+  const columnWidths = paneColumnWidths?.[paneId] || {};
   return (
     <div
       role="region"
@@ -90,6 +98,8 @@ export default function Pane({
         onParentClick={onParentClick}
         onItemClick={onItemClick}
         onItemOpen={onItemOpen}
+        columnWidths={columnWidths}
+        onColumnWidthChange={(widths) => onColumnWidthChange?.(paneId, widths)}
       />
     </div>
   );

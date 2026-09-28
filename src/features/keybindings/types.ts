@@ -51,6 +51,9 @@ export const COMMANDS = [
   "externalCommand",
   "cycleTheme",
   "cycleFontSize",
+  "resizeColumnWider",
+  "resizeColumnNarrower",
+  "autoFitColumn",
   "quit",
 ] as const;
 

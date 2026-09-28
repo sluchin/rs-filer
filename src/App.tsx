@@ -350,6 +350,31 @@ export default function App(): ReactElement {
       case "cycleFontSize":
         settings.cycleFontSize();
         break;
+      case "resizeColumnWider": {
+        const paneWidths =
+          settings.config.pane_column_widths?.[activePane] || {};
+        const col = "col_name";
+        const current = paneWidths.col_name ?? 0;
+        settings.updatePaneColumnWidth(activePane, {
+          ...paneWidths,
+          [col]: Math.max(30, current + 10),
+        });
+        break;
+      }
+      case "resizeColumnNarrower": {
+        const paneWidths =
+          settings.config.pane_column_widths?.[activePane] || {};
+        const col = "col_name";
+        const current = paneWidths.col_name ?? 0;
+        settings.updatePaneColumnWidth(activePane, {
+          ...paneWidths,
+          [col]: Math.max(30, current - 10),
+        });
+        break;
+      }
+      case "autoFitColumn":
+        // TODO: auto-fit logic will be implemented in FileList component
+        break;
       case "quit":
         quitApp().catch((e) => log.warn("[React] 終了に失敗:", e));
         break;
@@ -488,6 +513,15 @@ export default function App(): ReactElement {
         registerFilterInput={(pane, element) => {
           filterInputs.current[pane] = element;
         }}
+        paneColumnWidths={
+          settings.config.pane_column_widths || {
+            left: {},
+            right: {},
+          }
+        }
+        onColumnWidthChange={(paneId, widths) =>
+          settings.updatePaneColumnWidth(paneId, widths)
+        }
       />
       {/* コマンド入力・作成・名前変更・削除確認・ドライブ選択・ブックマークは,
           ダイアログではなく画面下部のミニバッファ (xyzzy/Emacs 風) に表示する. */}

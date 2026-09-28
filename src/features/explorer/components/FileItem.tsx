@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { CSSProperties, ReactElement } from "react";
 import {
   formatAttributes,
   formatDate,
@@ -25,6 +25,14 @@ interface FileItemProps {
   onClick: () => void;
   /** ダブルクリック時のハンドラー. */
   onDoubleClick: () => void;
+  /** ファイル名列のスタイル. */
+  colNameStyle?: CSSProperties;
+  /** サイズ列のスタイル. */
+  colSizeStyle?: CSSProperties;
+  /** 日付列のスタイル. */
+  colDateStyle?: CSSProperties;
+  /** 属性列のスタイル. */
+  colAttrStyle?: CSSProperties;
 }
 
 /**
@@ -41,6 +49,10 @@ export default function FileItem({
   measureRef,
   onClick,
   onDoubleClick,
+  colNameStyle,
+  colSizeStyle,
+  colDateStyle,
+  colAttrStyle,
 }: FileItemProps): ReactElement {
   return (
     <li
@@ -53,12 +65,20 @@ export default function FileItem({
       onDoubleClick={onDoubleClick}
     >
       <FileIcon kind={file.is_dir ? "dir" : "file"} />
-      <span className="col-name file-name">{file.name}</span>
+      <span className="col-name file-name" style={colNameStyle}>
+        {file.name}
+      </span>
       {showDetails && (
         <>
-          <span className="col-size">{formatSize(file)}</span>
-          <span className="col-date">{formatDate(file.modified)}</span>
-          <span className="col-attr">{formatAttributes(file)}</span>
+          <span className="col-size" style={colSizeStyle}>
+            {formatSize(file)}
+          </span>
+          <span className="col-date" style={colDateStyle}>
+            {formatDate(file.modified)}
+          </span>
+          <span className="col-attr" style={colAttrStyle}>
+            {formatAttributes(file)}
+          </span>
         </>
       )}
     </li>
