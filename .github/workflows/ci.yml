@@ -50,6 +50,14 @@ jobs:
         run: |
           echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
 
+      - name: Debug pkg-config
+        run: |
+          echo "=== Searching for gdk-3.0.pc ==="
+          find /usr -name "gdk-3.0.pc"
+          
+          echo "=== Testing pkg-config directly ==="
+          pkg-config --modversion gdk-3.0 || echo "pkg-config failed to find gdk-3.0"
+
       # package-lock.json どおりに依存をインストールする.
       - name: Install frontend dependencies
         run: npm ci
