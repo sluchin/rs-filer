@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { FileEntry } from "../types";
 import type { ColumnWidths } from "../../../features/settings/types";
+import { formatAttributes } from "../../../utils/formatters";
 import { useVirtualRows } from "../hooks/useVirtualRows";
 import FileIcon from "./FileIcon";
 import FileItem from "./FileItem";
@@ -160,9 +161,7 @@ export default function FileList({
       } else if (column === "col_attr") {
         maxWidth = Math.max(
           measureTextWidth("属性") + 8,
-          ...files.map(
-            (f) => measureTextWidth(f.attributes?.toString() ?? "") + 8,
-          ),
+          ...files.map((f) => measureTextWidth(formatAttributes(f)) + 8),
         );
       }
       return Math.max(maxWidth, 30);
@@ -180,21 +179,21 @@ export default function FileList({
         flex: 1,
       };
 
-  const colSizeStyle: React.CSSProperties = columnWidths.col_size
+  const colSizeStyle: React.CSSProperties | undefined = columnWidths.col_size
     ? {
         width: `${columnWidths.col_size}px`,
         flex: "none",
       }
     : undefined;
 
-  const colDateStyle: React.CSSProperties = columnWidths.col_date
+  const colDateStyle: React.CSSProperties | undefined = columnWidths.col_date
     ? {
         width: `${columnWidths.col_date}px`,
         flex: "none",
       }
     : undefined;
 
-  const colAttrStyle: React.CSSProperties = columnWidths.col_attr
+  const colAttrStyle: React.CSSProperties | undefined = columnWidths.col_attr
     ? {
         width: `${columnWidths.col_attr}px`,
         flex: "none",
