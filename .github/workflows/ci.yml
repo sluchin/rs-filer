@@ -55,3 +55,41 @@ jobs:
       # 整形チェック, eslint, clippy, vitest, cargo test, cargo fmt --check
       - name: Check
         run: npm run check
+
+  deploy-docs:
+    needs: check  # checkが成功した後に実行
+    runs-on: ubuntu-22.04
+    # GitHub Pagesへデプロイするために必要な権限
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+
+      # Python/uv環境が必要な場合（Sphinxを使う場合など）
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      # 依存関係のインストール（必要に応じて）
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      # ドキュメントのビルド（npm run doc や make html 等）
+      - name: Build documentation
+        run: npm run doc  # または make -C docs html など
+
+      # GitHub Pages用に成果物をアップロード
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_build/html  # ビルドされたHTMLが出力されるパスを指定
+
+      # GitHub Pagesへデプロイ
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
