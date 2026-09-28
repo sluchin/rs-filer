@@ -89,11 +89,58 @@ jobs:
       - name: Build documentation
         run: npm run doc  # package.json の "doc" スクリプトが実行されます
 
-      # GitHub Pages用に成果物をアップロード
+      # ドキュメントのビルド (フロントエンド & バックエンド)
+      - name: Build Documentation
+        run: |
+          npm run doc
+
+      # 両方のドキュメントを公開用の統合フォルダにまとめる
+      - name: Organize Documentation
+        run: |
+          # 統合用のディレクトリを作成
+          mkdir -p combined_docs/fe
+          mkdir -p combined_docs/be
+
+          # フロントエンドのドキュメントをコピー
+          cp -r docs/fe/* combined_docs/fe/
+
+          # バックエンドのドキュメントをコピー
+          # ※ cargo doc のデフォルト出力先は target/doc_build/doc です
+          if [ -d "src-tauri/target/doc_build/doc" ]; then
+            cp -r src-tauri/target/doc_build/doc/* combined_docs/be/
+          fi
+
+          # （任意）トップページ用に、両方へのリンクがある簡単な index.html を作ると親切です
+          cat << 'EOF' > combined_docs/index.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <meta charset="utf-8">
+              <title>Rsfiler Documentation</title>
+              <style>
+                  body { font-family: sans-serif; text-align: center; margin-top: 50px; }
+                  ul { list-style: none; padding: 0; }
+                  li { margin: 15px 0; }
+                  a { font-size: 1.2em; text-decoration: none; color: #0066cc; }
+                  a:hover { text-decoration: underline; }
+              </style>
+          </head>
+          <body>
+              <h1>Rsfiler Documentation</h1>
+              <ul>
+                  <li><a href="fe/index.html">Frontend Documentation (TypeDoc)</a></li>
+                  <li><a href="be/index.html">Backend Documentation (Cargo Doc)</a></li>
+              </ul>
+          </body>
+          </html>
+          EOF
+
+      # 3. まとめたフォルダ（combined_docs）をアーティファクト/Pagesとしてアップロード
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          path: docs/_build/html  # ※実際にビルドされたHTMLが出力されるフォルダのパスに合わせて変更してください
+          name: documentation
+          path: combined_docs/
 
       # GitHub Pagesへデプロイ
       - name: Deploy to GitHub Pages
