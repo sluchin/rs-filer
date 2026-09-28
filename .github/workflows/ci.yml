@@ -67,28 +67,26 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # Python/uv環境が必要な場合（Sphinxを使う場合など）
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      # Node.jsのセットアップ（npmを使うため）
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
         with:
-          python-version: '3.11'
+          node-version: 20
+          cache: 'npm'
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      # 依存関係のインストール（必要に応じて）
+      # フロントエンドやドキュメント用の依存関係インストール
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: npm ci
 
-      # ドキュメントのビルド（npm run doc や make html 等）
+      # npm を使ってドキュメントをビルド
       - name: Build documentation
-        run: npm run doc  # または make -C docs html など
+        run: npm run doc  # package.json の "doc" スクリプトが実行されます
 
       # GitHub Pages用に成果物をアップロード
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/_build/html  # ビルドされたHTMLが出力されるパスを指定
+          path: docs/_build/html  # ※実際にビルドされたHTMLが出力されるフォルダのパスに合わせて変更してください
 
       # GitHub Pagesへデプロイ
       - name: Deploy to GitHub Pages
