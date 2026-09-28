@@ -37,6 +37,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          prefix-key: "v2-rust-cache"
 
       # Tauri のビルドに必要な Linux のシステムライブラリ
       - name: Install Linux Dependencies
