@@ -135,7 +135,7 @@ jobs:
           </html>
           EOF
 
-      # 3. まとめたフォルダ（combined_docs）をアーティファクト/Pagesとしてアップロード
+      # まとめたフォルダ（combined_docs）をアーティファクト/Pagesとしてアップロード
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -145,3 +145,5 @@ jobs:
       # GitHub Pagesへデプロイ
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: documentation
