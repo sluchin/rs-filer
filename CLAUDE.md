@@ -6,17 +6,6 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 
 すべてリポジトリのルートで実行する (`package.json` の scripts)。
 
-- 開発起動: `npm run tauri dev`
-- ビルド: `npm run build` (フロントエンド: `tsc && vite build`)。配布用の Tauri ビルドは `npm run tauri build`。
-- 整形チェック: `npm run format:check` (prettier)。整形の適用は `npm run format` (prettier + `cargo fmt`)。
-- 静的解析: `npm run lint` (eslint + `cargo clippy`)。自動修正は `npm run lint:fix` (eslint のみ)。
-- テスト: `npm run test` (`vitest run` と `cargo test`)。
-  - フロントエンドのみ: `npx vitest run`。特定のファイルのみ: `npx vitest run src/tests/App.test.tsx`。
-  - バックエンドのみ: `cd src-tauri && cargo test`。
-- カバレッジ: `npm run coverage` (フロントエンドは vitest / v8、バックエンドは `cargo tarpaulin`)。
-- 一括チェック: `npm run check` (`format:check` → `lint` → `test` → `cargo fmt --check`)。
-- ドキュメント生成: `npm run doc` (フロントエンドは typedoc で `docs/fe`、バックエンドは `cargo doc`)。
-
 ## プロジェクト構成
 
 - `src/`: フロントエンド (React / TypeScript)。テストは `src/tests/` に置く (`setup.ts` は vitest の setupFiles)。
