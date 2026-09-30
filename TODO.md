@@ -9,6 +9,7 @@
 - [x] Phase 6: xyzzy風キーバインド・ミニバッファ・操作性最適化
 - [x] Phase 7: 外部連携・カスタマイズ機能
 - [x] Phase 8: パフォーマンス改善・テスト・CI/CD・配布整備
+- [ ] Phase 9: 高度なファイル操作・表示機能
 
 ---
 
@@ -110,3 +111,17 @@
   - [x] README.md の整備 (インストール手順、xyzzy風キーマップ一覧表)
   - [x] GitHub Actions CI (cargo clippy, cargo test, npm run lint, npm test)
   - [x] Tauri Bundler によるインストーラ/単一バイナリ生成 (Windows: MSI/NSIS, Linux: deb/AppImage, macOS: dmg. `tauri.conf.json` にカテゴリ・説明を追加)
+
+### Phase 9: 高度なファイル操作・表示機能
+- [ ] **同一ディレクトリ内コピー機能**
+  - [ ] ファイル・ディレクトリを同じディレクトリ内にコピーする際、新しいファイル名を指定可能
+  - [ ] ミニバッファでコピー先のファイル名を入力
+  - [ ] 単一ファイルのみ対応 (複数選択時は非対応)
+  - [ ] キーバインド: `C-d` / コマンド: `copy` または `duplicate`
+  - [ ] KEYBINDINGS.md と README.md の更新
+- [ ] **ツリー表示機能**
+  - [ ] 左側に常時ツリービュー表示 (フォルダ階層を展開・折り畳み表示)
+  - [ ] ツリーノードの展開・折り畳み (`→` / `←`)
+  - [ ] ツリーでフォルダをダブルクリックまたはEnterキーでアクティブペインを移動
+  - [ ] ツリーへのフォーカス移動 (`t` で選択)
+  - [ ] KEYBINDINGS.md と README.md の更新
