@@ -23,6 +23,9 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   rename: "名前の変更",
   copy: "対向ペインへコピー",
   copyConfirm: "確認してから対向ペインへコピー",
+  copyToClipboard: "クリップボードへコピー",
+  pasteFromClipboard: "クリップボードから貼り付け",
+  duplicate: "同じディレクトリ内でコピー",
   move: "対向ペインへ移動",
   moveConfirm: "確認してから対向ペインへ移動",
   syncPane: "反対側のペインを同じディレクトリにする",
@@ -55,6 +58,7 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   resizeColumnWider: "選択中の列を広くする",
   resizeColumnNarrower: "選択中の列を狭くする",
   autoFitColumn: "選択中の列の幅を自動調整",
+  focusTree: "ツリーペインへフォーカス",
   quit: "終了",
 };
 
@@ -63,6 +67,7 @@ const ALIASES: Record<string, Command> = {
   refresh: "reload",
   find: "filter",
   up: "parent",
+  copy_as: "duplicate",
   exit: "quit",
 };
 

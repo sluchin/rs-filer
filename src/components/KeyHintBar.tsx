@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 /** 画面下部に表示するキー操作の案内. */
 const HINTS: string[] = [
   "Tab:ペイン",
+  "t:ツリー",
   "j/k:移動",
   "PgUp/PgDn:ページ",
   "Home/End:先頭/末尾",

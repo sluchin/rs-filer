@@ -47,7 +47,9 @@ pub fn run() {
             commands::exec::run_external_command,
             commands::fs::list_drives,
             commands::fs::get_disk_space,
-            commands::frontend_log::log_frontend_message
+            commands::frontend_log::log_frontend_message,
+            commands::clipboard::copy_files_to_clipboard,
+            commands::clipboard::read_clipboard_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

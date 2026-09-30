@@ -38,6 +38,8 @@ import { targetsOf } from "./features/operations/hooks/useTransfer";
 import OperationDialog from "./features/operations/components/OperationDialog";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
 import { installLogForwarding } from "./services/logForwarder";
+import TreePane from "./features/tree/components/TreePane";
+import { useTree } from "./features/tree/hooks/useTree";
 
 /** ページ送り (`PageUp` / `PageDown`) で動かす行数. */
 const PAGE_SIZE = 10;
@@ -84,6 +86,7 @@ export default function App(): ReactElement {
   const [previewOn, setPreviewOn] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteValue, setPaletteValue] = useState("");
+  const [treeFocused, setTreeFocused] = useState(false);
   const paletteHistory = useHistoryNav();
   const operationLog = useOperationLog();
   const { addLog } = operationLog;
@@ -142,8 +145,11 @@ export default function App(): ReactElement {
     reportError,
     notify,
     operations.openConfirm,
+    operations.openPrompt,
   );
   const marks = useMarks(activePane, updatePane, moveCursor, reportError);
+  const activeState = activePane === "left" ? leftPane : rightPane;
+  const tree = useTree(activeState.showHidden, activeState.currentPath);
   const { handleEnter } = navigation;
   const { openExternal } = operations;
 
@@ -241,6 +247,15 @@ export default function App(): ReactElement {
         break;
       case "copyConfirm":
         transfer.startCopy(true);
+        break;
+      case "copyToClipboard":
+        transfer.copyToClipboard();
+        break;
+      case "pasteFromClipboard":
+        transfer.pasteFromClipboard();
+        break;
+      case "duplicate":
+        transfer.duplicateFile();
         break;
       case "move":
         transfer.startMove(false);
@@ -375,6 +390,9 @@ export default function App(): ReactElement {
       case "autoFitColumn":
         // TODO: auto-fit logic will be implemented in FileList component
         break;
+      case "focusTree":
+        setTreeFocused(!treeFocused);
+        break;
       case "quit":
         quitApp().catch((e) => log.warn("[React] 終了に失敗:", e));
         break;
@@ -404,6 +422,7 @@ export default function App(): ReactElement {
       !logOpen &&
       !paletteOpen &&
       !helpOpen &&
+      !treeFocused &&
       transfer.task === null,
     keymap,
   );
@@ -430,7 +449,6 @@ export default function App(): ReactElement {
     [handleItemClick, openEntry],
   );
 
-  const activeState = activePane === "left" ? leftPane : rightPane;
   const disk = useDiskSpace(activeState.currentPath);
   const cursorFile = activeState.files[activeState.selectedIndex];
   const previewState = usePreview(
@@ -495,32 +513,44 @@ export default function App(): ReactElement {
       data-theme={settings.config.theme}
       data-font-size={settings.config.font_size}
     >
-      <DualPaneContainer
-        activePane={activePane}
-        leftPane={leftPane}
-        rightPane={rightPane}
-        onActivate={setActivePane}
-        onParent={navigation.handleParentDir}
-        onParentClick={(pane) => handleItemClick(pane, -1)}
-        onPathSubmit={(pane, value) => loadDirectory(pane, value)}
-        onFilterChange={(pane, value) => setView(pane, { filter: value })}
-        onItemClick={handleItemClick}
-        onItemOpen={handleItemOpen}
-        overrides={paneOverrides}
-        registerPathInput={(pane, element) => {
-          pathInputs.current[pane] = element;
-        }}
-        registerFilterInput={(pane, element) => {
-          filterInputs.current[pane] = element;
-        }}
-        paneColumnWidths={{
-          left: settings.config.pane_column_widths?.left ?? {},
-          right: settings.config.pane_column_widths?.right ?? {},
-        }}
-        onColumnWidthChange={(paneId, widths) =>
-          settings.updatePaneColumnWidth(paneId, widths)
-        }
-      />
+      <div className="app-body">
+        <TreePane
+          rows={tree.rows}
+          cursorPath={tree.cursorPath}
+          onMoveCursor={tree.moveCursor}
+          onExpandOrChild={tree.expandOrChild}
+          onCollapseOrParent={tree.collapseOrParent}
+          onSelect={(path) => loadDirectory(activePane, path)}
+          onFocusBack={() => setTreeFocused(false)}
+          focused={treeFocused}
+        />
+        <DualPaneContainer
+          activePane={activePane}
+          leftPane={leftPane}
+          rightPane={rightPane}
+          onActivate={setActivePane}
+          onParent={navigation.handleParentDir}
+          onParentClick={(pane) => handleItemClick(pane, -1)}
+          onPathSubmit={(pane, value) => loadDirectory(pane, value)}
+          onFilterChange={(pane, value) => setView(pane, { filter: value })}
+          onItemClick={handleItemClick}
+          onItemOpen={handleItemOpen}
+          overrides={paneOverrides}
+          registerPathInput={(pane, element) => {
+            pathInputs.current[pane] = element;
+          }}
+          registerFilterInput={(pane, element) => {
+            filterInputs.current[pane] = element;
+          }}
+          paneColumnWidths={{
+            left: settings.config.pane_column_widths?.left ?? {},
+            right: settings.config.pane_column_widths?.right ?? {},
+          }}
+          onColumnWidthChange={(paneId, widths) =>
+            settings.updatePaneColumnWidth(paneId, widths)
+          }
+        />
+      </div>
       {/* コマンド入力・作成・名前変更・削除確認・ドライブ選択・ブックマークは,
           ダイアログではなく画面下部のミニバッファ (xyzzy/Emacs 風) に表示する. */}
       {operations.dialog && (

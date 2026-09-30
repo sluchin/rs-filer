@@ -22,6 +22,9 @@ export const COMMANDS = [
   "rename",
   "copy",
   "copyConfirm",
+  "copyToClipboard",
+  "pasteFromClipboard",
+  "duplicate",
   "move",
   "moveConfirm",
   "syncPane",
@@ -54,6 +57,7 @@ export const COMMANDS = [
   "resizeColumnWider",
   "resizeColumnNarrower",
   "autoFitColumn",
+  "focusTree",
   "quit",
 ] as const;
 

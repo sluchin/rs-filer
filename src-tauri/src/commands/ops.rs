@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 /// # Returns
 ///
 /// 結合したパスを包んだ [`Ok`]. 名前が空, `.`, `..`, またはパス区切り文字を含む場合は [`Err`].
-fn join_valid_name(parent: &str, name: &str) -> Result<PathBuf, String> {
+pub(crate) fn join_valid_name(parent: &str, name: &str) -> Result<PathBuf, String> {
     let trimmed = name.trim();
     if trimmed.is_empty()
         || trimmed == "."

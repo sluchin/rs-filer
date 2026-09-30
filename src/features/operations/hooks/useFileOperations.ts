@@ -42,13 +42,18 @@ export function useFileOperations(
    *
    * @param title - ダイアログの見出し.
    * @param onSubmit - 入力を確定したときの処理.
+   * @param initialValue - 入力欄の初期値.
    */
   const openPrompt = useCallback(
-    (title: string, onSubmit: (value: string) => void): void => {
+    (
+      title: string,
+      onSubmit: (value: string) => void,
+      initialValue?: string,
+    ): void => {
       setDialog({
         kind: "prompt",
         title,
-        initialValue: "",
+        initialValue: initialValue ?? "",
         onSubmit: (value) => {
           setDialog(null);
           onSubmit(value);
