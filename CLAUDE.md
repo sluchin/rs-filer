@@ -6,6 +6,13 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 
 すべてリポジトリのルートで実行する (`package.json` の scripts)。
 
+## 開発ワークフロー
+
+- **開発サーバーを起動**: `npm run tauri:dev` — フロントエンドと Rust は両方とも変更時に自動リロード
+- **テスト**: `npm run test`（`src/` に対する Vitest）と `cargo test`（`src-tauri/` に対する）
+- **フォーマット + リント**: `npm run check`（format:check、lint、test を実行 — CI ゲート）
+- CI は `main` へのすべてのプッシュ/PR で同じ内容を実行
+
 ## プロジェクト構成
 
 - `src/`: フロントエンド (React / TypeScript)。テストは `src/tests/` に置く (`setup.ts` は vitest の setupFiles)。
