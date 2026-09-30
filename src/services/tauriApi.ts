@@ -100,13 +100,15 @@ export function getDiskSpace(path: string): Promise<DiskSpace> {
  *
  * @param sources - 対象のパス.
  * @param destDir - 配置先のディレクトリ.
+ * @param destName - コピー時の新しい名前 (オプション).
  * @returns 同名のエントリが既にある対象の名前.
  */
 export function checkConflicts(
   sources: string[],
   destDir: string,
+  destName?: string,
 ): Promise<string[]> {
-  return invoke<string[]>("check_conflicts", { sources, destDir });
+  return invoke<string[]>("check_conflicts", { sources, destDir, destName });
 }
 
 /**
@@ -133,6 +135,24 @@ export function runTransfer(
  */
 export function cancelTransfer(): Promise<void> {
   return invoke<void>("cancel_transfer");
+}
+
+/**
+ * ファイルリストをシステムクリップボードにコピーします.
+ *
+ * @param paths - コピーするファイルパスの配列.
+ */
+export function copyFilesToClipboard(paths: string[]): Promise<void> {
+  return invoke<void>("copy_files_to_clipboard", { paths });
+}
+
+/**
+ * システムクリップボードからファイルリストを読み取ります.
+ *
+ * @returns ファイルパスの配列.
+ */
+export function readClipboardFiles(): Promise<string[]> {
+  return invoke<string[]>("read_clipboard_files");
 }
 
 /**

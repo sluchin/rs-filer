@@ -40,6 +40,9 @@ pub struct TransferRequest {
     /// true の場合, 削除でゴミ箱を使わず完全に削除する.
     #[serde(default)]
     pub permanent: bool,
+    /// コピー時に指定した名前でコピーする (Copy のみ. 単一ファイルに限定).
+    #[serde(default)]
+    pub dest_name: Option<String>,
 }
 
 /// 進捗の通知.
@@ -230,15 +233,20 @@ fn file_name_of(path: &Path) -> String {
 ///
 /// * `src` - 対象のパス.
 /// * `dest_dir` - 配置先のディレクトリ.
+/// * `dest_name` - 配置先の名前. 指定がない場合は元の名前を使う.
 ///
 /// # Returns
 ///
 /// 配置先のパス. 名前を取れない場合 (`..` で終わるパスなど) は [`Err`].
-fn destination_of(src: &Path, dest_dir: &Path) -> Result<PathBuf, String> {
-    let name = src
-        .file_name()
-        .ok_or_else(|| format!("Invalid source path: {}", src.display()))?;
-    Ok(dest_dir.join(name))
+fn destination_of(src: &Path, dest_dir: &Path, dest_name: Option<&str>) -> Result<PathBuf, String> {
+    if let Some(name) = dest_name {
+        Ok(dest_dir.join(name))
+    } else {
+        let name = src
+            .file_name()
+            .ok_or_else(|| format!("Invalid source path: {}", src.display()))?;
+        Ok(dest_dir.join(name))
+    }
 }
 
 /// 配置先ディレクトリ直下で, 既に存在する名前を返します.
@@ -247,14 +255,19 @@ fn destination_of(src: &Path, dest_dir: &Path) -> Result<PathBuf, String> {
 ///
 /// * `sources` - 対象のパス.
 /// * `dest_dir` - 配置先のディレクトリ.
+/// * `dest_name` - 配置先の名前 (Copy のみ).
 ///
 /// # Returns
 ///
 /// 同名のエントリが既にある対象の名前. 名前を取れない対象は [`Err`].
-pub fn find_conflicts(sources: &[String], dest_dir: &str) -> Result<Vec<String>, String> {
+pub fn find_conflicts(
+    sources: &[String],
+    dest_dir: &str,
+    dest_name: Option<&str>,
+) -> Result<Vec<String>, String> {
     let mut names = Vec::new();
     for source in sources {
-        let dest = destination_of(Path::new(source), Path::new(dest_dir))?;
+        let dest = destination_of(Path::new(source), Path::new(dest_dir), dest_name)?;
         if fs::symlink_metadata(&dest).is_ok() {
             names.push(file_name_of(&dest));
         }
@@ -268,13 +281,18 @@ pub fn find_conflicts(sources: &[String], dest_dir: &str) -> Result<Vec<String>,
 ///
 /// * `sources` - 対象のパス.
 /// * `dest_dir` - 配置先のディレクトリ.
+/// * `dest_name` - 配置先の名前 (Copy のみ).
 ///
 /// # Returns
 ///
 /// 同名のエントリが既にある対象の名前. 失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command]
-pub fn check_conflicts(sources: Vec<String>, dest_dir: String) -> Result<Vec<String>, String> {
-    find_conflicts(&sources, &dest_dir)
+pub fn check_conflicts(
+    sources: Vec<String>,
+    dest_dir: String,
+    dest_name: Option<String>,
+) -> Result<Vec<String>, String> {
+    find_conflicts(&sources, &dest_dir, dest_name.as_deref())
 }
 
 /// コピー・移動の配置先を検証し, 対象ごとの配置先を返します.
@@ -288,6 +306,8 @@ pub fn check_conflicts(sources: Vec<String>, dest_dir: String) -> Result<Vec<Str
 /// (対象, 配置先) の組. 配置先が無い・ディレクトリでない・対象が存在しない・
 /// 自分自身やその内側への配置・上書き不可の同名エントリがある場合は [`Err`].
 fn plan_placements(request: &TransferRequest) -> Result<Vec<(PathBuf, PathBuf)>, String> {
+    use crate::commands::ops::join_valid_name;
+
     let dest_dir = request
         .dest_dir
         .as_deref()
@@ -299,6 +319,17 @@ fn plan_placements(request: &TransferRequest) -> Result<Vec<(PathBuf, PathBuf)>,
             dest_dir.display()
         ));
     }
+
+    // dest_name が指定されている場合, Copy のみ許可し, 単一ファイルに限定する.
+    if request.dest_name.is_some() {
+        if request.kind != TransferKind::Copy {
+            return Err("dest_name is only allowed for Copy".to_string());
+        }
+        if request.sources.len() != 1 {
+            return Err("dest_name requires exactly one source file".to_string());
+        }
+    }
+
     // シンボリックリンクをたどった実体のパスで比較するため, 正規化しておく.
     let dest_canonical = fs::canonicalize(dest_dir).map_err(|e| e.to_string())?;
 
@@ -308,9 +339,15 @@ fn plan_placements(request: &TransferRequest) -> Result<Vec<(PathBuf, PathBuf)>,
         if fs::symlink_metadata(&src).is_err() {
             return Err(format!("Path does not exist: {}", source));
         }
-        let dst = destination_of(&src, dest_dir)?;
+        let dst = if let Some(name) = &request.dest_name {
+            join_valid_name(dest_dir.to_str().unwrap(), name)?
+        } else {
+            destination_of(&src, dest_dir, None)?
+        };
         let src_canonical = fs::canonicalize(&src).map_err(|e| e.to_string())?;
-        if src_canonical.parent() == Some(dest_canonical.as_path()) {
+
+        // dest_name がある場合は, 同一ディレクトリ別名の配置を許可する.
+        if request.dest_name.is_none() && src_canonical.parent() == Some(dest_canonical.as_path()) {
             // 配置先が対象自身の親, つまり同じディレクトリへの配置は無意味なので拒否する.
             return Err(format!(
                 "Source and destination are the same: {}",
@@ -595,6 +632,7 @@ mod tests {
             dest_dir: dest.map(|p| p.to_string_lossy().into_owned()),
             overwrite: false,
             permanent: true,
+            dest_name: None,
         }
     }
 
@@ -907,14 +945,100 @@ mod tests {
         let sources = vec!["/x/a".to_string(), "/x/b".to_string()];
 
         assert_eq!(
-            find_conflicts(&sources, dest.to_str().unwrap()).unwrap(),
+            find_conflicts(&sources, dest.to_str().unwrap(), None).unwrap(),
             vec!["a".to_string()]
         );
         assert_eq!(
-            check_conflicts(sources, dest.to_string_lossy().into_owned()).unwrap(),
+            check_conflicts(sources, dest.to_string_lossy().into_owned(), None).unwrap(),
             vec!["a".to_string()]
         );
-        assert!(find_conflicts(&["/".to_string()], "/tmp").is_err());
+        assert!(find_conflicts(&["/".to_string()], "/tmp", None).is_err());
+    }
+
+    #[test]
+    fn test_transfer_copy_same_directory_rename_success() {
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("a.txt");
+        fs::write(&src, "hello").unwrap();
+
+        let mut req = request(TransferKind::Copy, &[&src], Some(dir.path()));
+        req.dest_name = Some("b.txt".to_string());
+        let (result, events) = run(&req);
+
+        assert_eq!(
+            result.unwrap(),
+            TransferSummary {
+                processed: 1,
+                cancelled: false
+            }
+        );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("b.txt")).unwrap(),
+            "hello"
+        );
+        assert!(src.exists());
+        assert_eq!(events.last().unwrap().current, "a.txt");
+    }
+
+    #[test]
+    fn test_transfer_copy_same_directory_rename_conflict() {
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("a.txt");
+        let existing = dir.path().join("b.txt");
+        fs::write(&src, "hello").unwrap();
+        fs::write(&existing, "existing").unwrap();
+
+        let mut req = request(TransferKind::Copy, &[&src], Some(dir.path()));
+        req.dest_name = Some("b.txt".to_string());
+        let (result, _) = run(&req);
+
+        assert!(result.unwrap_err().starts_with("Already exists"));
+    }
+
+    #[test]
+    fn test_transfer_copy_dest_name_requires_single_source() {
+        let dir = tempdir().unwrap();
+        let src1 = dir.path().join("a.txt");
+        let src2 = dir.path().join("b.txt");
+        fs::write(&src1, "1").unwrap();
+        fs::write(&src2, "2").unwrap();
+
+        let mut req = request(TransferKind::Copy, &[&src1, &src2], Some(dir.path()));
+        req.dest_name = Some("c.txt".to_string());
+        let (result, _) = run(&req);
+
+        assert_eq!(
+            result.unwrap_err(),
+            "dest_name requires exactly one source file"
+        );
+    }
+
+    #[test]
+    fn test_transfer_move_dest_name_not_allowed() {
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("a.txt");
+        let dest = dir.path().join("dest");
+        fs::write(&src, "hello").unwrap();
+        fs::create_dir(&dest).unwrap();
+
+        let mut req = request(TransferKind::Move, &[&src], Some(&dest));
+        req.dest_name = Some("b.txt".to_string());
+        let (result, _) = run(&req);
+
+        assert_eq!(result.unwrap_err(), "dest_name is only allowed for Copy");
+    }
+
+    #[test]
+    fn test_transfer_copy_dest_name_invalid_name() {
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("a.txt");
+        fs::write(&src, "hello").unwrap();
+
+        let mut req = request(TransferKind::Copy, &[&src], Some(dir.path()));
+        req.dest_name = Some("..".to_string());
+        let (result, _) = run(&req);
+
+        assert!(result.unwrap_err().starts_with("Invalid name"));
     }
 
     #[test]

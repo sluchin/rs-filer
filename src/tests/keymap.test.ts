@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  PREFIX_CTRL_C,
   PREFIX_CTRL_X,
   PREFIX_STAR,
   resolveKey,
@@ -101,14 +100,14 @@ describe("resolveKey", () => {
     });
   });
 
-  it("正常系: C-c の後に < / > で履歴の移動, C-x の後に . で隠しファイルの切り替えになること", () => {
+  it("正常系: C-c でクリップボードコピー, M-Left/Right で履歴移動, C-x の後に . で隠しファイルの切り替えになること", () => {
     expect(resolveKey(key("c", { ctrlKey: true }), null)).toEqual({
-      prefix: PREFIX_CTRL_C,
+      command: "copyToClipboard",
     });
-    expect(resolveKey(key("<"), PREFIX_CTRL_C)).toEqual({
+    expect(resolveKey(key("ArrowLeft", { altKey: true }), null)).toEqual({
       command: "historyBack",
     });
-    expect(resolveKey(key(">"), PREFIX_CTRL_C)).toEqual({
+    expect(resolveKey(key("ArrowRight", { altKey: true }), null)).toEqual({
       command: "historyForward",
     });
     expect(resolveKey(key("."), PREFIX_CTRL_X)).toEqual({

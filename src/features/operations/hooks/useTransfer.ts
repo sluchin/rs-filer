@@ -3,6 +3,8 @@ import log from "loglevel";
 import {
   cancelTransfer,
   checkConflicts,
+  copyFilesToClipboard,
+  readClipboardFiles,
   runTransfer,
 } from "../../../services/tauriApi";
 import type { LoadOptions } from "../../explorer/hooks/useFileList";
@@ -57,6 +59,11 @@ export function useTransfer(
   setError: (message: string | null) => void,
   notify: (message: string) => void,
   openConfirm: (title: string, message: string, onConfirm: () => void) => void,
+  openPrompt: (
+    title: string,
+    onSubmit: (value: string) => void,
+    initialValue?: string,
+  ) => void,
 ) {
   const [running, setTask] = useState<Omit<TaskState, "cancelling"> | null>(
     null,
@@ -130,9 +137,32 @@ export function useTransfer(
         return;
       }
       if (source.currentPath === dest.currentPath) {
-        setError(
-          "対向ペインが同じディレクトリです. 別のディレクトリを開いてください.",
-        );
+        // 同じディレクトリの場合, コピーなら名前をつけてコピー, 移動はエラー.
+        if (kind === "copy") {
+          if (files.length !== 1) {
+            setError("1 件だけコピーしてください.");
+            return;
+          }
+          const file = files[0];
+          openPrompt(
+            "名前を付けてコピー",
+            (newName: string) => {
+              run({
+                kind: "copy",
+                sources: [file.path],
+                dest_dir: source.currentPath,
+                overwrite: false,
+                permanent: false,
+                dest_name: newName,
+              });
+            },
+            file.name,
+          );
+        } else {
+          setError(
+            "対向ペインが同じディレクトリです. 別のディレクトリを開いてください.",
+          );
+        }
         return;
       }
       const sources = files.map((f) => f.path);
@@ -170,7 +200,7 @@ export function useTransfer(
         await run(request);
       }
     },
-    [source, dest.currentPath, setError, openConfirm, run],
+    [source, dest, setError, openConfirm, openPrompt, run],
   );
 
   /**
@@ -211,11 +241,134 @@ export function useTransfer(
     cancelTransfer().catch((e) => log.warn("[React] 中断の要求に失敗:", e));
   }, []);
 
+  /** クリップボードへファイルをコピーします. */
+  const copyToClipboard = useCallback((): void => {
+    const files = targetsOf(source);
+    if (files.length === 0) {
+      setError("対象の項目が選択されていません.");
+      return;
+    }
+    const paths = files.map((f) => f.path);
+    copyFilesToClipboard(paths)
+      .then(() => {
+        notify(`${files.length} 件をコピーしました`);
+      })
+      .catch((e) => setError(String(e)));
+  }, [source, setError, notify]);
+
+  /** クリップボードからファイルを貼り付けます. */
+  const pasteFromClipboard = useCallback(async (): Promise<void> => {
+    let clipboardFiles: string[];
+    try {
+      clipboardFiles = await readClipboardFiles();
+    } catch (e) {
+      setError(String(e));
+      return;
+    }
+
+    if (clipboardFiles.length === 0) {
+      setError("クリップボードが空です.");
+      return;
+    }
+
+    // 全ファイルの親ディレクトリが同じかチェック.
+    const parents = new Set(
+      clipboardFiles.map((p) => p.substring(0, p.lastIndexOf("/"))),
+    );
+
+    if (parents.size === 1 && parents.has(source.currentPath)) {
+      // 同一ディレクトリの場合, 別名でコピーを作成.
+      if (clipboardFiles.length !== 1) {
+        setError("同一ディレクトリ内では, 1 件ずつコピーしてください.");
+        return;
+      }
+      const originalPath = clipboardFiles[0];
+      const originalName = originalPath.substring(
+        originalPath.lastIndexOf("/") + 1,
+      );
+      openPrompt(
+        "名前を付けてコピー",
+        (newName: string) => {
+          const files = [originalPath];
+          run({
+            kind: "copy",
+            sources: files,
+            dest_dir: source.currentPath,
+            overwrite: false,
+            permanent: false,
+            dest_name: newName,
+          });
+        },
+        originalName,
+      );
+    } else {
+      // 別ディレクトリからのコピーは通常のコピー処理.
+      try {
+        const conflicts = await checkConflicts(
+          clipboardFiles,
+          source.currentPath,
+        );
+        const request: TransferRequest = {
+          kind: "copy",
+          sources: clipboardFiles,
+          dest_dir: source.currentPath,
+          overwrite: conflicts.length > 0,
+          permanent: false,
+        };
+        if (conflicts.length > 0) {
+          const names = conflicts.slice(0, 3).join(", ");
+          const more = conflicts.length > 3 ? " ほか" : "";
+          openConfirm(
+            "コピーの上書き",
+            `${conflicts.length} 件が既に存在します (${names}${more}). 上書きしてコピーしますか? (y/n)`,
+            () => run(request),
+          );
+        } else {
+          await run(request);
+        }
+      } catch (e) {
+        setError(String(e));
+      }
+    }
+  }, [source, setError, openPrompt, openConfirm, run]);
+
+  /** ファイルを同じディレクトリ内でコピーします. */
+  const duplicateFile = useCallback((): void => {
+    const files = targetsOf(source);
+    if (files.length === 0) {
+      setError("対象の項目が選択されていません.");
+      return;
+    }
+    if (files.length !== 1) {
+      setError("1 件だけコピーしてください.");
+      return;
+    }
+    const file = files[0];
+    const originalName = file.name;
+    openPrompt(
+      "名前を付けてコピー",
+      (newName: string) => {
+        run({
+          kind: "copy",
+          sources: [file.path],
+          dest_dir: source.currentPath,
+          overwrite: false,
+          permanent: false,
+          dest_name: newName,
+        });
+      },
+      originalName,
+    );
+  }, [source, setError, openPrompt, run]);
+
   return {
     task: running && { ...running, cancelling },
     startCopy: (alwaysConfirm: boolean) => startPlace("copy", alwaysConfirm),
     startMove: (alwaysConfirm: boolean) => startPlace("move", alwaysConfirm),
     startDelete,
+    copyToClipboard,
+    pasteFromClipboard,
+    duplicateFile,
     cancel,
   };
 }

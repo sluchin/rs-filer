@@ -3,11 +3,13 @@
 //! 機能ごとに, ファイルシステムの情報取得 (`fs`), ファイルの作成・名前変更 (`ops`),
 //! 外部アプリケーションで開く操作 (`open`), コピー・移動・削除 (`transfer`), 外部コマンド実行 (`exec`),
 //! ファイルのプレビュー (`preview`), 設定ファイルの読み書き (`config`), アプリ自体の操作 (`app`),
-//! フロントエンドのログの転送 (`frontend_log`) の
+//! ファイルクリップボード操作 (`clipboard`), フロントエンドのログの転送 (`frontend_log`) の
 //! サブモジュールへ分けています. 各コマンドは, 呼び出しやすいようにこのモジュールから再エクスポートします.
 
 /// アプリケーション自体の操作 (終了) を行うコマンド.
 pub mod app;
+/// ファイルリストのクリップボード操作 (コピー・読み取り).
+pub mod clipboard;
 /// 設定ファイルの読み込み・書き込みを行うコマンド.
 pub mod config;
 /// 選択したファイルに対する外部コマンドの実行.
@@ -26,6 +28,8 @@ pub mod preview;
 pub mod transfer;
 
 pub use app::quit_app;
+#[cfg(not(tarpaulin_include))]
+pub use clipboard::{copy_files_to_clipboard, read_clipboard_files};
 pub use config::{load_config, load_keymap, save_config, AppConfig, FontSize, Theme};
 pub use exec::run_external_command;
 pub use frontend_log::{log_frontend_message, LogLevel};

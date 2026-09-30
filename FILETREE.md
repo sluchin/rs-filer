@@ -98,6 +98,13 @@ src/
 │   │   └── hooks/
 │   │       └── useBookmarks.ts
 │   │
+│   ├── tree/                            # ツリー表示 (Phase 9)
+│   │   ├── components/
+│   │   │   └── TreePane.tsx            # ツリーペイン (フォーカス中のキーハンドリング)
+│   │   ├── hooks/
+│   │   │   └── useTree.ts              # ツリーの状態管理・子読込・展開・カーソル操作
+│   │   └── types.ts                    # TreeNode, TreeRow型定義
+│   │
 │   └── settings/                       # アプリ設定 (Phase 7)
 │       └── types.ts                    # AppConfig, Theme, FontSize と, 切り替え順
 │
