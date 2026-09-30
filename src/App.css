@@ -425,3 +425,79 @@ body,
 .status-error {
   color: var(--error);
 }
+
+.app-body {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  min-height: 0;
+}
+
+.tree-pane {
+  width: 220px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.tree-header {
+  height: var(--header-height);
+  background: linear-gradient(var(--header-from), var(--header-to));
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  font-weight: bold;
+  user-select: none;
+}
+
+.tree-title {
+  color: var(--fg);
+}
+
+.tree-rows {
+  flex: 1;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.tree-row {
+  height: var(--row-height);
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  border-bottom: 1px solid transparent;
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+}
+
+.tree-row[data-cursor="active"] {
+  border-bottom-color: var(--cursor-active);
+}
+
+.tree-row[data-cursor="none"] {
+  border-bottom-color: transparent;
+}
+
+.tree-icon {
+  width: 16px;
+  flex: none;
+  margin-right: 2px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.tree-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+  color: var(--fg);
+}

@@ -82,6 +82,7 @@ fn request(kind: TransferKind, source: &Path, dest: Option<&Path>) -> TransferRe
         dest_dir: dest.map(|p| p.to_string_lossy().into_owned()),
         overwrite: false,
         permanent: true,
+        dest_name: None,
     }
 }
 
@@ -265,7 +266,11 @@ fn test_check_conflicts_integration() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("a.txt"), "").unwrap();
     let dest = dir.path().to_string_lossy().into_owned();
-    let conflicts = check_conflicts(vec!["/other/a.txt".into(), "/other/b.txt".into()], dest);
+    let conflicts = check_conflicts(
+        vec!["/other/a.txt".into(), "/other/b.txt".into()],
+        dest,
+        None,
+    );
     assert_eq!(conflicts.unwrap(), vec!["a.txt".to_string()]);
 }
 

@@ -768,6 +768,12 @@ describe("App (分岐の網羅)", () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findAllByDisplayValue("/");
+    await waitFor(() =>
+      expect(screen.getByRole("treeitem")).toHaveAttribute(
+        "data-cursor",
+        "active",
+      ),
+    );
     mockedInvoke.mockClear();
 
     await user.keyboard("hd");
@@ -1249,7 +1255,7 @@ describe("App (履歴・ブックマーク)", () => {
     localStorage.clear();
   });
 
-  it("正常系: Alt+← / Alt+→ と C-c < / C-c > で履歴を戻る・進むことができ, 端では何も起きないこと", async () => {
+  it("正常系: Alt+← / Alt+→ で履歴を戻る・進むことができ, 端では何も起きないこと", async () => {
     mockPhase4();
     const user = await renderLoaded();
     await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
@@ -1266,11 +1272,6 @@ describe("App (履歴・ブックマーク)", () => {
     await paneOf("left").findByText("in.txt");
     await user.keyboard("{Alt>}{ArrowRight}{/Alt}");
     expect(leftNames()).toEqual(["in.txt"]);
-
-    await user.keyboard("{Control>}c{/Control}<");
-    await waitFor(() => expect(leftNames()).toContain("a.txt"));
-    await user.keyboard("{Control>}c{/Control}>");
-    await paneOf("left").findByText("in.txt");
   });
 
   it("正常系: 履歴を戻った後に別のディレクトリへ移動すると, 進む履歴は捨てられること", async () => {
@@ -1418,17 +1419,6 @@ describe("App (履歴一覧)", () => {
       "/mock/home/FolderA現在地",
     ]);
     expect(paneOf("right").getByText("FolderA")).toBeInTheDocument();
-  });
-
-  it("正常系: C-c h でも履歴一覧が開くこと", async () => {
-    mockPhase4();
-    const user = await renderLoaded();
-    await user.keyboard("{Control>}c{/Control}h");
-    expect(
-      paneOf("left")
-        .getAllByRole("listitem")
-        .map((li) => li.textContent),
-    ).toEqual(["/mock/home現在地"]);
   });
 
   it("正常系: カーソルは現在地から始まり, j/k で動かして Enter で, 隣り合わない位置へも直接移動できること", async () => {
@@ -2266,7 +2256,7 @@ describe("App (ページ送り・先頭末尾・パス補完・パレット・�
     });
   }
 
-  it("正常系: PageUp/PageDown と C-v/M-v で 10 行ずつ動き, 範囲外に出ないこと", async () => {
+  it("正常系: PageUp/PageDown と M-v で 10 行ずつ動き, 範囲外に出ないこと", async () => {
     mockManyFiles();
     const user = userEvent.setup();
     render(<App />);
@@ -2279,7 +2269,7 @@ describe("App (ページ送り・先頭末尾・パス補完・パレット・�
     await user.keyboard("{PageUp}");
     expect(cursorNames()).toEqual([""]);
 
-    await user.keyboard("{Control>}v{/Control}");
+    await user.keyboard("{PageDown}");
     expect(cursorNames()).toEqual(["f5.txt"]);
     await user.keyboard("{Alt>}v{/Alt}");
     expect(cursorNames()).toEqual([""]);

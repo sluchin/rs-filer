@@ -52,6 +52,10 @@ export interface TransferRequest {
    * true の場合, 削除でゴミ箱を使わず完全に削除する.
    */
   permanent: boolean;
+  /**
+   * コピー時に指定した名前でコピーする (Copy のみ. 単一ファイルに限定).
+   */
+  dest_name?: string;
 }
 
 /**
