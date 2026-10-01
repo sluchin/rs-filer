@@ -1,6 +1,7 @@
 import { useEffect, type ReactElement } from "react";
 import type { PaneId } from "../../explorer/types";
 import { useTree } from "../hooks/useTree";
+import { getFileIcon } from "../utils/icons";
 
 /**
  * TreePane コンポーネントのプロパティ.
@@ -145,6 +146,9 @@ export default function TreePane({
                 style={{ paddingLeft: `${depth * 16}px` }}
               >
                 <span className="tree-icon">{node.expanded ? "▼" : "▶"}</span>
+                <span className="file-icon">
+                  {getFileIcon(node.name, true)}
+                </span>
                 {node.name}/
               </span>
             </li>
