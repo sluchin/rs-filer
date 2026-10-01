@@ -57,7 +57,7 @@ export const COMMANDS = [
   "resizeColumnWider",
   "resizeColumnNarrower",
   "autoFitColumn",
-  "focusTree",
+  "toggleTree",
   "quit",
 ] as const;
 
