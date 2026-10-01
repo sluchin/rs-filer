@@ -39,7 +39,6 @@ import OperationDialog from "./features/operations/components/OperationDialog";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
 import { installLogForwarding } from "./services/logForwarder";
 import TreePane from "./features/tree/components/TreePane";
-import { useTree } from "./features/tree/hooks/useTree";
 
 /** ページ送り (`PageUp` / `PageDown`) で動かす行数. */
 const PAGE_SIZE = 10;
@@ -81,12 +80,15 @@ export default function App(): ReactElement {
     left: false,
     right: false,
   });
+  const [treePanes, setTreePanes] = useState<Record<PaneId, boolean>>({
+    left: false,
+    right: false,
+  });
   const [logOpen, setLogOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [previewOn, setPreviewOn] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteValue, setPaletteValue] = useState("");
-  const [treeFocused, setTreeFocused] = useState(false);
   const paletteHistory = useHistoryNav();
   const operationLog = useOperationLog();
   const { addLog } = operationLog;
@@ -149,7 +151,6 @@ export default function App(): ReactElement {
   );
   const marks = useMarks(activePane, updatePane, moveCursor, reportError);
   const activeState = activePane === "left" ? leftPane : rightPane;
-  const tree = useTree(activeState.showHidden, activeState.currentPath);
   const { handleEnter } = navigation;
   const { openExternal } = operations;
 
@@ -390,8 +391,8 @@ export default function App(): ReactElement {
       case "autoFitColumn":
         // TODO: auto-fit logic will be implemented in FileList component
         break;
-      case "focusTree":
-        setTreeFocused(!treeFocused);
+      case "toggleTree":
+        setTreePanes((p) => ({ ...p, [activePane]: !p[activePane] }));
         break;
       case "quit":
         quitApp().catch((e) => log.warn("[React] 終了に失敗:", e));
@@ -419,10 +420,10 @@ export default function App(): ReactElement {
       navigation.drives === null &&
       !bookmarkPanes[activePane] &&
       !historyPanes[activePane] &&
+      !treePanes[activePane] &&
       !logOpen &&
       !paletteOpen &&
       !helpOpen &&
-      !treeFocused &&
       transfer.task === null,
     keymap,
   );
@@ -506,6 +507,27 @@ export default function App(): ReactElement {
       />
     );
   });
+  (["left", "right"] as const).forEach((paneId) => {
+    if (!treePanes[paneId]) {
+      return;
+    }
+    const state = paneId === "left" ? leftPane : rightPane;
+    paneOverrides[paneId] = (
+      <TreePane
+        paneId={paneId}
+        rootPath={state.currentPath}
+        showHidden={state.showHidden}
+        isActive={activePane === paneId}
+        onActivate={() => setActivePane(paneId)}
+        onSelect={(path) => {
+          setTreePanes((p) => ({ ...p, [paneId]: false }));
+          loadDirectory(paneId, path);
+        }}
+        onCancel={() => setTreePanes((p) => ({ ...p, [paneId]: false }))}
+        onSwitchPane={switchPane}
+      />
+    );
+  });
 
   return (
     <div
@@ -514,16 +536,6 @@ export default function App(): ReactElement {
       data-font-size={settings.config.font_size}
     >
       <div className="app-body">
-        <TreePane
-          rows={tree.rows}
-          cursorPath={tree.cursorPath}
-          onMoveCursor={tree.moveCursor}
-          onExpandOrChild={tree.expandOrChild}
-          onCollapseOrParent={tree.collapseOrParent}
-          onSelect={(path) => loadDirectory(activePane, path)}
-          onFocusBack={() => setTreeFocused(false)}
-          focused={treeFocused}
-        />
         <DualPaneContainer
           activePane={activePane}
           leftPane={leftPane}
