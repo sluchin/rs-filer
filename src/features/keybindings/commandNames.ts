@@ -58,7 +58,7 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   resizeColumnWider: "選択中の列を広くする",
   resizeColumnNarrower: "選択中の列を狭くする",
   autoFitColumn: "選択中の列の幅を自動調整",
-  focusTree: "ツリーペインへフォーカス",
+  toggleTree: "ツリー表示のトグル",
   quit: "終了",
 };
 

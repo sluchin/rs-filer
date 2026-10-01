@@ -97,7 +97,7 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   "M-0": "cycleFontSize",
   ">": "resizeColumnWider",
   "<": "resizeColumnNarrower",
-  t: "focusTree",
+  t: "toggleTree",
   q: "quit",
   "C-x C-c": "quit",
 };

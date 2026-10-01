@@ -100,9 +100,9 @@ src/
 │   │
 │   ├── tree/                            # ツリー表示 (Phase 9)
 │   │   ├── components/
-│   │   │   └── TreePane.tsx            # ツリーペイン (フォーカス中のキーハンドリング)
+│   │   │   └── TreePane.tsx            # ペインのファイル一覧をツリー形式にするビュー (キー操作・ツリー表示)
 │   │   ├── hooks/
-│   │   │   └── useTree.ts              # ツリーの状態管理・子読込・展開・カーソル操作
+│   │   │   └── useTree.ts              # ペインのディレクトリ配下のツリー状態管理・子読込・展開・カーソル操作
 │   │   └── types.ts                    # TreeNode, TreeRow型定義
 │   │
 │   └── settings/                       # アプリ設定 (Phase 7)

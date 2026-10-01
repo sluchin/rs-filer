@@ -768,18 +768,61 @@ describe("App (分岐の網羅)", () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findAllByDisplayValue("/");
-    await waitFor(() =>
-      expect(screen.getByRole("treeitem")).toHaveAttribute(
-        "data-cursor",
-        "active",
-      ),
-    );
     mockedInvoke.mockClear();
 
     await user.keyboard("hd");
 
     expect(mockedInvoke).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: t でペインの一覧がディレクトリだけのツリー表示になり, もう一方のペインは残ること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("t");
+
+    expect(
+      await paneOf("left").findByRole("treeitem", { name: /FolderA/ }),
+    ).toBeInTheDocument();
+    expect(
+      paneOf("left").queryByRole("treeitem", { name: /b\.txt/ }),
+    ).not.toBeInTheDocument();
+    expect(paneOf("right").queryByRole("treeitem")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("region")).toHaveLength(2);
+  });
+
+  it("正常系: ツリーで → により展開し, Enter を押すとそのディレクトリの一覧に切り替わること", async () => {
+    mockHome((cmd, args) =>
+      cmd === "read_directory" && pathOf(args) === "/mock/home/FolderA"
+        ? Promise.resolve([
+            { name: "Sub", path: "/mock/home/FolderA/Sub", is_dir: true },
+          ])
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
+
+    await user.keyboard("l");
+    await paneOf("left").findByRole("treeitem", { name: /Sub/ });
+    await user.keyboard("{Enter}");
+
+    expect(await paneOf("left").findByText("Sub")).toBeInTheDocument();
+    expect(paneOf("left").queryByRole("treeitem")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("/mock/home/FolderA")).toBeInTheDocument();
+  });
+
+  it("正常系: ツリーで t を押すと通常のファイル一覧へ戻ること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
+
+    await user.keyboard("t");
+
+    expect(paneOf("left").queryByRole("treeitem")).not.toBeInTheDocument();
+    expect(await paneOf("left").findByText("FolderA")).toBeInTheDocument();
   });
 
   it("正常系: 右ペインがアクティブなとき, 作成先は右ペインのディレクトリになること", async () => {
