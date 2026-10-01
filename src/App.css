@@ -92,6 +92,7 @@ body,
 
 .dual-pane {
   flex: 1;
+  min-width: 0;
   display: flex;
   gap: 4px;
   min-height: 0;
