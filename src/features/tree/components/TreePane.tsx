@@ -50,6 +50,8 @@ export default function TreePane({
     moveCursor,
     expandOrChild,
     collapseOrParent,
+    expandDeep,
+    collapseDeep,
   } = useTree(rootPath, showHidden);
 
   useEffect(() => {
@@ -64,12 +66,18 @@ export default function TreePane({
       } else if (e.key === "ArrowUp" || e.key === "k") {
         e.preventDefault();
         moveCursor(-1);
-      } else if (e.key === "ArrowRight" || e.key === "l") {
+      } else if ((e.key === "ArrowRight" || e.key === "l") && !e.shiftKey) {
         e.preventDefault();
         expandOrChild();
-      } else if (e.key === "ArrowLeft" || e.key === "h") {
+      } else if ((e.key === "ArrowRight" || e.key === "L") && e.shiftKey) {
+        e.preventDefault();
+        expandDeep();
+      } else if ((e.key === "ArrowLeft" || e.key === "h") && !e.shiftKey) {
         e.preventDefault();
         collapseOrParent();
+      } else if ((e.key === "ArrowLeft" || e.key === "H") && e.shiftKey) {
+        e.preventDefault();
+        collapseDeep();
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (cursorPath) {

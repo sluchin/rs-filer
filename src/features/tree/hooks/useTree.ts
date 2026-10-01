@@ -149,6 +149,60 @@ export function useTree(rootPath: string, showHidden: boolean) {
     }
   }, [rows, cursorPath, toggle]);
 
+  /** カーソル位置のディレクトリ配下を3階層まで展開する. */
+  const expandDeep = useCallback((): void => {
+    const node = rows.find((r) => r.node.path === cursorPath)?.node;
+    if (!node) {
+      return;
+    }
+
+    const expandRecursive = async (
+      n: TreeNode,
+      depth: number,
+    ): Promise<TreeNode> => {
+      if (depth === 0) return n;
+
+      const children = !n.loaded
+        ? await fetchChildren(n.path, showHidden)
+        : n.children;
+
+      const expandedChildren = await Promise.all(
+        children.map((child) => expandRecursive(child, depth - 1)),
+      );
+
+      return {
+        ...n,
+        children: expandedChildren,
+        loaded: true,
+        expanded: true,
+      };
+    };
+
+    const current = version.current;
+    void expandRecursive(node, 3).then((updated) => {
+      if (current !== version.current) {
+        return;
+      }
+      setRoots((prev) => updateNode(prev, node.path, () => updated));
+    });
+  }, [rows, cursorPath, showHidden]);
+
+  /** カーソル位置のディレクトリ配下をすべて折り畳む. */
+  const collapseDeep = useCallback((): void => {
+    const node = rows.find((r) => r.node.path === cursorPath)?.node;
+    if (!node) {
+      return;
+    }
+
+    const collapseRecursive = (n: TreeNode): TreeNode => ({
+      ...n,
+      expanded: false,
+      children: n.children.map(collapseRecursive),
+    });
+
+    setRoots((prev) => updateNode(prev, node.path, collapseRecursive));
+  }, [rows, cursorPath]);
+
   return {
     rows,
     cursorPath,
@@ -156,5 +210,7 @@ export function useTree(rootPath: string, showHidden: boolean) {
     moveCursor,
     expandOrChild,
     collapseOrParent,
+    expandDeep,
+    collapseDeep,
   };
 }
