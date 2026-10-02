@@ -790,6 +790,8 @@ describe("App (分岐の網羅)", () => {
     ).not.toBeInTheDocument();
     expect(paneOf("right").queryByRole("treeitem")).not.toBeInTheDocument();
     expect(screen.getAllByRole("region")).toHaveLength(2);
+    const folder = paneOf("left").getByRole("treeitem", { name: /FolderA/ });
+    expect(folder.querySelector('svg[data-icon="dir"]')).not.toBeNull();
   });
 
   it("正常系: ツリーで → により展開し, Enter を押すとそのディレクトリの一覧に切り替わること", async () => {
