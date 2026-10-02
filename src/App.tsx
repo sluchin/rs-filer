@@ -519,9 +519,13 @@ export default function App(): ReactElement {
         showHidden={state.showHidden}
         isActive={activePane === paneId}
         onActivate={() => setActivePane(paneId)}
-        onSelect={(path) => {
+        onSelect={(path, isDir) => {
           setTreePanes((p) => ({ ...p, [paneId]: false }));
-          loadDirectory(paneId, path);
+          if (isDir) {
+            loadDirectory(paneId, path);
+          } else {
+            openEntry(paneId, { path, name: "", is_dir: false, hidden: false });
+          }
         }}
         onCancel={() => setTreePanes((p) => ({ ...p, [paneId]: false }))}
         onSwitchPane={switchPane}

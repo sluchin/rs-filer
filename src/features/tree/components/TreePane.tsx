@@ -17,8 +17,8 @@ interface TreePaneProps {
   isActive: boolean;
   /** このペインをアクティブにするハンドラー (クリック時). */
   onActivate: () => void;
-  /** ディレクトリを選んだ (`Enter` またはダブルクリック) ときのハンドラー. */
-  onSelect: (path: string) => void;
+  /** ファイル・ディレクトリを選んだ (`Enter` またはダブルクリック) ときのハンドラー. */
+  onSelect: (path: string, isDir: boolean) => void;
   /** 通常のファイル一覧へ戻る (`t` / `Esc` / `C-g`) ハンドラー. */
   onCancel: () => void;
   /** `Tab` で, もう一方のペインをアクティブにするハンドラー. */
@@ -26,10 +26,10 @@ interface TreePaneProps {
 }
 
 /**
- * ペインのファイル一覧を, ディレクトリだけのツリー形式の表示に差し替えるビュー.
+ * ペインのファイル一覧を, ファイルとディレクトリのツリー形式の表示に差し替えるビュー.
  *
  * ペインのカレントディレクトリ配下を, ディレクトリの展開・折り畳みができるツリーで表示します.
- * `Enter` またはダブルクリックでそのディレクトリへ移動して, 通常のファイル一覧に戻ります.
+ * `Enter` またはダブルクリックでディレクトリへ移動するか, ファイルを開きます.
  *
  * @param props - コンポーネントのプロパティ.
  * @returns ツリー形式のペインのReact要素.
@@ -82,7 +82,10 @@ export default function TreePane({
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (cursorPath) {
-          onSelect(cursorPath);
+          const node = rows.find((r) => r.node.path === cursorPath)?.node;
+          if (node) {
+            onSelect(cursorPath, node.is_dir);
+          }
         }
       } else if (
         e.key === "t" ||
@@ -123,7 +126,7 @@ export default function TreePane({
             <li
               key={node.path}
               role="treeitem"
-              aria-expanded={node.expanded}
+              aria-expanded={node.is_dir ? node.expanded : undefined}
               aria-level={depth + 1}
               className="file-row"
               data-cursor={
@@ -139,15 +142,26 @@ export default function TreePane({
                 }
               }}
               onClick={() => setCursorPath(node.path)}
-              onDoubleClick={() => onSelect(node.path)}
+              onDoubleClick={() => onSelect(node.path, node.is_dir)}
             >
               <span
                 className="col-name"
                 style={{ paddingLeft: `${depth * 16}px` }}
               >
-                <span className="tree-icon">{node.expanded ? "▼" : "▶"}</span>
-                <FileIcon kind="dir" />
-                {node.name}/
+                {node.is_dir ? (
+                  <>
+                    <span className="tree-icon">
+                      {node.expanded ? "▼" : "▶"}
+                    </span>
+                    <FileIcon kind="dir" />
+                    {node.name}/
+                  </>
+                ) : (
+                  <>
+                    <FileIcon kind="file" />
+                    {node.name}
+                  </>
+                )}
               </span>
             </li>
           ))}

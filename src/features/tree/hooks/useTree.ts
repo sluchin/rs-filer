@@ -18,11 +18,17 @@ async function fetchChildren(
   try {
     const entries = await readDirectory(path);
     return entries
-      .filter((e) => e.is_dir && (showHidden || !e.hidden))
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .filter((e) => showHidden || !e.hidden)
+      .sort((a, b) => {
+        if (a.is_dir !== b.is_dir) {
+          return b.is_dir ? 1 : -1;
+        }
+        return a.name.localeCompare(b.name);
+      })
       .map((e) => ({
         path: e.path,
         name: e.name,
+        is_dir: e.is_dir,
         expanded: false,
         loaded: false,
         children: [],
@@ -120,10 +126,10 @@ export function useTree(rootPath: string, showHidden: boolean) {
     [rows, cursorPath],
   );
 
-  /** カーソル位置のディレクトリを展開する (展開済みなら最初の子へ). */
+  /** カーソル位置のディレクトリを展開する (展開済みなら最初の子へ). ファイルなら何もしない. */
   const expandOrChild = useCallback((): void => {
     const node = rows.find((r) => r.node.path === cursorPath)?.node;
-    if (!node) {
+    if (!node || !node.is_dir) {
       return;
     }
     if (!node.expanded) {
@@ -133,13 +139,13 @@ export function useTree(rootPath: string, showHidden: boolean) {
     }
   }, [rows, cursorPath, toggle]);
 
-  /** カーソル位置を折り畳む (閉じていれば親へ. 親がツリーに無ければ何もしない). */
+  /** カーソル位置を折り畳む (閉じていれば親へ. 親がツリーに無ければ何もしない). ファイルなら親へ移動. */
   const collapseOrParent = useCallback((): void => {
     const node = rows.find((r) => r.node.path === cursorPath)?.node;
     if (!node) {
       return;
     }
-    if (node.expanded) {
+    if (node.is_dir && node.expanded) {
       void toggle(node, false);
       return;
     }
@@ -149,10 +155,10 @@ export function useTree(rootPath: string, showHidden: boolean) {
     }
   }, [rows, cursorPath, toggle]);
 
-  /** カーソル位置のディレクトリ配下を3階層まで展開する. */
+  /** カーソル位置のディレクトリ配下を3階層まで展開する. ファイルなら何もしない. */
   const expandDeep = useCallback((): void => {
     const node = rows.find((r) => r.node.path === cursorPath)?.node;
-    if (!node) {
+    if (!node || !node.is_dir) {
       return;
     }
 
@@ -187,10 +193,10 @@ export function useTree(rootPath: string, showHidden: boolean) {
     });
   }, [rows, cursorPath, showHidden]);
 
-  /** カーソル位置のディレクトリ配下をすべて折り畳む. */
+  /** カーソル位置のディレクトリ配下をすべて折り畳む. ファイルなら何もしない. */
   const collapseDeep = useCallback((): void => {
     const node = rows.find((r) => r.node.path === cursorPath)?.node;
-    if (!node) {
+    if (!node || !node.is_dir) {
       return;
     }
 

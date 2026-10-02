@@ -27,30 +27,34 @@ describe("useTree", () => {
     });
   });
 
-  it("正常系: ルート直下をディレクトリだけ名前順で表示し, ファイルと隠しディレクトリを除くこと", async () => {
+  it("正常系: ルート直下をファイル・ディレクトリを名前順で表示し (ディレクトリ優先), 隠しファイルを除くこと", async () => {
     const { result } = renderHook(() => useTree("/h", false));
-
-    await waitFor(() => expect(result.current.rows).toHaveLength(1));
-    expect(result.current.rows.map((r) => r.node.name)).toEqual(["docs"]);
-    expect(result.current.cursorPath).toBe("/h/docs");
-  });
-
-  it("正常系: 隠しの表示が有効なら隠しディレクトリも含み, ファイルは含まないこと", async () => {
-    const { result } = renderHook(() => useTree("/h", true));
 
     await waitFor(() => expect(result.current.rows).toHaveLength(2));
     expect(result.current.rows.map((r) => r.node.name)).toEqual([
+      "docs",
+      "b.txt",
+    ]);
+    expect(result.current.cursorPath).toBe("/h/docs");
+  });
+
+  it("正常系: 隠しの表示が有効なら隠しファイルも含むこと", async () => {
+    const { result } = renderHook(() => useTree("/h", true));
+
+    await waitFor(() => expect(result.current.rows).toHaveLength(3));
+    expect(result.current.rows.map((r) => r.node.name)).toEqual([
       ".git",
       "docs",
+      "b.txt",
     ]);
   });
 
   it("正常系: 展開で子を読み込み, 展開済みで子へ移動し, 折り畳みで閉じ, 子から親へ戻ること", async () => {
     const { result } = renderHook(() => useTree("/h", false));
-    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+    await waitFor(() => expect(result.current.rows).toHaveLength(2));
 
     act(() => result.current.expandOrChild());
-    await waitFor(() => expect(result.current.rows).toHaveLength(2));
+    await waitFor(() => expect(result.current.rows).toHaveLength(3));
     expect(result.current.rows[1]).toMatchObject({
       depth: 1,
       node: { path: "/h/docs/sub" },
@@ -63,19 +67,19 @@ describe("useTree", () => {
     expect(result.current.cursorPath).toBe("/h/docs");
 
     act(() => result.current.collapseOrParent());
-    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+    await waitFor(() => expect(result.current.rows).toHaveLength(2));
   });
 
   it("境界: カーソルは先頭と末尾を越えず, ツリー外の親へは移動しないこと", async () => {
     const { result } = renderHook(() => useTree("/h", false));
-    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+    await waitFor(() => expect(result.current.rows).toHaveLength(2));
 
     act(() => result.current.moveCursor(-5));
     expect(result.current.cursorPath).toBe("/h/docs");
     act(() => result.current.moveCursor(5));
-    expect(result.current.cursorPath).toBe("/h/docs");
+    expect(result.current.cursorPath).toBe("/h/b.txt");
     act(() => result.current.collapseOrParent());
-    expect(result.current.cursorPath).toBe("/h/docs");
+    expect(result.current.cursorPath).toBe("/h/b.txt");
   });
 
   it("異常系: 読み込みに失敗しても例外にならず, 行は空のままであること", async () => {

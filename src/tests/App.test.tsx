@@ -776,7 +776,7 @@ describe("App (分岐の網羅)", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("正常系: t でペインの一覧がディレクトリだけのツリー表示になり, もう一方のペインは残ること", async () => {
+  it("正常系: t でペインの一覧がツリー表示になり (ファイルも含む), もう一方のペインは残ること", async () => {
     mockHome();
     const user = await renderLoaded();
 
@@ -787,11 +787,13 @@ describe("App (分岐の網羅)", () => {
     ).toBeInTheDocument();
     expect(
       paneOf("left").queryByRole("treeitem", { name: /b\.txt/ }),
-    ).not.toBeInTheDocument();
+    ).toBeInTheDocument();
     expect(paneOf("right").queryByRole("treeitem")).not.toBeInTheDocument();
     expect(screen.getAllByRole("region")).toHaveLength(2);
     const folder = paneOf("left").getByRole("treeitem", { name: /FolderA/ });
+    const file = paneOf("left").getByRole("treeitem", { name: /b\.txt/ });
     expect(folder.querySelector('svg[data-icon="dir"]')).not.toBeNull();
+    expect(file.querySelector('svg[data-icon="file"]')).not.toBeNull();
   });
 
   it("正常系: ツリーで → により展開し, Enter を押すとそのディレクトリの一覧に切り替わること", async () => {
