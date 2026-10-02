@@ -442,11 +442,3 @@ body,
   text-align: center;
   color: var(--muted);
 }
-
-.file-icon {
-  display: inline-block;
-  width: 16px;
-  flex: none;
-  margin-right: 4px;
-  text-align: center;
-}
