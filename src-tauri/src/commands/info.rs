@@ -36,7 +36,7 @@ pub struct ItemInfo {
     pub path: String,
     /// 種類.
     pub kind: ItemKind,
-    /// サイズ (バイト). ディレクトリでは意味を持たない.
+    /// サイズ (バイト). ディレクトリでは 0.
     pub size: u64,
     /// 最終更新日時 (UNIX 時刻の秒). 取得できない場合は `None`.
     pub modified: Option<i64>,

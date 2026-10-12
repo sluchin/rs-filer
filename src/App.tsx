@@ -58,7 +58,7 @@ if (import.meta.env.DEV) {
  * rsfiler のメインアプリケーションコンポーネント.
  *
  * 2 ペインによるディレクトリの閲覧・キーボード中心の操作 (カーソル移動, マーク, ソート・絞り込み,
- * 作成・名前変更・削除, 対向ペインへのコピー・移動, プレビュー, ブックマーク・移動履歴の一覧,
+ * 作成・名前変更・削除, 対向ペインへのコピー・移動, プレビュー・詳細, ブックマーク・移動履歴の一覧, ツリー表示,
  * コマンドパレット・ヘルプ, 外部アプリ・ターミナル・外部コマンド, テーマ・フォントサイズ) を
  * ひとまとめに提供します. キー入力の解決は `runCommand` に集約し, 各機能のフックへ振り分けます.
  *
@@ -399,7 +399,7 @@ export default function App(): ReactElement {
         break;
       }
       case "autoFitColumn":
-        // TODO: auto-fit logic will be implemented in FileList component
+        // 自動調整は未実装 (FileList コンポーネントで実装する予定).
         break;
       case "toggleTree":
         setTreePanes((p) => ({ ...p, [activePane]: !p[activePane] }));
@@ -477,7 +477,7 @@ export default function App(): ReactElement {
 
   /**
    * ペインの通常表示を差し替える内容.
-   * プレビューは対向ペイン, ブックマーク・履歴は要求したペイン (どちらも左右両方あり得る) に出す.
+   * プレビュー・詳細は対向ペイン, ブックマーク・履歴・ツリーは要求したペイン (どちらも左右両方あり得る) に出す.
    */
   const paneOverrides: Partial<Record<PaneId, ReactElement>> = {};
   if (previewOn) {
@@ -599,8 +599,9 @@ export default function App(): ReactElement {
           }
         />
       </div>
-      {/* コマンド入力・作成・名前変更・削除確認・ドライブ選択・ブックマークは,
-          ダイアログではなく画面下部のミニバッファ (xyzzy/Emacs 風) に表示する. */}
+      {/* コマンド入力・作成・名前変更・削除確認・ドライブ選択は,
+          ダイアログではなく画面下部のミニバッファ (xyzzy/Emacs 風) に表示する.
+          ブックマーク・履歴・ツリーは, ペインの表示そのものを差し替える (paneOverrides). */}
       {operations.dialog && (
         <OperationDialog
           dialog={operations.dialog}

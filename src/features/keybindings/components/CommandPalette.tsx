@@ -33,7 +33,7 @@ const ALL_NAMES = commandNames();
  * `↑` `↓` `M-p` `M-n` で, 過去に実行した名前を参照できます. コマンドの一覧は `help` (`?` キー) で見られます.
  *
  * @param props - コンポーネントのプロパティ.
- * @returns ダイアログのReact要素.
+ * @returns ミニバッファのReact要素.
  */
 export default function CommandPalette({
   value,

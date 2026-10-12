@@ -14,10 +14,10 @@ interface DriveSelectorProps {
 }
 
 /**
- * ドライブ切り替えダイアログ.
+ * ドライブ切り替え用のミニバッファ.
  *
  * @param props - コンポーネントのプロパティ.
- * @returns ダイアログのReact要素.
+ * @returns ミニバッファのReact要素.
  */
 export default function DriveSelector({
   drives,

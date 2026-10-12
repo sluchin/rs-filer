@@ -312,7 +312,9 @@ fn complete_path_with(input: &str, home: Option<&Path>) -> Vec<String> {
         .collect()
 }
 
-/// 入力途中のパスを補完する候補を返します.
+/// 入力途中のパスを補完する候補を返します (IPC コマンド).
+///
+/// 先頭の `~` は, ユーザーのホームディレクトリとして扱います.
 ///
 /// # Arguments
 ///
@@ -320,13 +322,17 @@ fn complete_path_with(input: &str, home: Option<&Path>) -> Vec<String> {
 ///
 /// # Returns
 ///
-/// 候補のパス (ディレクトリのみ. 末尾に `/`).
+/// 候補のパス (ディレクトリのみ. 末尾に `/`). 詳細は `complete_path_with` を参照.
 #[tauri::command]
 pub fn complete_path(input: String) -> Vec<String> {
     complete_path_with(&input, dirs::home_dir().as_deref())
 }
 
 /// 現在の OS で調べるルートパスの候補を返します.
+///
+/// # Returns
+///
+/// Windows では `A:/` から `Z:/`, それ以外の OS では `/`.
 fn candidate_roots() -> Vec<String> {
     if cfg!(windows) {
         ('A'..='Z').map(|c| format!("{}:/", c)).collect()
@@ -336,6 +342,15 @@ fn candidate_roots() -> Vec<String> {
 }
 
 /// 候補のうち, `exists` が真を返すものだけを残します.
+///
+/// # Arguments
+///
+/// * `candidates` - ルートパスの候補.
+/// * `exists` - パスが存在するかを調べる関数.
+///
+/// # Returns
+///
+/// 存在するルートパスの一覧.
 fn drives_from(candidates: Vec<String>, exists: impl Fn(&str) -> bool) -> Vec<String> {
     candidates.into_iter().filter(|p| exists(p)).collect()
 }

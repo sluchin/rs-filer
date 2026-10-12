@@ -84,9 +84,10 @@ fn open_in_editor_with(path: &Path, editor: Option<&str>) -> Result<(), String> 
     }
 }
 
-/// 環境変数 `VISUAL` または `EDITOR` のエディタでファイルを開きます.
+/// エディタでファイルを開きます.
 ///
-/// どちらも未設定の場合は OS の既定のアプリケーションで開きます.
+/// エディタは, 設定 (`config.json`) の `editor`, 環境変数 `VISUAL`, 環境変数 `EDITOR` の順に探します.
+/// いずれも未設定の場合は OS の既定のアプリケーションで開きます.
 ///
 /// # Arguments
 ///

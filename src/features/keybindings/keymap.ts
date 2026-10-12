@@ -6,6 +6,8 @@ import { COMMANDS, type Command, type KeyResolution } from "./types";
 export type Keymap = Map<string, Command>;
 
 /**
+ * 既定のキー割り当て. キーの並びから, コマンドへの対応.
+ *
  * キーの並びの表記の規則:
  * - キーは空白で区切って並べる (`C-x C-f`).
  * - 修飾キーは `C-` (Ctrl), `M-` (Alt), `S-` (Shift) をキーの前に付ける. Shift は, 名前のあるキー (`S-Delete`) だけに使う.
@@ -280,8 +282,6 @@ export function resolveKey(
 
 /** プレフィクスキー `C-x` の識別子. */
 export const PREFIX_CTRL_X = "C-x";
-/** プレフィクスキー `C-c` の識別子. */
-export const PREFIX_CTRL_C = "C-c";
 /** プレフィクスキー `*` の識別子. */
 export const PREFIX_STAR = "*";
 
