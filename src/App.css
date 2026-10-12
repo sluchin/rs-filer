@@ -232,6 +232,7 @@ body,
 
 .col-name {
   flex: 1;
+  box-sizing: border-box;
   min-width: 30px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -296,10 +297,6 @@ body,
   padding: 0 2px;
   background: var(--surface);
   color: var(--fg);
-}
-
-.status-info {
-  color: var(--status-info);
 }
 
 .preview-pane {
@@ -450,23 +447,54 @@ body,
 }
 
 .key-hint-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.6em;
   border-top: 1px solid var(--outer-border);
   padding: 2px 2px 0;
   min-height: 34px;
   box-sizing: border-box;
-  word-break: break-all;
   color: var(--dim);
+}
+
+/* 1 つの案内は, 途中で折り返さない (折り返すのは, 案内と案内の間). */
+.key-hint {
+  white-space: nowrap;
 }
 
 .status-bar {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   border: 1px solid var(--outer-border);
   border-right-color: var(--surface);
   border-bottom-color: var(--surface);
   padding: 0 4px;
   height: var(--header-height);
   box-sizing: border-box;
+  white-space: nowrap;
+}
+
+/* 左 (エラー・通知・カーソル位置の名前) は, 余った幅を使い, 入り切らなければ「…」で省略する. */
+.status-main {
+  flex: 1 1 auto;
+  min-width: 4em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 中央 (ソート・マークの状態) は, 幅が足りないとき, 左 (エラーや長い名前) より先に縮める. */
+.status-info {
+  color: var(--status-info);
+  flex: 0 100 auto;
+  min-width: 6em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 右 (ディスクの空き容量) は, 省略しない. */
+.status-disk {
+  flex: none;
 }
 
 .status-error {
