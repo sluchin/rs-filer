@@ -177,6 +177,36 @@ export function useFileOperations(
     [startCreate],
   );
 
+  /**
+   * 新しいディレクトリの名前を入力させて, 指定したディレクトリの下に作成します (ツリー表示用).
+   * 作成したら, アクティブなペインの一覧も読み込み直し, 呼び出し側 (ツリー) へ作成した名前を知らせます.
+   *
+   * @param parent - 作成先のディレクトリの絶対パス.
+   * @param onCreated - 作成できたときに呼ぶ関数 (作成したディレクトリの名前が渡される).
+   */
+  const startMkdirAt = useCallback(
+    (parent: string, onCreated: (name: string) => void): void => {
+      const pane = activePane;
+      const listPath = (pane === "left" ? leftPane : rightPane).currentPath;
+      const title = "新規ディレクトリ作成";
+      setDialog({
+        kind: "prompt",
+        title,
+        initialValue: "",
+        onSubmit: (name) => {
+          setDialog(null);
+          attempt(title, async () => {
+            await createDirectory(parent, name);
+            // ツリーを閉じたときに, 一覧にも反映されているようにする.
+            await loadDirectory(pane, listPath, { keepCursor: true });
+            onCreated(name.trim());
+          });
+        },
+      });
+    },
+    [activePane, leftPane, rightPane, attempt, loadDirectory],
+  );
+
   /** 新しい空ファイルの名前を入力させて作成します. */
   const startTouch = useCallback(
     (): void => startCreate("新規ファイル作成", createFile),
@@ -207,6 +237,43 @@ export function useFileOperations(
       },
     });
   }, [selectedEntry, activePane, leftPane, rightPane, attempt, loadDirectory]);
+
+  /**
+   * 指定した項目の新しい名前を入力させて変更します (ツリー表示用).
+   * 変更したら, アクティブなペインの一覧も読み込み直し, 呼び出し側 (ツリー) へ新しい名前を知らせます.
+   * 名前が変わらないときは, 何もしません.
+   *
+   * @param path - 名前を変える項目の絶対パス.
+   * @param currentName - 今の名前 (入力欄の初期値).
+   * @param onRenamed - 変更できたときに呼ぶ関数 (新しい名前が渡される).
+   */
+  const startRenameAt = useCallback(
+    (
+      path: string,
+      currentName: string,
+      onRenamed: (name: string) => void,
+    ): void => {
+      const pane = activePane;
+      const listPath = (pane === "left" ? leftPane : rightPane).currentPath;
+      setDialog({
+        kind: "prompt",
+        title: "名前の変更",
+        initialValue: currentName,
+        onSubmit: (name) => {
+          setDialog(null);
+          if (name.trim() === currentName) {
+            return;
+          }
+          attempt("名前の変更", async () => {
+            await renameItem(path, name);
+            await loadDirectory(pane, listPath, { keepCursor: true });
+            onRenamed(name.trim());
+          });
+        },
+      });
+    },
+    [activePane, leftPane, rightPane, attempt, loadDirectory],
+  );
 
   /** カーソル位置の項目を, 関連付けられた外部アプリで開きます. */
   const openExternal = useCallback((): void => {
@@ -243,8 +310,10 @@ export function useFileOperations(
     openConfirm,
     openChoice,
     startMkdir,
+    startMkdirAt,
     startTouch,
     startRename,
+    startRenameAt,
     openExternal,
     openPath,
     openEditor,

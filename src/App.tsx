@@ -529,6 +529,12 @@ export default function App(): ReactElement {
           setTreePanes((p) => ({ ...p, [paneId]: false }));
           loadDirectory(paneId, path);
         }}
+        keysEnabled={operations.dialog === null}
+        onCreateDirectory={operations.startMkdirAt}
+        onRename={operations.startRenameAt}
+        onDelete={(path, name, permanent, onDone) =>
+          transfer.startDeletePaths([{ path, name }], permanent, onDone)
+        }
         onOpenExternal={openPath}
         onCancel={() => setTreePanes((p) => ({ ...p, [paneId]: false }))}
         onSwitchPane={switchPane}
@@ -602,7 +608,7 @@ export default function App(): ReactElement {
       {helpOpen && (
         <HelpDialog keymap={keymap} onClose={() => setHelpOpen(false)} />
       )}
-      <KeyHintBar />
+      <KeyHintBar mode={treePanes[activePane] ? "tree" : "list"} />
       <StatusBar
         error={error}
         // プレフィクスキー入力中は, 続きを待っていることが分かるよう通知の末尾に付け足す.

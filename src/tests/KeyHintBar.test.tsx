@@ -20,4 +20,46 @@ describe("KeyHintBar", () => {
     expect(container.querySelector(".key-hint-bar")).not.toBeNull();
     expect(screen.getByText("q:終了")).toHaveClass("key-hint");
   });
+
+  it("正常系: ツリー表示のときは, ツリーで使うキーの案内に切り替わり, 一覧用の案内 (コピーなど) は出ないこと", () => {
+    const { container } = render(<KeyHintBar mode="tree" />);
+
+    const hints = Array.from(container.querySelectorAll(".key-hint")).map(
+      (el) => el.textContent,
+    );
+
+    expect(container.querySelector(".key-hint-bar")).toHaveAttribute(
+      "data-mode",
+      "tree",
+    );
+    expect(hints).toEqual([
+      "Tab:ペイン",
+      "j/k:移動",
+      "→/l:展開",
+      "←/h:折畳/親",
+      "S-→/L:3階層展開",
+      "S-←/H:全折畳",
+      "Enter:開く",
+      "x:実行",
+      "N:mkdir",
+      "+:根にmkdir",
+      "r:名前変更",
+      "d:削除",
+      "D:完全削除",
+      "t/Esc:戻る",
+    ]);
+    // ツリー表示中は効かないキー (一覧用のコピーなど) を案内しない.
+    expect(hints).not.toContain("c:コピー");
+  });
+
+  it("正常系: 既定 (mode を指定しない) は一覧用の案内であること", () => {
+    const { container } = render(<KeyHintBar />);
+
+    expect(container.querySelector(".key-hint-bar")).toHaveAttribute(
+      "data-mode",
+      "list",
+    );
+    expect(screen.getByText("c:コピー")).toBeInTheDocument();
+    expect(screen.queryByText("t/Esc:戻る")).not.toBeInTheDocument();
+  });
 });
