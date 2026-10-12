@@ -118,6 +118,42 @@ body,
   color: var(--muted);
 }
 
+/* パスバーと, その下に重ねて出す補完候補の一覧の土台. */
+.path-bar-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+/* 補完候補の一覧. パスバーの下に, ファイル一覧に重ねて出す. 選んでいる候補は, カーソルと同じ下線で示す. */
+.path-candidates {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 40vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.path-candidates li {
+  padding: 1px 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+}
+
+.path-candidates li[data-selected="true"] {
+  background: var(--border-light);
+  border-bottom-color: var(--cursor-active);
+}
+
 .pane[data-active="true"] .path-bar {
   color: var(--fg);
 }
