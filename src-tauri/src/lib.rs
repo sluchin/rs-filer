@@ -7,25 +7,46 @@
 pub mod commands;
 /// 標準エラー出力とログファイルへのログ出力を設定するモジュール.
 pub mod logging;
+/// ウィンドウの大きさ・位置・最大化の状態を保存して復元するモジュール.
+pub mod window_state;
 
 /// Tauri アプリケーションをビルドして実行します.
 ///
 /// 以下の処理を順に実行します:
+/// 0. (Linux の Wayland のみ) XWayland (X11) で動かすための環境変数の設定
 /// 1. ログ出力 (標準エラー出力とログファイル) の初期化
 /// 2. デフォルトの Tauri ビルダーの初期化
 /// 3. フロントエンドから呼び出し可能な IPC ハンドラーの登録 (`commands` モジュールの各コマンド)
-/// 4. コンテキストの生成とアプリケーションループのスタート
+/// 4. 起動時のウィンドウの状態の復元と, 終了時の保存 (`window_state` モジュール)
+/// 5. コンテキストの生成とアプリケーションループのスタート
 ///
 /// # Panics
 ///
-/// Tauri アプリケーションの初期化または実行ループ内で修復不能なエラーが発生した場合,
-/// `"error while running tauri application"` メッセージとともにパニックします.
+/// Tauri アプリケーションの初期化で修復不能なエラーが発生した場合,
+/// `"error while building tauri application"` メッセージとともにパニックします.
 #[cfg(not(tarpaulin_include))]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Wayland では, ウィンドウの位置を扱えない. 位置を記憶できるよう, XWayland (X11) で動かす.
+    // GTK の初期化の前 (スレッドを作る前) に設定する.
+    #[cfg(target_os = "linux")]
+    window_state::prefer_x11();
     logging::init_logging();
     tauri::Builder::default()
         .manage(commands::TransferState::default())
+        .setup(|app| {
+            if let Some(window) = window_state::main_window(app) {
+                window_state::restore(&window);
+            }
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                if let Some(window) = window_state::main_window(window) {
+                    window_state::save(&window);
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::fs::read_directory,
             commands::fs::dirs_have_entries,
@@ -52,6 +73,14 @@ pub fn run() {
             commands::clipboard::copy_files_to_clipboard,
             commands::clipboard::read_clipboard_files
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // macOS の Cmd+Q のように, ウィンドウを閉じる操作を経ずに終了する場合も保存する.
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                if let Some(window) = window_state::main_window(app) {
+                    window_state::save(&window);
+                }
+            }
+        });
 }
