@@ -92,4 +92,24 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
   1. `git diff --stat` を実行して必要に応じて主要ファイルの差分を確認すること。
   2. 修正内容のサマリー（変更点と理由の簡潔なまとめ）をユーザーに報告する。
 - ユーザーに依頼されない限り、`git commit` / `git push` は行わない。
-- コミットメッセージは英語で書く。1 行目に件名、空行を 1 つ挟んで、本文は `-` (ハイフン) で始まる箇条書きにする (箇条書きの各行の間には空行を入れない)。`Co-Authored-By:` などの帰属行は入れない。
+
+## コミットガイドライン
+
+- コミットメッセージは英語で記述
+- **件名は、Conventional Commits の形式で書く**: `type(scope): description`。scope (括弧を含む) は、省略できる。description は、英語で、命令形 (例: `feat(tree): Show files in the tree view`)。
+  - type は、次のどれか。
+    - `feat`: 機能の追加
+    - `fix`: バグの修正
+    - `docs`: 文書とコメントだけの変更 (`*.md`、TSDoc、Rust の `///` コメント)
+    - `style`: 整形、規約の適用 (動作を変えない)
+    - `refactor`: 動作を変えない、書き換え
+    - `test`: テストだけの変更
+    - `build`: ビルドと、開発環境 (`package.json`、`vite.config.ts`、`tsconfig*.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`) の変更
+    - `ci`: CI (`.github/`) の変更
+    - `chore`: そのほかの雑務 (最初のコミット、`.gitignore`、依存パッケージの更新 (`package-lock.json`) など)
+  - scope は、変更の場所: 機能 (`src/features/` のディレクトリ名: `explorer` / `operations` / `preview` / `search` / `keybindings` / `settings` / `bookmarks` / `tree`)、`backend` (`src-tauri/` だけの変更)、`deps` (依存パッケージの更新)。複数の機能にまたがるときは、省略する。
+  - 互換性を壊す変更は、type (または scope) の直後に、感嘆符を付ける (Conventional Commits の仕様のとおり)。
+  - 複数の type にまたがるときは、変更の中心になる type にする。
+- 件名のあとに空行を 1 行入れて、本文を書く。本文はダッシュ/ハイフンで始まる箇条書き (例: `- Fix bug in parser`)。箇条書きの各行の間には、空行を入れない
+- コミットメッセージに `Co-Authored-By` または Claude 帰属行を含めない
+- **rebase したあとの push は、`git push --force-with-lease --force-if-includes origin <ブランチ名>` で行う** (`--force` は使わない。リモートに、手元に取り込んでいないコミットがあれば、push は失敗する)。ユーザーに依頼されたときだけ、push する。
