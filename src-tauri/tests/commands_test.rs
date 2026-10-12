@@ -83,6 +83,7 @@ fn request(kind: TransferKind, source: &Path, dest: Option<&Path>) -> TransferRe
         overwrite: false,
         permanent: true,
         dest_name: None,
+        skip: Vec::new(),
     }
 }
 

@@ -63,6 +63,7 @@ pub fn run() {
             commands::transfer::run_transfer,
             commands::transfer::cancel_transfer,
             commands::transfer::check_conflicts,
+            commands::transfer::check_nested_conflicts,
             commands::open::open_item,
             commands::open::open_in_editor,
             commands::open::open_terminal,

@@ -9,7 +9,7 @@ import {
 } from "../../../services/tauriApi";
 import type { LoadOptions } from "../../explorer/hooks/useFileList";
 import type { FileEntry, PaneId, PaneState } from "../../explorer/types";
-import type { DialogState } from "../types";
+import type { ChoiceOption, DialogState } from "../types";
 
 /**
  * ファイル操作 (作成・名前変更・外部アプリで開く) を扱うフック.
@@ -80,6 +80,31 @@ export function useFileOperations(
           setDialog(null);
           onConfirm();
         },
+      });
+    },
+    [],
+  );
+
+  /**
+   * 複数の選択肢から 1 つをキーで選ぶダイアログを開きます. 選ぶと, ダイアログを閉じてから, その処理を実行します.
+   *
+   * @param title - ダイアログの見出し.
+   * @param message - 確認する内容.
+   * @param choices - 選択肢.
+   */
+  const openChoice = useCallback(
+    (title: string, message: string, choices: ChoiceOption[]): void => {
+      setDialog({
+        kind: "choice",
+        title,
+        message,
+        choices: choices.map((choice) => ({
+          ...choice,
+          run: () => {
+            setDialog(null);
+            choice.run();
+          },
+        })),
       });
     },
     [],
@@ -216,6 +241,7 @@ export function useFileOperations(
     closeDialog,
     openPrompt,
     openConfirm,
+    openChoice,
     startMkdir,
     startTouch,
     startRename,

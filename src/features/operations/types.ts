@@ -21,7 +21,39 @@ export type DialogState =
       message: string;
       /** 承諾したときの処理. */
       onConfirm: () => void;
+    }
+  | {
+      /** 複数の選択肢から 1 つを, キーで選ぶダイアログ (例: はい / いいえ / 全て上書き). */
+      kind: "choice";
+      /** ダイアログの見出し. */
+      title: string;
+      /** 確認する内容. */
+      message: string;
+      /** 選択肢. `key` を押すと, その `run` を実行して, ダイアログを閉じる. */
+      choices: ChoiceOption[];
     };
+
+/**
+ * 選択肢ダイアログの選択肢 1 つ.
+ */
+export interface ChoiceOption {
+  /** 選ぶキー (1 文字. 例: `y`). */
+  key: string;
+  /** ボタンに表示する名前. */
+  label: string;
+  /** 選んだときの処理. */
+  run: () => void;
+}
+
+/**
+ * 同名のディレクトリを統合するとき, 中にある同名のファイル 1 件.
+ */
+export interface NestedConflict {
+  /** コピー・移動元のファイルの絶対パス (依頼の `skip` に渡す値). */
+  source: string;
+  /** 確認で表示する名前 (対象のディレクトリ名から始まる相対パス. 例: `d/sub/a.txt`). */
+  label: string;
+}
 
 /**
  * コピー・移動・削除の種類.
@@ -56,6 +88,11 @@ export interface TransferRequest {
    * コピー時に指定した名前でコピーする (Copy のみ. 単一ファイルに限定).
    */
   dest_name?: string;
+  /**
+   * コピー・移動しないファイルのパス (同名のディレクトリを統合するとき, 上書きしないと答えたもの).
+   * 移動では, 移動元に残る.
+   */
+  skip?: string[];
 }
 
 /**

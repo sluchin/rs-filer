@@ -80,6 +80,41 @@ function ConfirmBody({
 }
 
 /**
+ * 選択肢ダイアログ. 各選択肢のキー (例: `y` / `n` / `a`) で選び, `Esc` で取りやめます.
+ */
+function ChoiceBody({
+  dialog,
+}: {
+  dialog: Extract<DialogState, { kind: "choice" }>;
+}): ReactElement {
+  return (
+    <div
+      onKeyDown={(e) => {
+        const choice = dialog.choices.find((c) => c.key === e.key);
+        if (choice) {
+          e.preventDefault();
+          choice.run();
+        }
+      }}
+    >
+      <p style={{ margin: "0 0 0.75rem 0" }}>{dialog.message}</p>
+      <div style={{ display: "flex", gap: "0.5rem" }}>
+        {dialog.choices.map((choice, index) => (
+          <button
+            key={choice.key}
+            type="button"
+            autoFocus={index === 0}
+            onClick={choice.run}
+          >
+            {choice.label} ({choice.key})
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * 操作の途中で表示する入力・確認ダイアログ.
  *
  * @param props - コンポーネントのプロパティ.
@@ -91,11 +126,13 @@ export default function OperationDialog({
 }: OperationDialogProps): ReactElement {
   return (
     <Minibuffer title={dialog.title} onClose={onClose}>
-      {dialog.kind === "prompt" ? (
+      {dialog.kind === "prompt" && (
         <PromptBody dialog={dialog} onClose={onClose} />
-      ) : (
+      )}
+      {dialog.kind === "confirm" && (
         <ConfirmBody dialog={dialog} onClose={onClose} />
       )}
+      {dialog.kind === "choice" && <ChoiceBody dialog={dialog} />}
     </Minibuffer>
   );
 }

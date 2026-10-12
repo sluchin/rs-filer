@@ -3,13 +3,20 @@ import log from "loglevel";
 import {
   cancelTransfer,
   checkConflicts,
+  checkNestedConflicts,
   copyFilesToClipboard,
   readClipboardFiles,
   runTransfer,
 } from "../../../services/tauriApi";
 import type { LoadOptions } from "../../explorer/hooks/useFileList";
 import type { FileEntry, PaneId, PaneState } from "../../explorer/types";
-import type { TaskState, TransferKind, TransferRequest } from "../types";
+import type {
+  ChoiceOption,
+  NestedConflict,
+  TaskState,
+  TransferKind,
+  TransferRequest,
+} from "../types";
 
 /** 操作の種類ごとの, 表示に使う動詞. */
 const LABELS: Record<TransferKind, string> = {
@@ -44,6 +51,8 @@ export function targetsOf(state: PaneState): FileEntry[] {
  * @param setError - エラーメッセージを設定する関数.
  * @param notify - 完了などのメッセージを通知する関数.
  * @param openConfirm - 確認ダイアログを開く関数.
+ * @param openPrompt - 入力ダイアログを開く関数.
+ * @param openChoice - 選択肢ダイアログを開く関数 (同名のファイルを 1 件ずつ確認するのに使う).
  * @returns 実行中の操作の状態と, 各操作を開始・中断するハンドラー.
  */
 export function useTransfer(
@@ -64,6 +73,7 @@ export function useTransfer(
     onSubmit: (value: string) => void,
     initialValue?: string,
   ) => void,
+  openChoice: (title: string, message: string, choices: ChoiceOption[]) => void,
 ) {
   const [running, setTask] = useState<Omit<TaskState, "cancelling"> | null>(
     null,
@@ -121,6 +131,66 @@ export function useTransfer(
       updatePane,
       loadDirectory,
     ],
+  );
+
+  /**
+   * 同名のディレクトリを統合する場合に, 中にある同名のファイルを 1 件ずつ確認してから実行します.
+   *
+   * 各ファイルについて, `y` (はい: 上書き), `n` (いいえ: そのファイルは上書きせず, 移動元に残す),
+   * `a` (全て上書き: 残りは確認せずに上書き) を選びます. `Esc` で全体を取りやめます (何も実行しません).
+   * 同名のファイルが無ければ, そのまま実行します.
+   *
+   * @param request - 上書きを承諾済みの依頼.
+   * @param label - 表示に使う動詞 (コピー・移動).
+   */
+  const runWithNestedConfirm = useCallback(
+    async (request: TransferRequest, label: string): Promise<void> => {
+      let nested: NestedConflict[];
+      try {
+        setError(null);
+        nested = await checkNestedConflicts(
+          request.sources,
+          request.dest_dir ?? "",
+        );
+      } catch (e) {
+        setError(String(e));
+        return;
+      }
+      if (nested.length === 0) {
+        await run(request);
+        return;
+      }
+      const skip: string[] = [];
+      const ask = (index: number): void => {
+        if (index >= nested.length) {
+          void run({ ...request, skip });
+          return;
+        }
+        const item = nested[index];
+        openChoice(
+          `${label}の上書き`,
+          `「${item.label}」は既に存在します (${index + 1}/${nested.length}). 上書きしますか?`,
+          [
+            { key: "y", label: "はい", run: () => ask(index + 1) },
+            {
+              key: "n",
+              label: "いいえ",
+              run: () => {
+                skip.push(item.source);
+                ask(index + 1);
+              },
+            },
+            {
+              key: "a",
+              label: "全て上書き",
+              run: () => void run({ ...request, skip }),
+            },
+          ],
+        );
+      };
+      ask(0);
+    },
+    [setError, openChoice, run],
   );
 
   /**
@@ -188,7 +258,7 @@ export function useTransfer(
         openConfirm(
           `${label}の上書き`,
           `${conflicts.length} 件が既に存在します (${names}${more}). 上書きして${label}しますか? (y/n)`,
-          () => run(request),
+          () => runWithNestedConfirm(request, label),
         );
       } else if (alwaysConfirm) {
         openConfirm(
@@ -200,7 +270,15 @@ export function useTransfer(
         await run(request);
       }
     },
-    [source, dest, setError, openConfirm, openPrompt, run],
+    [
+      source,
+      dest,
+      setError,
+      openConfirm,
+      openPrompt,
+      run,
+      runWithNestedConfirm,
+    ],
   );
 
   /**

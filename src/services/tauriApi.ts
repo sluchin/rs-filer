@@ -1,6 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { DiskSpace, FileEntry } from "../features/explorer/types";
 import type {
+  NestedConflict,
   TransferProgress,
   TransferRequest,
   TransferSummary,
@@ -124,6 +125,23 @@ export function checkConflicts(
   destName?: string,
 ): Promise<string[]> {
   return invoke<string[]>("check_conflicts", { sources, destDir, destName });
+}
+
+/**
+ * 同名のディレクトリを統合するとき, 中にある同名のファイルを調べます. 上書きの確認 (1 件ずつ) に使います.
+ *
+ * @param sources - 対象のパス.
+ * @param destDir - 配置先のディレクトリ.
+ * @returns 同名のファイルの一覧 (対象ごと, 名前順). 無ければ空.
+ */
+export function checkNestedConflicts(
+  sources: string[],
+  destDir: string,
+): Promise<NestedConflict[]> {
+  return invoke<NestedConflict[]>("check_nested_conflicts", {
+    sources,
+    destDir,
+  });
 }
 
 /**

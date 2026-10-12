@@ -227,6 +227,7 @@ function defaultResult(cmd: string): unknown {
   if (
     cmd === "read_directory" ||
     cmd === "check_conflicts" ||
+    cmd === "check_nested_conflicts" ||
     cmd === "complete_path"
   )
     return [];
@@ -1920,6 +1921,162 @@ describe("App (コピー・移動・削除の実行)", () => {
       "run_transfer",
       expect.anything(),
     );
+  });
+
+  /** 移動先に同名のディレクトリがあり, 中に同名のファイルが 2 件ある状況を模した invoke のモックを設定する. */
+  function mockNestedConflicts(): void {
+    mockHome((cmd) => {
+      if (cmd === "check_conflicts") return Promise.resolve(["FolderA"]);
+      if (cmd === "check_nested_conflicts") {
+        return Promise.resolve([
+          { source: "/mock/home/FolderA/a.txt", label: "FolderA/a.txt" },
+          {
+            source: "/mock/home/FolderA/sub/b.txt",
+            label: "FolderA/sub/b.txt",
+          },
+        ]);
+      }
+      return undefined;
+    });
+  }
+
+  /** run_transfer に渡された依頼を取り出す. */
+  function transferRequest(): unknown {
+    const call = mockedInvoke.mock.calls.find((c) => c[0] === "run_transfer");
+    return (call?.[1] as { request: unknown } | undefined)?.request;
+  }
+
+  it("正常系: 同名のディレクトリの中に同名のファイルがあれば 1 件ずつ確認し, いいえにしたものを skip に渡すこと", async () => {
+    mockNestedConflicts();
+    const user = await renderTwoDirs();
+
+    await user.keyboard("m");
+    await user.keyboard("y");
+    expect(
+      await screen.findByText(
+        "「FolderA/a.txt」は既に存在します (1/2). 上書きしますか?",
+      ),
+    ).toBeInTheDocument();
+    await user.keyboard("y");
+    expect(
+      await screen.findByText(
+        "「FolderA/sub/b.txt」は既に存在します (2/2). 上書きしますか?",
+      ),
+    ).toBeInTheDocument();
+    await user.keyboard("n");
+
+    await waitFor(() =>
+      expect(transferRequest()).toEqual(
+        expect.objectContaining({
+          kind: "move",
+          overwrite: true,
+          skip: ["/mock/home/FolderA/sub/b.txt"],
+        }),
+      ),
+    );
+    expect(mockedInvoke).toHaveBeenCalledWith("check_nested_conflicts", {
+      sources: ["/mock/home/FolderA"],
+      destDir: "/mock/home/FolderA",
+    });
+  });
+
+  it("正常系: 全て上書き (a) を選ぶと, 残りは確認せずに実行し, それまでにいいえにしたものだけ skip に渡すこと", async () => {
+    mockNestedConflicts();
+    const user = await renderTwoDirs();
+    await user.keyboard("c");
+    await user.keyboard("y");
+    await screen.findByText(/FolderA\/a\.txt」は既に存在します \(1\/2\)/);
+    await user.keyboard("n");
+    await screen.findByText(/FolderA\/sub\/b\.txt」は既に存在します \(2\/2\)/);
+
+    await user.keyboard("a");
+
+    await waitFor(() =>
+      expect(transferRequest()).toEqual(
+        expect.objectContaining({
+          kind: "copy",
+          overwrite: true,
+          skip: ["/mock/home/FolderA/a.txt"],
+        }),
+      ),
+    );
+    // 3 件目の確認は出ない.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: 最初に全て上書き (a) を選ぶと, 確認は 1 回だけで, skip は空であること", async () => {
+    mockNestedConflicts();
+    const user = await renderTwoDirs();
+    await user.keyboard("m");
+    await user.keyboard("y");
+    await screen.findByText(/\(1\/2\)/);
+
+    await user.keyboard("a");
+
+    await waitFor(() =>
+      expect(transferRequest()).toEqual(
+        expect.objectContaining({ overwrite: true, skip: [] }),
+      ),
+    );
+  });
+
+  it("正常系: ボタンのクリックでも選べること", async () => {
+    mockNestedConflicts();
+    const user = await renderTwoDirs();
+    await user.keyboard("m");
+    await user.keyboard("y");
+    await screen.findByText(/\(1\/2\)/);
+
+    await user.click(screen.getByRole("button", { name: "全て上書き (a)" }));
+
+    await waitFor(() => expect(transferRequest()).toBeDefined());
+  });
+
+  it("正常系: 1 件ずつの確認で Esc を押すと, 全体を取りやめて何も実行しないこと", async () => {
+    mockNestedConflicts();
+    const user = await renderTwoDirs();
+    await user.keyboard("m");
+    await user.keyboard("y");
+    await screen.findByText(/\(1\/2\)/);
+    await user.keyboard("y");
+    await screen.findByText(/\(2\/2\)/);
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(transferRequest()).toBeUndefined();
+  });
+
+  it("正常系: 中に同名のファイルが無ければ, 1 件ずつの確認は出さずに実行すること", async () => {
+    mockHome((cmd) =>
+      cmd === "check_conflicts" ? Promise.resolve(["FolderA"]) : undefined,
+    );
+    const user = await renderTwoDirs();
+
+    await user.keyboard("m");
+    await user.keyboard("y");
+
+    await waitFor(() =>
+      expect(transferRequest()).toEqual(
+        expect.objectContaining({ kind: "move", overwrite: true }),
+      ),
+    );
+    expect(transferRequest()).not.toHaveProperty("skip");
+  });
+
+  it("異常系: 中の同名のファイルを調べられなければ, エラーを表示して何も実行しないこと", async () => {
+    mockHome((cmd) => {
+      if (cmd === "check_conflicts") return Promise.resolve(["FolderA"]);
+      if (cmd === "check_nested_conflicts") return Promise.reject("読めません");
+      return undefined;
+    });
+    const user = await renderTwoDirs();
+
+    await user.keyboard("m");
+    await user.keyboard("y");
+
+    expect(await screen.findByText(/読めません/)).toBeInTheDocument();
+    expect(transferRequest()).toBeUndefined();
   });
 
   it("正常系: C と M は, 同名が無くても実行前に確認すること", async () => {
