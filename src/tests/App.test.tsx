@@ -780,6 +780,20 @@ describe("App (分岐の網羅)", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("正常系: パスバーとツリーのパスに, 全体のパスのツールチップ (title) が付くこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    expect(screen.getByLabelText("left path")).toHaveAttribute(
+      "title",
+      "/mock/home",
+    );
+
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
+    expect(paneOf("left").getByTitle("/mock/home")).toHaveClass("tree-path");
+  });
+
   it("正常系: ファイル一覧とツリーの名前に, 省略されていない名前のツールチップ (title) が付くこと", async () => {
     mockHome();
     const user = await renderLoaded();

@@ -2,6 +2,7 @@ import { useEffect, type ReactElement } from "react";
 import type { PaneId } from "../../explorer/types";
 import { useTree } from "../hooks/useTree";
 import FileIcon from "../../explorer/components/FileIcon";
+import { useScrollToEnd } from "../../../hooks/useScrollToEnd";
 
 /**
  * TreePane コンポーネントのプロパティ.
@@ -61,6 +62,7 @@ export default function TreePane({
     expandDeep,
     collapseDeep,
   } = useTree(rootPath, showHidden);
+  const { ref: pathRef } = useScrollToEnd<HTMLDivElement>(rootPath);
 
   useEffect(() => {
     // アクティブでない間は, もう一方のペインの操作を優先し, ツリーのキー操作を受け付けない.
@@ -123,7 +125,7 @@ export default function TreePane({
       className="pane"
       onClick={onActivate}
     >
-      <div className="path-bar tree-path" title={rootPath}>
+      <div className="path-bar tree-path" title={rootPath} ref={pathRef}>
         {rootPath}
       </div>
       <div className="file-list">
