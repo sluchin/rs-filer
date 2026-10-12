@@ -4,6 +4,7 @@
 //! 中断は [`TransferState`] の中断フラグで受け付け, 大きなファイルはチャンクごとにフラグを確認します.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -43,6 +44,19 @@ pub struct TransferRequest {
     /// コピー時に指定した名前でコピーする (Copy のみ. 単一ファイルに限定).
     #[serde(default)]
     pub dest_name: Option<String>,
+    /// コピー・移動しない対象の中のファイルのパス (同名のディレクトリを統合するとき, 上書きしないと
+    /// 答えたもの). 移動では, 移動元に残る.
+    #[serde(default)]
+    pub skip: Vec<String>,
+}
+
+/// 同名のディレクトリを統合するときに, 中にある, 同名のファイル 1 件.
+#[derive(Serialize, Debug, PartialEq, Eq)]
+pub struct NestedConflict {
+    /// コピー・移動元のファイルの絶対パス (`TransferRequest::skip` に渡す値).
+    pub source: String,
+    /// 確認で表示する名前. 対象のディレクトリ名から始まる, 相対パス (例: `d/sub/a.txt`).
+    pub label: String,
 }
 
 /// 進捗の通知.
@@ -107,6 +121,8 @@ impl From<std::io::Error> for Stop {
 struct Progress<'a> {
     /// 中断フラグ.
     cancel: &'a AtomicBool,
+    /// コピー・移動しないファイルのパス.
+    skip: &'a HashSet<PathBuf>,
     /// 進捗を通知する関数.
     on_progress: &'a mut dyn FnMut(TransferProgress),
     /// 処理済みの量.
@@ -208,6 +224,11 @@ fn copy_file(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop
 ///
 /// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
 fn copy_tree(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop> {
+    if progress.skip.contains(src) {
+        // 上書きしないと答えたファイル. 進捗だけ進める.
+        progress.advance(tree_size(src), &file_name_of(src));
+        return Ok(());
+    }
     if src.is_dir() {
         fs::create_dir_all(dst)?;
         for entry in fs::read_dir(src)? {
@@ -295,6 +316,100 @@ pub fn check_conflicts(
     find_conflicts(&sources, &dest_dir, dest_name.as_deref())
 }
 
+/// 同名のディレクトリを統合するとき, 中にある同名のファイルを, 再帰的に集めます.
+///
+/// # Arguments
+///
+/// * `src` - 移動元(コピー元)のディレクトリ.
+/// * `dst` - 配置先の, 既にある同名のディレクトリ.
+/// * `label` - `src` の表示名 (対象のディレクトリ名から始まる相対パス).
+/// * `found` - 見つかった同名のファイルを足していく先.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok`]. ディレクトリを読めない場合は [`Err`].
+fn collect_nested_conflicts(
+    src: &Path,
+    dst: &Path,
+    label: &str,
+    found: &mut Vec<NestedConflict>,
+) -> Result<(), String> {
+    let mut entries: Vec<_> = fs::read_dir(src)
+        .map_err(|e| format!("Failed to read {}: {}", src.display(), e))?
+        .flatten()
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+    for entry in entries {
+        let child_src = entry.path();
+        let child_dst = dst.join(entry.file_name());
+        let child_label = format!("{}/{}", label, entry.file_name().to_string_lossy());
+        let src_is_dir = entry.file_type().is_ok_and(|t| t.is_dir());
+        match fs::symlink_metadata(&child_dst) {
+            // 同名のものが無ければ, 上書きにならない.
+            Err(_) => {}
+            // ディレクトリ同士は, さらに中を調べる.
+            Ok(meta) if src_is_dir && meta.is_dir() => {
+                collect_nested_conflicts(&child_src, &child_dst, &child_label, found)?
+            }
+            // ファイル同士が, 上書きの対象.
+            Ok(meta) if !src_is_dir && !meta.is_dir() => found.push(NestedConflict {
+                source: child_src.to_string_lossy().into_owned(),
+                label: child_label,
+            }),
+            // ファイルとディレクトリの組み合わせは, 実行するときにエラーになる (ここでは数えない).
+            Ok(_) => {}
+        }
+    }
+    Ok(())
+}
+
+/// 同名のディレクトリを統合するとき, 中にある同名のファイルを調べます.
+///
+/// 対象がディレクトリで, 配置先に同名のディレクトリがある場合だけ, その中身を再帰的に比べます.
+/// 上書きの確認 (1 件ずつ) に使います.
+///
+/// # Arguments
+///
+/// * `sources` - 対象のパス.
+/// * `dest_dir` - 配置先のディレクトリ.
+///
+/// # Returns
+///
+/// 同名のファイルの一覧 (対象ごと, 名前順). 失敗した場合はエラー文字列を含む [`Err`].
+pub fn find_nested_conflicts(
+    sources: &[String],
+    dest_dir: &str,
+) -> Result<Vec<NestedConflict>, String> {
+    let is_dir = |p: &Path| fs::symlink_metadata(p).is_ok_and(|m| m.is_dir());
+    let mut found = Vec::new();
+    for source in sources {
+        let src = Path::new(source);
+        let dst = destination_of(src, Path::new(dest_dir), None)?;
+        if is_dir(src) && is_dir(&dst) {
+            collect_nested_conflicts(src, &dst, &file_name_of(&dst), &mut found)?;
+        }
+    }
+    Ok(found)
+}
+
+/// 同名のディレクトリを統合するとき, 中にある同名のファイルを調べます (IPC コマンド).
+///
+/// # Arguments
+///
+/// * `sources` - 対象のパス.
+/// * `dest_dir` - 配置先のディレクトリ.
+///
+/// # Returns
+///
+/// 同名のファイルの一覧. 失敗した場合はエラー文字列を含む [`Err`].
+#[tauri::command]
+pub fn check_nested_conflicts(
+    sources: Vec<String>,
+    dest_dir: String,
+) -> Result<Vec<NestedConflict>, String> {
+    find_nested_conflicts(&sources, &dest_dir)
+}
+
 /// コピー・移動の配置先を検証し, 対象ごとの配置先を返します.
 ///
 /// # Arguments
@@ -371,11 +486,20 @@ fn plan_placements(request: &TransferRequest) -> Result<Vec<(PathBuf, PathBuf)>,
 
 /// 対象を, 移動先へ移します. 名前の変更で移せない場合 (別のディスクなど) は, コピーしてから元を消します.
 ///
+/// 移動先に同名のエントリがあるときの扱い:
+/// - 同名のディレクトリがあり, 移動元もディレクトリ: 中身を移動先へ統合します (同名のファイルは上書き).
+///   移動元のディレクトリは, 空になったら消します.
+/// - 同名のディレクトリがあり, 移動元がファイル: 失敗します (ディレクトリをファイルで置き換えない).
+/// - 同名のファイルがある: `overwrite` が true なら消して置き換えます.
+///
+/// `overwrite` が false なのに同名のエントリがある場合は, 何も変えずに失敗します (呼び出し側の
+/// 検証 (`plan_placements`) の後に, 同名のものができた場合に, 黙って上書きしないため).
+///
 /// # Arguments
 ///
 /// * `src` - 移動元.
 /// * `dst` - 移動先 (名前を含むパス).
-/// * `overwrite` - true の場合, 同名のファイルを上書きする. ディレクトリの上書きはしない.
+/// * `overwrite` - true の場合, 同名のものを上書きする (ディレクトリは統合する).
 /// * `renamer` - 名前の変更を行う関数.
 /// * `progress` - 進捗の窓口.
 ///
@@ -389,17 +513,26 @@ fn move_one(
     renamer: &dyn Fn(&Path, &Path) -> std::io::Result<()>,
     progress: &mut Progress,
 ) -> Result<(), Stop> {
+    if progress.skip.contains(src) {
+        // 上書きしないと答えたファイル. 移動元に残して, 進捗だけ進める.
+        progress.advance(tree_size(src), &file_name_of(src));
+        return Ok(());
+    }
     if let Ok(meta) = fs::symlink_metadata(dst) {
+        if !overwrite {
+            return Err(Stop::Failed(format!("Already exists: {}", dst.display())));
+        }
         if meta.is_dir() {
-            // ディレクトリ同士の上書きは, 中身の統合が必要で挙動が分かりにくくなるため, 常に拒否する.
-            return Err(Stop::Failed(format!(
-                "Destination directory already exists: {}",
-                dst.display()
-            )));
+            let src_is_dir = fs::symlink_metadata(src)?.is_dir();
+            if !src_is_dir {
+                return Err(Stop::Failed(format!(
+                    "Destination directory already exists: {}",
+                    dst.display()
+                )));
+            }
+            return merge_directory(src, dst, overwrite, renamer, progress);
         }
-        if overwrite {
-            fs::remove_file(dst)?;
-        }
+        fs::remove_file(dst)?;
     }
     let size = tree_size(src);
     if renamer(src, dst).is_ok() {
@@ -413,6 +546,48 @@ fn move_one(
         fs::remove_dir_all(src)?;
     } else {
         fs::remove_file(src)?;
+    }
+    Ok(())
+}
+
+/// 移動元のディレクトリの中身を, 既にある同名の移動先のディレクトリへ, 1 つずつ移して統合します.
+///
+/// 全て移せて, 空になったら, 移動元のディレクトリを消します (上書きしないと答えたファイルが残っていれば,
+/// 消しません). 途中で中断・失敗した場合は,
+/// それまでに移した分は戻さず, 残りは移動元に残ります.
+///
+/// # Arguments
+///
+/// * `src` - 移動元のディレクトリ.
+/// * `dst` - 移動先の, 既にあるディレクトリ.
+/// * `overwrite` - 同名のファイルを上書きするか (統合のときは true).
+/// * `renamer` - 名前の変更を行う関数.
+/// * `progress` - 進捗の窓口.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
+fn merge_directory(
+    src: &Path,
+    dst: &Path,
+    overwrite: bool,
+    renamer: &dyn Fn(&Path, &Path) -> std::io::Result<()>,
+    progress: &mut Progress,
+) -> Result<(), Stop> {
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        progress.check()?;
+        move_one(
+            &entry.path(),
+            &dst.join(entry.file_name()),
+            overwrite,
+            renamer,
+            progress,
+        )?;
+    }
+    // 上書きしないと答えたファイルが残っている間は, 移動元のディレクトリを消さない.
+    if fs::read_dir(src)?.next().is_none() {
+        fs::remove_dir(src)?;
     }
     Ok(())
 }
@@ -443,6 +618,7 @@ pub fn transfer_with(
         return Err(message);
     }
     log::info!("{:?} 開始: {} 件", request.kind, request.sources.len());
+    let skip: HashSet<PathBuf> = request.skip.iter().map(PathBuf::from).collect();
     let mut processed = 0;
     // 削除は件数, コピー・移動はバイト数で進捗を数えるため, 種類ごとに全体量の求め方が異なる.
     // try_for_each は, 途中の要素が Err (中断・失敗) を返した時点でそこで止まり, 残りは処理しない.
@@ -450,6 +626,7 @@ pub fn transfer_with(
         TransferKind::Delete => {
             let mut progress = Progress {
                 cancel,
+                skip: &skip,
                 on_progress,
                 done: 0,
                 total: request.sources.len() as u64,
@@ -468,6 +645,7 @@ pub fn transfer_with(
             let total = plan.iter().map(|(src, _)| tree_size(src)).sum();
             let mut progress = Progress {
                 cancel,
+                skip: &skip,
                 on_progress,
                 done: 0,
                 total,
@@ -633,6 +811,7 @@ mod tests {
             overwrite: false,
             permanent: true,
             dest_name: None,
+            skip: Vec::new(),
         }
     }
 
@@ -807,7 +986,7 @@ mod tests {
     }
 
     #[test]
-    fn test_transfer_move_overwrite_and_existing_directory() {
+    fn test_transfer_move_overwrite_file_and_refuse_file_onto_directory() {
         let dir = tempdir().unwrap();
         let src = dir.path().join("a.txt");
         let dest = dir.path().join("dest");
@@ -820,11 +999,303 @@ mod tests {
         assert!(run(&req).0.is_ok());
         assert_eq!(fs::read_to_string(dest.join("a.txt")).unwrap(), "new");
 
-        let subdir = dir.path().join("d");
-        fs::create_dir(&subdir).unwrap();
-        let mut req = request(TransferKind::Move, &[&subdir], Some(&dest));
+        // ファイルで, 同名のディレクトリを置き換えることはしない.
+        let file_d = dir.path().join("d");
+        fs::write(&file_d, "file").unwrap();
+        let mut req = request(TransferKind::Move, &[&file_d], Some(&dest));
         req.overwrite = true;
         assert!(run(&req).0.unwrap_err().contains("already exists"));
+        assert!(file_d.exists());
+        assert!(dest.join("d").is_dir());
+    }
+
+    #[test]
+    fn test_transfer_move_directory_merges_into_existing_directory() {
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("d");
+        fs::create_dir_all(src.join("sub")).unwrap();
+        fs::write(src.join("a.txt"), "new-a").unwrap();
+        fs::write(src.join("only_src.txt"), "only").unwrap();
+        fs::write(src.join("sub/b.txt"), "new-b").unwrap();
+        let dest = dir.path().join("dest");
+        fs::create_dir_all(dest.join("d/sub")).unwrap();
+        fs::write(dest.join("d/a.txt"), "old-a").unwrap();
+        fs::write(dest.join("d/keep.txt"), "keep").unwrap();
+        fs::write(dest.join("d/sub/c.txt"), "old-c").unwrap();
+
+        let mut req = request(TransferKind::Move, &[&src], Some(&dest));
+        req.overwrite = true;
+        let (result, events) = run(&req);
+
+        assert_eq!(result.unwrap().processed, 1);
+        // 同名のファイルは上書き, 移動先にだけあるものは残り, 移動元にだけあるものは移る.
+        assert_eq!(fs::read_to_string(dest.join("d/a.txt")).unwrap(), "new-a");
+        assert_eq!(fs::read_to_string(dest.join("d/keep.txt")).unwrap(), "keep");
+        assert_eq!(
+            fs::read_to_string(dest.join("d/only_src.txt")).unwrap(),
+            "only"
+        );
+        assert_eq!(
+            fs::read_to_string(dest.join("d/sub/b.txt")).unwrap(),
+            "new-b"
+        );
+        assert_eq!(
+            fs::read_to_string(dest.join("d/sub/c.txt")).unwrap(),
+            "old-c"
+        );
+        // 移動元のディレクトリは, 空になって消える.
+        assert!(!src.exists());
+        // 進捗は, 移したバイト数 (5 + 4 + 5) の分まで進む.
+        assert_eq!(events.last().unwrap().done, events.last().unwrap().total);
+    }
+
+    #[test]
+    fn test_transfer_move_directory_onto_existing_requires_overwrite() {
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("d");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("a.txt"), "new").unwrap();
+        let dest = dir.path().join("dest");
+        fs::create_dir_all(dest.join("d")).unwrap();
+        fs::write(dest.join("d/a.txt"), "old").unwrap();
+
+        // 確認 (overwrite) が無ければ, 何も変えずに失敗する.
+        let (result, _) = run(&request(TransferKind::Move, &[&src], Some(&dest)));
+
+        assert!(result.unwrap_err().starts_with("Already exists"));
+        assert_eq!(fs::read_to_string(src.join("a.txt")).unwrap(), "new");
+        assert_eq!(fs::read_to_string(dest.join("d/a.txt")).unwrap(), "old");
+    }
+
+    #[test]
+    fn test_transfer_move_multiple_with_one_conflict_changes_nothing() {
+        let dir = tempdir().unwrap();
+        let a = dir.path().join("a.txt");
+        let b = dir.path().join("b.txt");
+        fs::write(&a, "a").unwrap();
+        fs::write(&b, "b").unwrap();
+        let dest = dir.path().join("dest");
+        fs::create_dir(&dest).unwrap();
+        fs::write(dest.join("b.txt"), "old-b").unwrap();
+
+        let (result, _) = run(&request(TransferKind::Move, &[&a, &b], Some(&dest)));
+
+        // 一部だけが同名でも, 確認が無ければ全体を実行しない (a.txt も移さない).
+        assert!(result.is_err());
+        assert!(a.exists() && b.exists());
+        assert!(!dest.join("a.txt").exists());
+        assert_eq!(fs::read_to_string(dest.join("b.txt")).unwrap(), "old-b");
+    }
+
+    #[test]
+    fn test_move_one_never_overwrites_without_the_overwrite_flag() {
+        // 検証の後に同名のものができた場合に備え, move_one 自身も, 黙って上書きしない.
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("a.txt");
+        let dst = dir.path().join("b.txt");
+        let src_dir = dir.path().join("sd");
+        let dst_dir = dir.path().join("dd");
+        fs::write(&src, "new").unwrap();
+        fs::write(&dst, "old").unwrap();
+        fs::create_dir(&src_dir).unwrap();
+        fs::create_dir(&dst_dir).unwrap();
+        let cancel = AtomicBool::new(false);
+        let skip = HashSet::new();
+        let mut progress = Progress {
+            cancel: &cancel,
+            skip: &skip,
+            on_progress: &mut |_| {},
+            done: 0,
+            total: 0,
+        };
+
+        let file = move_one(&src, &dst, false, &|a, b| fs::rename(a, b), &mut progress);
+        let directory = move_one(
+            &src_dir,
+            &dst_dir,
+            false,
+            &|a, b| fs::rename(a, b),
+            &mut progress,
+        );
+
+        assert!(matches!(file, Err(Stop::Failed(m)) if m.starts_with("Already exists")));
+        assert!(matches!(directory, Err(Stop::Failed(m)) if m.starts_with("Already exists")));
+        assert_eq!(fs::read_to_string(&src).unwrap(), "new");
+        assert_eq!(fs::read_to_string(&dst).unwrap(), "old");
+        assert!(src_dir.is_dir() && dst_dir.is_dir());
+    }
+
+    #[test]
+    fn test_transfer_move_merge_stops_when_a_child_conflicts_with_a_directory() {
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("d");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("x"), "file").unwrap();
+        let dest = dir.path().join("dest");
+        fs::create_dir_all(dest.join("d/x")).unwrap();
+
+        let mut req = request(TransferKind::Move, &[&src], Some(&dest));
+        req.overwrite = true;
+        let (result, _) = run(&req);
+
+        // 中身のファイルを, 同名のディレクトリへ上書きしない. 移動元はそのまま残る.
+        assert!(result.unwrap_err().contains("already exists"));
+        assert!(src.join("x").is_file());
+        assert!(dest.join("d/x").is_dir());
+    }
+
+    #[test]
+    fn test_transfer_move_merge_can_be_cancelled() {
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("d");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("a.txt"), "a").unwrap();
+        let dest = dir.path().join("dest");
+        fs::create_dir_all(dest.join("d")).unwrap();
+        let cancel = AtomicBool::new(true);
+        let skip = HashSet::new();
+        let mut progress = Progress {
+            cancel: &cancel,
+            skip: &skip,
+            on_progress: &mut |_| {},
+            done: 0,
+            total: 0,
+        };
+
+        let result = merge_directory(
+            &src,
+            &dest.join("d"),
+            true,
+            &|a, b| fs::rename(a, b),
+            &mut progress,
+        );
+
+        assert!(matches!(result, Err(Stop::Cancelled)));
+        assert!(src.join("a.txt").exists());
+        assert!(!dest.join("d/a.txt").exists());
+    }
+
+    /// 同名のディレクトリ `d` を持つ 2 つの場所を作る. 同名のファイルは `a.txt` と `sub/b.txt`.
+    fn nested_fixture(root: &Path) -> (PathBuf, PathBuf) {
+        let src = root.join("d");
+        fs::create_dir_all(src.join("sub")).unwrap();
+        fs::write(src.join("a.txt"), "new-a").unwrap();
+        fs::write(src.join("only_src.txt"), "only").unwrap();
+        fs::write(src.join("sub/b.txt"), "new-b").unwrap();
+        let dest = root.join("dest");
+        fs::create_dir_all(dest.join("d/sub")).unwrap();
+        fs::write(dest.join("d/a.txt"), "old-a").unwrap();
+        fs::write(dest.join("d/sub/b.txt"), "old-b").unwrap();
+        fs::write(dest.join("d/keep.txt"), "keep").unwrap();
+        (src, dest)
+    }
+
+    #[test]
+    fn test_find_nested_conflicts_lists_same_named_files_in_order() {
+        let dir = tempdir().unwrap();
+        let (src, dest) = nested_fixture(dir.path());
+
+        let found = find_nested_conflicts(
+            &[src.to_string_lossy().into_owned()],
+            &dest.to_string_lossy(),
+        )
+        .unwrap();
+
+        // 同名のファイルだけ (only_src.txt と keep.txt は含まない). 名前順で, 表示名は対象の名前から始まる.
+        assert_eq!(
+            found.iter().map(|c| c.label.as_str()).collect::<Vec<_>>(),
+            vec!["d/a.txt", "d/sub/b.txt"]
+        );
+        assert_eq!(found[0].source, src.join("a.txt").to_string_lossy());
+        assert_eq!(found[1].source, src.join("sub/b.txt").to_string_lossy());
+    }
+
+    #[test]
+    fn test_find_nested_conflicts_ignores_non_merging_cases() {
+        let dir = tempdir().unwrap();
+        let (src, dest) = nested_fixture(dir.path());
+        // 移動先に同名のディレクトリが無い対象, ファイルの対象, 種類が違う組み合わせは, 数えない.
+        let lone = dir.path().join("lone");
+        fs::create_dir(&lone).unwrap();
+        fs::write(lone.join("x.txt"), "x").unwrap();
+        let plain = dir.path().join("a.txt");
+        fs::write(&plain, "plain").unwrap();
+        fs::write(dest.join("a.txt"), "dest-plain").unwrap();
+        fs::create_dir(dest.join("d/dirvsfile")).unwrap();
+        fs::write(src.join("dirvsfile"), "f").unwrap();
+        fs::write(dest.join("d/filevsdir"), "f").unwrap();
+        fs::create_dir(src.join("filevsdir")).unwrap();
+
+        let sources: Vec<String> = [&lone, &plain, &src]
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        let found = find_nested_conflicts(&sources, &dest.to_string_lossy()).unwrap();
+
+        assert_eq!(
+            found.iter().map(|c| c.label.as_str()).collect::<Vec<_>>(),
+            vec!["d/a.txt", "d/sub/b.txt"]
+        );
+        assert!(find_nested_conflicts(&["/".to_string()], &dest.to_string_lossy()).is_err());
+        assert!(check_nested_conflicts(
+            vec![src.to_string_lossy().into_owned()],
+            dest.to_string_lossy().into_owned()
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_transfer_move_merge_skips_files_answered_no_and_keeps_them() {
+        let dir = tempdir().unwrap();
+        let (src, dest) = nested_fixture(dir.path());
+
+        let mut req = request(TransferKind::Move, &[&src], Some(&dest));
+        req.overwrite = true;
+        req.skip = vec![src.join("a.txt").to_string_lossy().into_owned()];
+        let (result, events) = run(&req);
+
+        assert_eq!(result.unwrap().processed, 1);
+        // 「いいえ」のファイルは上書きせず, 移動元に残る. 他は上書きされて移る.
+        assert_eq!(fs::read_to_string(dest.join("d/a.txt")).unwrap(), "old-a");
+        assert_eq!(fs::read_to_string(src.join("a.txt")).unwrap(), "new-a");
+        assert_eq!(
+            fs::read_to_string(dest.join("d/sub/b.txt")).unwrap(),
+            "new-b"
+        );
+        assert_eq!(
+            fs::read_to_string(dest.join("d/only_src.txt")).unwrap(),
+            "only"
+        );
+        // 移動元には, 残ったファイルがあるので, ディレクトリは消えない. 空になった sub は消える.
+        assert!(src.is_dir());
+        assert!(!src.join("sub").exists());
+        assert!(!src.join("only_src.txt").exists());
+        assert_eq!(events.last().unwrap().done, events.last().unwrap().total);
+    }
+
+    #[test]
+    fn test_transfer_copy_merge_skips_files_answered_no() {
+        let dir = tempdir().unwrap();
+        let (src, dest) = nested_fixture(dir.path());
+
+        let mut req = request(TransferKind::Copy, &[&src], Some(&dest));
+        req.overwrite = true;
+        req.skip = vec![src.join("sub/b.txt").to_string_lossy().into_owned()];
+        let (result, events) = run(&req);
+
+        assert!(result.is_ok());
+        assert_eq!(fs::read_to_string(dest.join("d/a.txt")).unwrap(), "new-a");
+        assert_eq!(
+            fs::read_to_string(dest.join("d/sub/b.txt")).unwrap(),
+            "old-b"
+        );
+        assert_eq!(
+            fs::read_to_string(dest.join("d/only_src.txt")).unwrap(),
+            "only"
+        );
+        // コピーでは, 移動元はそのまま.
+        assert!(src.join("a.txt").exists() && src.join("sub/b.txt").exists());
+        assert_eq!(events.last().unwrap().done, events.last().unwrap().total);
     }
 
     #[test]

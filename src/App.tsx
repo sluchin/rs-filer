@@ -148,6 +148,7 @@ export default function App(): ReactElement {
     notify,
     operations.openConfirm,
     operations.openPrompt,
+    operations.openChoice,
   );
   const marks = useMarks(activePane, updatePane, moveCursor, reportError);
   const activeState = activePane === "left" ? leftPane : rightPane;

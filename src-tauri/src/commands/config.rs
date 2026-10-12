@@ -530,8 +530,10 @@ mod tests {
     fn test_window_state_round_trip_and_optional_fields() {
         let dir = tempdir().unwrap();
         let file = dir.path().join("config.json");
-        let mut config = AppConfig::default();
-        config.window = Some(sample_window(true));
+        let config = AppConfig {
+            window: Some(sample_window(true)),
+            ..AppConfig::default()
+        };
         write_config(&file, &config).unwrap();
 
         assert_eq!(
@@ -556,8 +558,10 @@ mod tests {
         save_window_state_to(Some(dir.path()), &sample_window(false)).unwrap();
 
         // フロントエンドが読み込んだ古い値 (window なし / 別の値) で保存しても, 保存済みの window を残す.
-        let mut stale = AppConfig::default();
-        stale.theme = Theme::Dark;
+        let mut stale = AppConfig {
+            theme: Theme::Dark,
+            ..AppConfig::default()
+        };
         save_config_to(Some(dir.path()), &stale).unwrap();
         stale.window = Some(WindowState {
             width: 500,
@@ -576,8 +580,10 @@ mod tests {
     #[test]
     fn test_save_config_to_without_saved_window_drops_the_given_one() {
         let dir = tempdir().unwrap();
-        let mut config = AppConfig::default();
-        config.window = Some(sample_window(false));
+        let config = AppConfig {
+            window: Some(sample_window(false)),
+            ..AppConfig::default()
+        };
 
         save_config_to(Some(dir.path()), &config).unwrap();
 
@@ -587,9 +593,11 @@ mod tests {
     #[test]
     fn test_save_window_state_to_keeps_other_settings() {
         let dir = tempdir().unwrap();
-        let mut config = AppConfig::default();
-        config.theme = Theme::Dark;
-        config.editor = Some("vim".to_string());
+        let config = AppConfig {
+            theme: Theme::Dark,
+            editor: Some("vim".to_string()),
+            ..AppConfig::default()
+        };
         save_config_to(Some(dir.path()), &config).unwrap();
 
         save_window_state_to(Some(dir.path()), &sample_window(true)).unwrap();
