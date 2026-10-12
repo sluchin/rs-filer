@@ -275,7 +275,7 @@ export default function FileList({
     cursor: draggingColumn ? "col-resize" : "auto",
   };
 
-  // ヘッダーの列区切り目を検出します (4px幅).
+  // ヘッダーの列区切り目を検出します (4 px 幅).
   const detectColumn = useCallback((x: number): ColumnName | null => {
     if (!headerRef.current) return null;
     const spans = headerRef.current.querySelectorAll(
@@ -344,7 +344,7 @@ export default function FileList({
     measureColumn,
   ]);
 
-  // ダブルクリックでauto-fit. 境界の「右側」の列を, 内容に合う幅にする (ドラッグと同じ列).
+  // ダブルクリックで列幅を内容に合わせる. 境界の「右側」の列を, 内容に合う幅にする (ドラッグと同じ列).
   const handleHeaderDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const col = detectColumn(e.clientX);

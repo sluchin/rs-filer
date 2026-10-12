@@ -27,7 +27,7 @@ interface DualPaneContainerProps {
   onItemClick: (pane: PaneId, index: number, file: FileEntry) => void;
   /** 項目ダブルクリックのハンドラー. */
   onItemOpen: (pane: PaneId, index: number, file: FileEntry) => void;
-  /** ペインの通常表示を差し替える内容 (プレビュー・ブックマーク一覧など). 無いペインは通常表示のまま. */
+  /** ペインの通常表示を差し替える内容 (プレビュー・詳細・ブックマーク一覧・履歴・ツリーなど). 無いペインは通常表示のまま. */
   overrides: Partial<Record<PaneId, ReactElement>>;
   /** パス入力欄の要素を登録するハンドラー. */
   registerPathInput: (pane: PaneId, element: HTMLInputElement | null) => void;

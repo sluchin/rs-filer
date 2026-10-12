@@ -208,7 +208,7 @@ export function useFileList(onError: (message: string) => void) {
     [updatePane],
   );
 
-  // 初期化: 左右ともにホームディレクトリを開く
+  // 初期化: 左右ともにホームディレクトリを開く.
   useEffect(() => {
     const init = async (): Promise<void> => {
       let home = "/";

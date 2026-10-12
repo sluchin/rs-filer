@@ -67,14 +67,15 @@ export function extensionOf(name: string): string {
 }
 
 /**
- * 名前を, 大文字小文字と数字の並びを考慮して比較します.
+ * 名前を, 大文字小文字を区別せず, 数字の並びを数値として比較します.
  */
 function compareNames(a: string, b: string): number {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 }
 
 /**
- * 2 つのエントリを比較します. ディレクトリは常にファイルより上に並びます.
+ * 2 つのエントリを比較します. ディレクトリは常にファイルより上に並びます (昇順・降順に関わらず).
+ * ディレクトリ同士は, 基準に関わらず名前で比較します.
  */
 function compareEntries(a: FileEntry, b: FileEntry, sort: SortOption): number {
   if (a.is_dir !== b.is_dir) {

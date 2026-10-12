@@ -12,7 +12,7 @@ import type { FileEntry, PaneId, PaneState } from "../../explorer/types";
 import type { ChoiceOption, DialogState } from "../types";
 
 /**
- * ファイル操作 (作成・名前変更・外部アプリで開く) を扱うフック.
+ * ファイル操作 (作成・名前変更・外部アプリやエディタで開く) と, その入力・確認のダイアログ状態を扱うフック.
  *
  * @param activePane - アクティブなペイン識別子.
  * @param leftPane - 左ペインの状態.

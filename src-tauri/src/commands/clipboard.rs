@@ -1,4 +1,6 @@
 //! ファイルパスのクリップボード操作.
+//!
+//! OS のファイルリスト形式ではなく, パスを `;` 区切りのテキストとして,クリップボードへ入れます.
 
 use std::path::Path;
 
@@ -11,7 +13,7 @@ trait FileClipboard {
     fn get_files(&self) -> Result<Vec<String>, String>;
 }
 
-/// 実クリップボード操作 (OS ネイティブ).
+/// 実クリップボード操作 (OS のテキストクリップボードを使う).
 #[cfg(not(tarpaulin_include))]
 struct OsClipboard;
 
@@ -57,7 +59,7 @@ impl FileClipboard for OsClipboard {
             return Err("Clipboard is empty".to_string());
         }
 
-        // ; 区切りで分割して、存在するパスのみを返す.
+        // ; 区切りで分割して, 存在するパスのみを返す.
         let paths: Vec<String> = text
             .split(';')
             .filter(|p| !p.is_empty() && Path::new(p).exists())

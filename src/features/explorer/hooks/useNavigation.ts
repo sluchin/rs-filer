@@ -26,7 +26,7 @@ export function useNavigation(
   ) => Promise<void>,
   setError: (message: string | null) => void,
 ) {
-  /** ドライブ選択ダイアログに表示するドライブ一覧. null の場合は非表示. */
+  /** ドライブ選択に表示するドライブ一覧. null の場合は非表示. */
   const [drives, setDrives] = useState<string[] | null>(null);
 
   /**
@@ -98,7 +98,7 @@ export function useNavigation(
   }, [activePane, leftPane, rightPane, loadDirectory]);
 
   /**
-   * ドライブ選択ダイアログを開きます.
+   * ドライブ選択を開きます.
    */
   const showDrives = useCallback(async (): Promise<void> => {
     try {
@@ -111,7 +111,7 @@ export function useNavigation(
   }, [setError]);
 
   /**
-   * ドライブ選択ダイアログを閉じます.
+   * ドライブ選択を閉じます.
    */
   const closeDrives = useCallback((): void => setDrives(null), []);
 

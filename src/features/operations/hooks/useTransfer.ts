@@ -282,11 +282,6 @@ export function useTransfer(
   );
 
   /**
-   * 対象を, 確認のうえ削除します.
-   *
-   * @param permanent - true の場合は完全に削除し, false の場合はゴミ箱へ移動する.
-   */
-  /**
    * 削除の確認を出し, 承諾されたら削除を実行します.
    *
    * @param items - 削除する項目 (絶対パスと名前).
@@ -321,6 +316,11 @@ export function useTransfer(
     [openConfirm, run],
   );
 
+  /**
+   * アクティブなペインの対象 (マーク,無ければカーソル位置) を, 確認のうえ削除します.
+   *
+   * @param permanent - true の場合は完全に削除し, false の場合はゴミ箱へ移動する.
+   */
   const startDelete = useCallback(
     (permanent: boolean): void => {
       const files = targetsOf(source);
