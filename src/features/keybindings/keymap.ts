@@ -60,6 +60,7 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   O: "syncPane",
   "C-x 4": "syncPane",
   v: "preview",
+  I: "info",
   H: "log",
   Delete: "delete",
   d: "delete",

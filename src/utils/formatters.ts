@@ -62,3 +62,14 @@ export function formatDiskSize(bytes: number): string {
   }
   return `${Number(value.toPrecision(4))}${units[unit]}`;
 }
+
+/**
+ * バイト数を, `12,345 バイト (12.06KB)` のように, 桁区切りと単位つきで整形します (1KB 未満は, 桁区切りだけ).
+ *
+ * @param bytes - バイト数.
+ * @returns 整形した文字列.
+ */
+export function formatBytesDetail(bytes: number): string {
+  const exact = `${bytes.toLocaleString("en-US")} バイト`;
+  return bytes >= 1024 ? `${exact} (${formatDiskSize(bytes)})` : exact;
+}

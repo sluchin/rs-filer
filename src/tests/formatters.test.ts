@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { FileEntry } from "../features/explorer/types";
 import {
   formatAttributes,
+  formatBytesDetail,
   formatDate,
   formatDiskSize,
   formatSize,
@@ -60,5 +61,14 @@ describe("formatDiskSize", () => {
     [3 * 1024 ** 5, "3072TB"],
   ])("正常系: %d バイトは %s になること", (bytes, expected) => {
     expect(formatDiskSize(bytes)).toBe(expected);
+  });
+});
+
+describe("formatBytesDetail", () => {
+  it("正常系: 桁区切りをつけ, 1KB 以上は単位つきの値を添えること", () => {
+    expect(formatBytesDetail(0)).toBe("0 バイト");
+    expect(formatBytesDetail(1023)).toBe("1,023 バイト");
+    expect(formatBytesDetail(1024)).toBe("1,024 バイト (1KB)");
+    expect(formatBytesDetail(1234567)).toBe("1,234,567 バイト (1.177MB)");
   });
 });

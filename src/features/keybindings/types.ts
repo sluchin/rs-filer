@@ -29,6 +29,7 @@ export const COMMANDS = [
   "moveConfirm",
   "syncPane",
   "preview",
+  "info",
   "log",
   "delete",
   "deletePermanent",

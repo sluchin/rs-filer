@@ -28,6 +28,8 @@ import {
   quitApp,
   runExternalCommand,
 } from "./services/tauriApi";
+import InfoPane from "./features/info/components/InfoPane";
+import { useDirStats, useItemInfo } from "./features/info/hooks/useItemInfo";
 import PreviewPane from "./features/preview/components/PreviewPane";
 import { usePreview } from "./features/preview/hooks/usePreview";
 import { useNotice } from "./hooks/useNotice";
@@ -87,6 +89,7 @@ export default function App(): ReactElement {
   const [logOpen, setLogOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [previewOn, setPreviewOn] = useState(false);
+  const [infoOn, setInfoOn] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteValue, setPaletteValue] = useState("");
   const paletteHistory = useHistoryNav();
@@ -275,7 +278,13 @@ export default function App(): ReactElement {
         navigation.handleSyncPane();
         break;
       case "preview":
+        // プレビューと詳細は, どちらも反対側のペインに出すので, 一方を出すときは, もう一方を消す.
+        setInfoOn(false);
         setPreviewOn((on) => !on);
+        break;
+      case "info":
+        setPreviewOn(false);
+        setInfoOn((on) => !on);
         break;
       case "log":
         setLogOpen(true);
@@ -453,6 +462,15 @@ export default function App(): ReactElement {
 
   const disk = useDiskSpace(activeState.currentPath);
   const cursorFile = activeState.files[activeState.selectedIndex];
+  // 詳細は, カーソル位置の項目 (`..` の行や空のディレクトリでは, 開いているディレクトリ) について表示する.
+  const infoState = useItemInfo(
+    infoOn ? (cursorFile?.path ?? activeState.currentPath) : null,
+  );
+  const dirStatsState = useDirStats(
+    infoOn && infoState.status === "ready" && infoState.info.kind === "dir"
+      ? infoState.info.path
+      : null,
+  );
   const previewState = usePreview(
     previewOn && cursorFile && !cursorFile.is_dir ? cursorFile.path : null,
   );
@@ -465,6 +483,11 @@ export default function App(): ReactElement {
   if (previewOn) {
     paneOverrides[activePane === "left" ? "right" : "left"] = (
       <PreviewPane name={cursorFile?.name ?? ""} state={previewState} />
+    );
+  }
+  if (infoOn) {
+    paneOverrides[activePane === "left" ? "right" : "left"] = (
+      <InfoPane info={infoState} stats={dirStatsState} />
     );
   }
   (["left", "right"] as const).forEach((paneId) => {

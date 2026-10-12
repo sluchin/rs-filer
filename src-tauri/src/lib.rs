@@ -34,6 +34,7 @@ pub fn run() {
     logging::init_logging();
     tauri::Builder::default()
         .manage(commands::TransferState::default())
+        .manage(commands::StatsState::default())
         .setup(|app| {
             if let Some(window) = window_state::main_window(app) {
                 window_state::restore(&window);
@@ -50,6 +51,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::fs::read_directory,
             commands::fs::dirs_have_entries,
+            commands::info::get_item_info,
+            commands::info::dir_stats,
             commands::fs::get_home_dir,
             commands::ops::create_directory,
             commands::ops::create_file,

@@ -1,5 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { DiskSpace, FileEntry } from "../features/explorer/types";
+import type { DirStats, ItemInfo } from "../features/info/types";
 import type {
   NestedConflict,
   TransferProgress,
@@ -32,6 +33,27 @@ export function dirsHaveEntries(
   showHidden: boolean,
 ): Promise<boolean[]> {
   return invoke<boolean[]>("dirs_have_entries", { paths, showHidden });
+}
+
+/**
+ * ファイル・ディレクトリの詳細 (サイズ・日時・権限など) を取得します.
+ *
+ * @param path - 対象の絶対パス.
+ * @returns 詳細.
+ */
+export function getItemInfo(path: string): Promise<ItemInfo> {
+  return invoke<ItemInfo>("get_item_info", { path });
+}
+
+/**
+ * ディレクトリの配下 (再帰) の, ファイル・ディレクトリの数と合計サイズを数えます. 新しく呼ぶと, 前の計算は
+ * 中断されます. 時間 (10 秒) と数の上限があり, 超えると, そこまでの合計を返します.
+ *
+ * @param path - 対象のディレクトリの絶対パス.
+ * @returns 合計.
+ */
+export function getDirStats(path: string): Promise<DirStats> {
+  return invoke<DirStats>("dir_stats", { path });
 }
 
 /**
