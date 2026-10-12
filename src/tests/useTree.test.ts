@@ -170,4 +170,165 @@ describe("useTree", () => {
     expect(result.current.rows).toEqual([]);
     expect(result.current.cursorPath).toBeNull();
   });
+
+  describe("refresh (作成・名前変更・削除をツリーに反映する)", () => {
+    /** 作成後の状態を模す: 指定したディレクトリの直下に, 新しいディレクトリが加わる. */
+    function mockCreated(parent: string, name: string): void {
+      const base = mockedInvoke.getMockImplementation();
+      mockedInvoke.mockImplementation((cmd, args) => {
+        if (
+          cmd === "read_directory" &&
+          (args as { path: string }).path === parent
+        ) {
+          return (base?.(cmd, args) as Promise<unknown[]>).then((entries) => [
+            ...entries,
+            {
+              name,
+              path: `${parent}/${name}`,
+              is_dir: true,
+              hidden: name.startsWith("."),
+            },
+          ]);
+        }
+        return base?.(cmd, args) as Promise<unknown>;
+      });
+    }
+
+    it("正常系: 根の直下に作ったものを加えて, カーソルを合わせ, 展開済みのノードの状態を保つこと", async () => {
+      const { result } = renderHook(() => useTree("/h", false));
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+      act(() => result.current.expandOrChild()); // docs を展開
+      await waitFor(() => expect(result.current.rows).toHaveLength(4));
+      mockCreated("/h", "newdir");
+
+      await act(() => result.current.refresh("/h", "newdir"));
+
+      const names = result.current.rows.map((r) => r.node.name);
+      expect(names).toContain("newdir");
+      // docs は展開されたまま (子の sub が残る).
+      expect(names).toContain("sub");
+      expect(result.current.cursorPath).toBe("/h/newdir");
+    });
+
+    it("正常系: 展開していないディレクトリの下に作ったとき, そのディレクトリを展開して, 作ったものにカーソルを合わせること", async () => {
+      const { result } = renderHook(() => useTree("/h", false));
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+      mockCreated("/h/docs", "made");
+
+      await act(() => result.current.refresh("/h/docs", "made"));
+
+      const docs = result.current.rows.find((r) => r.node.name === "docs");
+      expect(docs?.node.expanded).toBe(true);
+      expect(result.current.rows.map((r) => r.node.name)).toEqual(
+        expect.arrayContaining(["docs", "made", "sub"]),
+      );
+      expect(result.current.cursorPath).toBe("/h/docs/made");
+    });
+
+    it("境界: 隠しディレクトリを表示していないとき, 作った隠しディレクトリは出ず, カーソルは動かないこと", async () => {
+      const { result } = renderHook(() => useTree("/h", false));
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+      const before = result.current.cursorPath;
+      mockCreated("/h", ".secret");
+
+      await act(() => result.current.refresh("/h", ".secret"));
+
+      expect(result.current.rows.map((r) => r.node.name)).not.toContain(
+        ".secret",
+      );
+      expect(result.current.cursorPath).toBe(before);
+    });
+
+    /** 指定したディレクトリの直下の一覧を, 差し替える (名前変更・削除のあとの状態を模す). */
+    function mockEntries(
+      parent: string,
+      entries: { name: string; is_dir: boolean }[],
+    ): void {
+      const base = mockedInvoke.getMockImplementation();
+      mockedInvoke.mockImplementation((cmd, args) => {
+        if (
+          cmd === "read_directory" &&
+          (args as { path: string }).path === parent
+        ) {
+          return Promise.resolve(
+            entries.map((e) => ({
+              ...e,
+              path: `${parent}/${e.name}`,
+              hidden: false,
+            })),
+          );
+        }
+        return base?.(cmd, args) as Promise<unknown>;
+      });
+    }
+
+    it("正常系: 名前を変えたとき, 新しい名前のノードにカーソルを合わせ, 古いノードは消えること", async () => {
+      const { result } = renderHook(() => useTree("/h", false));
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+      mockEntries("/h", [
+        { name: "renamed", is_dir: true },
+        { name: "a.txt", is_dir: false },
+        { name: "b.txt", is_dir: false },
+      ]);
+
+      await act(() => result.current.refresh("/h", "renamed"));
+
+      expect(result.current.rows.map((r) => r.node.name)).toEqual([
+        "renamed",
+        "a.txt",
+        "b.txt",
+      ]);
+      expect(result.current.cursorPath).toBe("/h/renamed");
+    });
+
+    it("正常系: カーソルのノードを削除したとき, 同じ位置の隣のノードへ, 末尾なら一つ前へカーソルが移ること", async () => {
+      const { result } = renderHook(() => useTree("/h", false));
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+      act(() => result.current.setCursorPath("/h/a.txt"));
+      mockEntries("/h", [
+        { name: "docs", is_dir: true },
+        { name: "b.txt", is_dir: false },
+      ]);
+
+      await act(() => result.current.refresh("/h"));
+      expect(result.current.cursorPath).toBe("/h/b.txt");
+
+      // 末尾の b.txt を消すと, 一つ前の docs へ.
+      mockEntries("/h", [{ name: "docs", is_dir: true }]);
+      await act(() => result.current.refresh("/h"));
+      expect(result.current.cursorPath).toBe("/h/docs");
+    });
+
+    it("正常系: 全て消えたとき, 根なら何も選ばず, 根でないディレクトリなら, そのディレクトリへ移り, 空のマークを消すこと", async () => {
+      const { result } = renderHook(() => useTree("/h", false));
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+      act(() => result.current.expandOrChild()); // docs を展開
+      await waitFor(() => expect(result.current.rows).toHaveLength(4));
+      act(() => result.current.setCursorPath("/h/docs/sub"));
+      mockEntries("/h/docs", []);
+
+      await act(() => result.current.refresh("/h/docs"));
+
+      expect(result.current.cursorPath).toBe("/h/docs");
+      expect(
+        result.current.rows.find((r) => r.node.name === "docs")?.node.empty,
+      ).toBe(true);
+
+      mockEntries("/h", []);
+      act(() => result.current.setCursorPath("/h/a.txt"));
+      await act(() => result.current.refresh("/h"));
+      expect(result.current.cursorPath).toBeNull();
+    });
+
+    it("正常系: カーソルが別の場所にあるとき, 他のディレクトリの読み込み直しでは, カーソルを動かさないこと", async () => {
+      const { result } = renderHook(() => useTree("/h", false));
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+      act(() => result.current.setCursorPath("/h/b.txt"));
+      mockCreated("/h/docs", "made");
+
+      await act(() => result.current.refresh("/h/docs"));
+
+      expect(result.current.cursorPath).toBe("/h/b.txt");
+    });
+  });
 });

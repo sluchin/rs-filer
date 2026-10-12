@@ -3,6 +3,7 @@ import type { PaneId } from "../../explorer/types";
 import { useTree } from "../hooks/useTree";
 import FileIcon from "../../explorer/components/FileIcon";
 import { useScrollToEnd } from "../../../hooks/useScrollToEnd";
+import { getParentPath } from "../../../utils/path";
 
 /**
  * TreePane コンポーネントのプロパティ.
@@ -20,6 +21,35 @@ interface TreePaneProps {
   onActivate: () => void;
   /** ディレクトリまたはファイルを選んだ (`Enter` またはダブルクリック) ときのハンドラー. ファイルは開く. */
   onSelect: (path: string, isDir: boolean) => void;
+  /** 入力中など, ツリーのキー操作を受け付けてはいけないとき (ダイアログを開いている間) は false. */
+  keysEnabled: boolean;
+  /**
+   * 新しいディレクトリを作る (`N` / `+`) ハンドラー. 作成先のディレクトリの絶対パスと, 作成できたときに
+   * 呼ぶ関数 (作成したディレクトリの名前を渡す) を受け取る.
+   */
+  onCreateDirectory: (
+    parentPath: string,
+    onCreated: (name: string) => void,
+  ) => void;
+  /**
+   * 名前を変える (`r` / `F2`) ハンドラー. 項目の絶対パスと今の名前, 変更できたときに呼ぶ関数 (新しい名前を渡す)
+   * を受け取る.
+   */
+  onRename: (
+    path: string,
+    name: string,
+    onRenamed: (name: string) => void,
+  ) => void;
+  /**
+   * 削除する (`d` / `Delete` はゴミ箱へ, `D` / `Shift+Delete` は完全に削除) ハンドラー. 項目の絶対パスと名前,
+   * 完全に削除するか, 削除の処理が終わったときに呼ぶ関数を受け取る.
+   */
+  onDelete: (
+    path: string,
+    name: string,
+    permanent: boolean,
+    onDone: () => void,
+  ) => void;
   /** カーソル位置の項目 (ディレクトリも可) を, 外部アプリで開く (`x`) ハンドラー. ツリーは残す. */
   onOpenExternal: (path: string) => void;
   /** 通常のファイル一覧へ戻る (`t` / `Esc` / `C-g`) ハンドラー. */
@@ -37,6 +67,9 @@ interface TreePaneProps {
  * ファイルなら, ツリーを残したまま, 関連付けられた外部アプリで開きます.
  * 名前には, 長い名前が省略されていても全体を確認できるよう, ツールチップ (`title`) を付けます.
  * `x` でも, カーソル位置の項目 (ディレクトリを含む) を外部アプリで開きます.
+ * `N` で, カーソル位置のディレクトリの下に, `+` で, ツリーの根の直下に, 新しいディレクトリを作ります (作ったものが
+ * ツリーに加わり, カーソルが合います). `r` / `F2` で名前の変更, `d` / `Delete` でゴミ箱へ, `D` / `Shift+Delete` で
+ * 完全に削除します (通常の一覧と同じキーで, ツリーに反映します).
  *
  * @param props - コンポーネントのプロパティ.
  * @returns ツリー形式のペインのReact要素.
@@ -48,6 +81,10 @@ export default function TreePane({
   isActive,
   onActivate,
   onSelect,
+  keysEnabled,
+  onCreateDirectory,
+  onRename,
+  onDelete,
   onOpenExternal,
   onCancel,
   onSwitchPane,
@@ -61,12 +98,14 @@ export default function TreePane({
     collapseOrParent,
     expandDeep,
     collapseDeep,
+    refresh,
   } = useTree(rootPath, showHidden);
   const { ref: pathRef } = useScrollToEnd<HTMLDivElement>(rootPath);
 
   useEffect(() => {
     // アクティブでない間は, もう一方のペインの操作を優先し, ツリーのキー操作を受け付けない.
-    if (!isActive) {
+    // ダイアログ (名前の入力など) を開いている間も, 入力したキーでツリーを動かさない.
+    if (!isActive || !keysEnabled) {
       return;
     }
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -93,6 +132,59 @@ export default function TreePane({
         const row = rows.find((r) => r.node.path === cursorPath);
         if (row) {
           onSelect(row.node.path, row.node.isDir);
+        }
+      } else if (
+        (e.key === "N" || e.key === "+") &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        // ディレクトリ作成. `N`: カーソル位置のディレクトリの下 (ファイルなら, そのファイルのあるディレクトリ.
+        // 何も無ければ, ツリーの根). `+`: 通常の一覧と同じく, いま開いているディレクトリ (ツリーの根) の直下.
+        e.preventDefault();
+        const row = rows.find((r) => r.node.path === cursorPath);
+        const parent =
+          e.key === "+" || !row
+            ? rootPath
+            : row.node.isDir
+              ? row.node.path
+              : (getParentPath(row.node.path) ?? rootPath);
+        onCreateDirectory(parent, (name) => void refresh(parent, name));
+      } else if (
+        (e.key === "r" || e.key === "F2") &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        // 名前の変更. 通常の一覧の `r` / `F2` と同じ.
+        e.preventDefault();
+        const row = rows.find((r) => r.node.path === cursorPath);
+        if (row) {
+          const parent = getParentPath(row.node.path) ?? rootPath;
+          onRename(
+            row.node.path,
+            row.node.name,
+            (name) => void refresh(parent, name),
+          );
+        }
+      } else if (
+        (e.key === "d" || e.key === "D" || e.key === "Delete") &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        // 削除. `d` / `Delete`: ゴミ箱へ. `D` / `Shift+Delete`: 完全に削除 (通常の一覧と同じ).
+        e.preventDefault();
+        const row = rows.find((r) => r.node.path === cursorPath);
+        if (row) {
+          const parent = getParentPath(row.node.path) ?? rootPath;
+          const permanent = e.key === "D" || (e.key === "Delete" && e.shiftKey);
+          onDelete(
+            row.node.path,
+            row.node.name,
+            permanent,
+            () => void refresh(parent),
+          );
         }
       } else if (e.key === "x" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         // 通常の一覧の `x` (外部アプリで開く) と同じ. 全体のキー操作は無効なので, ここで代わりに行う.

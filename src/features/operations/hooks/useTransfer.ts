@@ -286,6 +286,41 @@ export function useTransfer(
    *
    * @param permanent - true の場合は完全に削除し, false の場合はゴミ箱へ移動する.
    */
+  /**
+   * 削除の確認を出し, 承諾されたら削除を実行します.
+   *
+   * @param items - 削除する項目 (絶対パスと名前).
+   * @param permanent - true の場合は完全に削除し, false の場合はゴミ箱へ移動する.
+   * @param onDone - 削除の処理が終わったときに呼ぶ関数 (省略可).
+   */
+  const confirmDelete = useCallback(
+    (
+      items: { path: string; name: string }[],
+      permanent: boolean,
+      onDone?: () => void,
+    ): void => {
+      const what =
+        items.length === 1 ? `「${items[0].name}」` : `${items.length} 件`;
+      openConfirm(
+        permanent ? "完全に削除" : "ゴミ箱へ移動",
+        permanent
+          ? `${what}を完全に削除しますか? 元に戻せません. (y/n)`
+          : `${what}をゴミ箱へ移動しますか? (y/n)`,
+        async () => {
+          await run({
+            kind: "delete",
+            sources: items.map((f) => f.path),
+            dest_dir: null,
+            overwrite: false,
+            permanent,
+          });
+          onDone?.();
+        },
+      );
+    },
+    [openConfirm, run],
+  );
+
   const startDelete = useCallback(
     (permanent: boolean): void => {
       const files = targetsOf(source);
@@ -293,26 +328,29 @@ export function useTransfer(
         setError("対象の項目が選択されていません.");
         return;
       }
-      const what =
-        files.length === 1 ? `「${files[0].name}」` : `${files.length} 件`;
-      openConfirm(
-        permanent ? "完全に削除" : "ゴミ箱へ移動",
-        permanent
-          ? `${what}を完全に削除しますか? 元に戻せません. (y/n)`
-          : `${what}をゴミ箱へ移動しますか? (y/n)`,
-        () =>
-          run({
-            kind: "delete",
-            sources: files.map((f) => f.path),
-            dest_dir: null,
-            overwrite: false,
-            permanent,
-          }),
+      confirmDelete(
+        files.map((f) => ({ path: f.path, name: f.name })),
+        permanent,
       );
     },
-    [source, setError, openConfirm, run],
+    [source, setError, confirmDelete],
   );
 
+  /**
+   * 指定した項目を, 確認のうえ削除します (ツリー表示用). 削除したら (失敗しても), 呼び出し側 (ツリー) へ知らせます.
+   *
+   * @param items - 削除する項目 (絶対パスと名前).
+   * @param permanent - true の場合は完全に削除し, false の場合はゴミ箱へ移動する.
+   * @param onDone - 削除の処理が終わったときに呼ぶ関数.
+   */
+  const startDeletePaths = useCallback(
+    (
+      items: { path: string; name: string }[],
+      permanent: boolean,
+      onDone: () => void,
+    ): void => confirmDelete(items, permanent, onDone),
+    [confirmDelete],
+  );
   /** 実行中の操作を中断します. */
   const cancel = useCallback((): void => {
     setCancelling(true);
@@ -444,6 +482,7 @@ export function useTransfer(
     startCopy: (alwaysConfirm: boolean) => startPlace("copy", alwaysConfirm),
     startMove: (alwaysConfirm: boolean) => startPlace("move", alwaysConfirm),
     startDelete,
+    startDeletePaths,
     copyToClipboard,
     pasteFromClipboard,
     duplicateFile,

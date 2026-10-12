@@ -810,6 +810,344 @@ describe("App (分岐の網羅)", () => {
     expect(paneOf("left").getByTitle("b.txt")).toHaveTextContent("b.txt");
   });
 
+  /** ツリーで, ディレクトリの作成後の状態を模す invoke のモックを設定する (create_directory の後, 一覧に加わる). */
+  function mockMkdirTree(options: { fail?: boolean } = {}): void {
+    let created: { parent: string; name: string } | null = null;
+    mockHome((cmd, args) => {
+      if (cmd === "create_directory") {
+        if (options.fail) return Promise.reject("作成できません");
+        created = args as { parent: string; name: string };
+        return Promise.resolve(undefined);
+      }
+      if (cmd === "read_directory") {
+        const path = pathOf(args);
+        const extra =
+          created && created.parent === path
+            ? [
+                {
+                  name: created.name,
+                  path: `${path}/${created.name}`,
+                  is_dir: true,
+                },
+              ]
+            : [];
+        if (path === "/mock/home") {
+          return Promise.resolve([
+            { name: "FolderA", path: "/mock/home/FolderA", is_dir: true },
+            { name: "b.txt", path: "/mock/home/b.txt", is_dir: false },
+            ...extra,
+          ]);
+        }
+        if (path === "/mock/home/FolderA") {
+          return Promise.resolve([
+            {
+              name: "in.txt",
+              path: "/mock/home/FolderA/in.txt",
+              is_dir: false,
+            },
+            ...extra,
+          ]);
+        }
+      }
+      return undefined;
+    });
+  }
+
+  it("正常系: ツリーで N を押すと, カーソル位置のディレクトリの下にディレクトリを作り, ツリーに加わってカーソルが合うこと. 名前の入力中のキー (t など) でツリーは動かないこと", async () => {
+    mockMkdirTree();
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
+
+    await user.keyboard("N");
+    const input = await screen.findByLabelText("名前");
+    // `t` `j` `Enter` はツリーのキーでもあるが, 入力中は, ツリーに伝わらない.
+    await user.type(input, "tjNew{Enter}");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("create_directory", {
+        parent: "/mock/home/FolderA",
+        name: "tjNew",
+      }),
+    );
+    const created = await paneOf("left").findByRole("treeitem", {
+      name: /tjNew/,
+    });
+    expect(created).toHaveAttribute("data-cursor", "active");
+    // ツリーは開いたまま (t で閉じていない), FolderA は展開されている.
+    expect(
+      paneOf("left").getByRole("treeitem", { name: /FolderA/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: ツリーでファイルにカーソルがあるときは, そのファイルのあるディレクトリ (ここでは根) の下に作ること. + でも作れること", async () => {
+    mockMkdirTree();
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /b\.txt/ });
+    await user.keyboard("j"); // b.txt
+
+    await user.keyboard("+");
+    await user.type(await screen.findByLabelText("名前"), "Top{Enter}");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("create_directory", {
+        parent: "/mock/home",
+        name: "Top",
+      }),
+    );
+    expect(
+      await paneOf("left").findByRole("treeitem", { name: /Top/ }),
+    ).toHaveAttribute("data-cursor", "active");
+  });
+
+  it("正常系: ツリーの名前の入力を Esc で取り消すと, 何も作られないこと", async () => {
+    mockMkdirTree();
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
+
+    await user.keyboard("N");
+    await screen.findByLabelText("名前");
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "create_directory",
+      expect.anything(),
+    );
+    // ツリーは残っている.
+    expect(paneOf("left").getAllByRole("treeitem").length).toBeGreaterThan(0);
+  });
+
+  it("異常系: ツリーでディレクトリを作れなかったら, エラーを表示し, ツリーは変わらないこと", async () => {
+    mockMkdirTree({ fail: true });
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
+    const before = paneOf("left").getAllByRole("treeitem").length;
+
+    await user.keyboard("N");
+    await user.type(await screen.findByLabelText("名前"), "Bad{Enter}");
+
+    expect(await screen.findByText(/作成できません/)).toBeInTheDocument();
+    expect(paneOf("left").getAllByRole("treeitem")).toHaveLength(before);
+  });
+
+  /** メモリ上のディレクトリの内容を持ち, 作成・名前変更・削除で変わる invoke のモックを設定する. */
+  function mockTreeFs(): Record<string, string[]> {
+    const dirs: Record<string, string[]> = {
+      "/mock/home": ["FolderA/", "b.txt"],
+      "/mock/home/FolderA": ["in.txt"],
+    };
+    const entriesOf = (path: string) =>
+      (dirs[path] ?? []).map((n) => ({
+        name: n.replace(/\/$/, ""),
+        path: `${path}/${n.replace(/\/$/, "")}`,
+        is_dir: n.endsWith("/"),
+      }));
+    const parentOf = (path: string) => path.substring(0, path.lastIndexOf("/"));
+    mockHome((cmd, args) => {
+      if (cmd === "read_directory")
+        return Promise.resolve(entriesOf(String(pathOf(args))));
+      if (cmd === "create_directory") {
+        const { parent, name } = args as { parent: string; name: string };
+        dirs[parent] = [...(dirs[parent] ?? []), `${name}/`];
+        dirs[`${parent}/${name}`] = [];
+        return Promise.resolve(undefined);
+      }
+      if (cmd === "rename_item") {
+        const { path, newName } = args as { path: string; newName: string };
+        const parent = parentOf(path);
+        const old = path.substring(parent.length + 1);
+        dirs[parent] = (dirs[parent] ?? []).map((n) =>
+          n === old || n === `${old}/`
+            ? `${newName}${n.endsWith("/") ? "/" : ""}`
+            : n,
+        );
+        return Promise.resolve(undefined);
+      }
+      if (cmd === "run_transfer") {
+        const { request } = args as { request: { sources: string[] } };
+        for (const source of request.sources) {
+          const parent = parentOf(source);
+          const name = source.substring(parent.length + 1);
+          dirs[parent] = (dirs[parent] ?? []).filter(
+            (n) => n !== name && n !== `${name}/`,
+          );
+        }
+        return Promise.resolve({
+          processed: request.sources.length,
+          cancelled: false,
+        });
+      }
+      return undefined;
+    });
+    return dirs;
+  }
+
+  /** run_transfer に渡された依頼を取り出す. */
+  function transferRequest(): unknown {
+    const call = mockedInvoke.mock.calls.find((c) => c[0] === "run_transfer");
+    return (call?.[1] as { request: unknown } | undefined)?.request;
+  }
+
+  /** ツリーを開いて, FolderA の行が出るまで待つ (カーソルは先頭の FolderA). */
+  async function openTree(): Promise<ReturnType<typeof userEvent.setup>> {
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
+    return user;
+  }
+
+  it("正常系: ツリーで + を押すと, カーソルがディレクトリにあっても, 根 (いま開いているディレクトリ) の直下に作ること", async () => {
+    mockTreeFs();
+    const user = await openTree(); // カーソルは FolderA (ディレクトリ)
+
+    await user.keyboard("+");
+    await user.type(await screen.findByLabelText("名前"), "AtRoot{Enter}");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("create_directory", {
+        parent: "/mock/home",
+        name: "AtRoot",
+      }),
+    );
+    expect(
+      await paneOf("left").findByRole("treeitem", { name: /AtRoot/ }),
+    ).toHaveAttribute("data-cursor", "active");
+  });
+
+  it("正常系: ツリーで r を押すと, 名前を変えて, ツリーに反映し, 新しい名前にカーソルが合うこと", async () => {
+    mockTreeFs();
+    const user = await openTree();
+
+    await user.keyboard("r");
+    const input = await screen.findByLabelText("名前");
+    expect(input).toHaveValue("FolderA");
+    await user.clear(input);
+    await user.type(input, "Renamed{Enter}");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("rename_item", {
+        path: "/mock/home/FolderA",
+        newName: "Renamed",
+      }),
+    );
+    expect(
+      await paneOf("left").findByRole("treeitem", { name: /Renamed/ }),
+    ).toHaveAttribute("data-cursor", "active");
+    expect(
+      paneOf("left").queryByRole("treeitem", { name: /FolderA/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("正常系: ツリーで F2 でも名前を変えられ, 名前が同じなら何もしないこと", async () => {
+    mockTreeFs();
+    const user = await openTree();
+
+    await user.keyboard("{F2}");
+    await screen.findByLabelText("名前");
+    await user.keyboard("{Enter}");
+
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "rename_item",
+      expect.anything(),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: ツリーで d を押すと, 確認のあとゴミ箱へ移して, ツリーから消え, 隣にカーソルが移ること", async () => {
+    mockTreeFs();
+    const user = await openTree();
+
+    await user.keyboard("d");
+    expect(
+      screen.getByText("「FolderA」をゴミ箱へ移動しますか? (y/n)"),
+    ).toBeInTheDocument();
+    await user.keyboard("y");
+
+    await waitFor(() =>
+      expect(transferRequest()).toEqual(
+        expect.objectContaining({
+          kind: "delete",
+          sources: ["/mock/home/FolderA"],
+          permanent: false,
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        paneOf("left").queryByRole("treeitem", { name: /FolderA/ }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      paneOf("left").getByRole("treeitem", { name: /b\.txt/ }),
+    ).toHaveAttribute("data-cursor", "active");
+  });
+
+  it("正常系: ツリーで D (または Shift+Delete) は完全に削除する確認になり, n で何もしないこと", async () => {
+    mockTreeFs();
+    const user = await openTree();
+
+    await user.keyboard("D");
+    expect(
+      screen.getByText(
+        "「FolderA」を完全に削除しますか? 元に戻せません. (y/n)",
+      ),
+    ).toBeInTheDocument();
+    await user.keyboard("n");
+    expect(transferRequest()).toBeUndefined();
+    expect(
+      paneOf("left").getByRole("treeitem", { name: /FolderA/ }),
+    ).toBeInTheDocument();
+
+    await user.keyboard("{Shift>}{Delete}{/Shift}");
+    await user.keyboard("y");
+    await waitFor(() =>
+      expect(transferRequest()).toEqual(
+        expect.objectContaining({ kind: "delete", permanent: true }),
+      ),
+    );
+  });
+
+  it("正常系: ツリーで Delete は, d と同じくゴミ箱へ移す確認になること", async () => {
+    mockTreeFs();
+    const user = await openTree();
+
+    await user.keyboard("{Delete}");
+
+    expect(
+      screen.getByText("「FolderA」をゴミ箱へ移動しますか? (y/n)"),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: アクティブなペインがツリー表示のときだけ, キーヒントバーがツリー用の案内になること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    const bar = (): HTMLElement =>
+      document.querySelector(".key-hint-bar") as HTMLElement;
+    expect(bar()).toHaveAttribute("data-mode", "list");
+
+    // 左のペインをツリー表示にすると, ツリー用の案内に切り替わる.
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
+    expect(bar()).toHaveAttribute("data-mode", "tree");
+    expect(bar()).toHaveTextContent("t/Esc:戻る");
+
+    // もう一方 (ツリーでない) のペインがアクティブなら, 一覧用の案内に戻る (アクティブなペインが基準).
+    await user.keyboard("{Tab}");
+    expect(bar()).toHaveAttribute("data-mode", "list");
+    await user.keyboard("{Tab}");
+    expect(bar()).toHaveAttribute("data-mode", "tree");
+
+    // ツリーを閉じると, 元の案内に戻る.
+    await user.keyboard("t");
+    expect(bar()).toHaveAttribute("data-mode", "list");
+    expect(bar()).toHaveTextContent("c:コピー");
+  });
+
   it("正常系: t でペインの一覧がツリー表示になり, ディレクトリの後ろにファイルが並び, もう一方のペインは残ること", async () => {
     mockHome();
     const user = await renderLoaded();

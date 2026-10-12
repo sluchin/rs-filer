@@ -83,6 +83,31 @@ function updateNode(
 }
 
 /**
+ * 指定したパスのノードを, ツリーの中から探します.
+ */
+function findNode(nodes: TreeNode[], path: string): TreeNode | undefined {
+  for (const node of nodes) {
+    if (node.path === path) {
+      return node;
+    }
+    const found = findNode(node.children, path);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * 読み込み直した子ノードを, 今の子ノードへ重ねます. 既にあるノードは, 展開の状態と子を保ち,
+ * 新しいノードだけを足します (読み込み直した順序で返す).
+ */
+function mergeChildren(current: TreeNode[], fresh: TreeNode[]): TreeNode[] {
+  const byPath = new Map(current.map((node) => [node.path, node]));
+  return fresh.map((node) => byPath.get(node.path) ?? node);
+}
+
+/**
  * 展開済みのノードをたどって, 表示順の行にします.
  */
 function flatten(nodes: TreeNode[], depth: number): TreeRow[] {
@@ -103,6 +128,11 @@ export function useTree(rootPath: string, showHidden: boolean) {
   const [roots, setRoots] = useState<TreeNode[]>([]);
   const [cursorPath, setCursorPath] = useState<string | null>(null);
   const version = useRef(0);
+  // 非同期の処理から, 今のツリーを参照するため.
+  const rootsRef = useRef<TreeNode[]>([]);
+  useEffect(() => {
+    rootsRef.current = roots;
+  }, [roots]);
 
   useEffect(() => {
     version.current += 1;
@@ -146,6 +176,65 @@ export function useTree(rootPath: string, showHidden: boolean) {
       );
     },
     [showHidden],
+  );
+
+  /**
+   * 指定したディレクトリの直下を読み込み直して, ツリーに反映する (作成・名前変更・削除のあと).
+   *
+   * 既にあるノードは, 展開の状態と子を保つ. 読み込み直したディレクトリは, 展開した状態にする
+   * (作成先がツリーの根のときは, 根の直下を読み込み直す).
+   * `select` の名前のノードがあれば, カーソルをそこへ合わせる. 無く (隠しディレクトリを表示していないなど),
+   * カーソルのノードが消えたときは, 同じ位置の隣のノード, 無ければ, そのディレクトリへ移す (根なら, 何も選ばない).
+   *
+   * @param parentPath - 読み込み直すディレクトリの絶対パス.
+   * @param select - カーソルを合わせるノードの名前 (作成・名前変更のあと). 省略した場合は, カーソルを保つ.
+   */
+  const refresh = useCallback(
+    async (parentPath: string, select?: string): Promise<void> => {
+      const current = version.current;
+      const children = await fetchChildren(parentPath, showHidden);
+      if (current !== version.current) {
+        return;
+      }
+      const isRoot = parentPath === rootPath;
+      const before = isRoot
+        ? rootsRef.current
+        : (findNode(rootsRef.current, parentPath)?.children ?? []);
+      if (isRoot) {
+        setRoots((prev) => mergeChildren(prev, children));
+      } else {
+        setRoots((prev) =>
+          updateNode(prev, parentPath, (n) => ({
+            ...n,
+            children: mergeChildren(n.children, children),
+            empty: children.length === 0,
+            loaded: true,
+            expanded: true,
+          })),
+        );
+      }
+      const wanted =
+        select === undefined
+          ? undefined
+          : children.find((c) => c.name === select);
+      if (wanted) {
+        setCursorPath(wanted.path);
+        return;
+      }
+      setCursorPath((cursor) => {
+        const index = before.findIndex((n) => n.path === cursor);
+        if (cursor === null || index < 0) {
+          return cursor;
+        }
+        if (children.some((c) => c.path === cursor)) {
+          return cursor;
+        }
+        // カーソルのノードが消えた (削除・名前変更). 同じ位置の隣へ, 無ければ親へ.
+        const neighbor = children[Math.min(index, children.length - 1)];
+        return neighbor?.path ?? (isRoot ? null : parentPath);
+      });
+    },
+    [rootPath, showHidden],
   );
 
   /** カーソルを動かす. 範囲の外には出ない. */
@@ -251,5 +340,6 @@ export function useTree(rootPath: string, showHidden: boolean) {
     collapseOrParent,
     expandDeep,
     collapseDeep,
+    refresh,
   };
 }
