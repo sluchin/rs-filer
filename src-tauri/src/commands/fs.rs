@@ -130,6 +130,60 @@ pub async fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
     result
 }
 
+/// ディレクトリの直下に, 表示対象のエントリが 1 つでもあるかを調べます.
+///
+/// 読み取れないディレクトリ (存在しない・権限がない) は, 中身が無いものとして扱います.
+///
+/// # Arguments
+///
+/// * `path` - 調べるディレクトリの絶対パス文字列.
+/// * `show_hidden` - `true` の場合は隠しファイルも数え, `false` の場合は隠しファイルを数えません.
+///
+/// # Returns
+///
+/// 表示対象のエントリが 1 つ以上あれば `true`.
+fn dir_has_entries(path: &str, show_hidden: bool) -> bool {
+    let Ok(entries) = fs::read_dir(path) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        if show_hidden {
+            return true;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        !entry
+            .metadata()
+            .ok()
+            .is_some_and(|metadata| is_hidden(&name, &metadata))
+    })
+}
+
+/// 複数のディレクトリについて, 直下に表示対象のエントリがあるかを, まとめて調べます.
+///
+/// ツリー表示で, 配下に何も無いディレクトリの展開マークを消すために使います. 走査 (ディスク I/O) は
+/// ブロッキング用のスレッドで実行します.
+///
+/// # Arguments
+///
+/// * `paths` - 調べるディレクトリの絶対パス文字列の配列.
+/// * `show_hidden` - `true` の場合は隠しファイルも数えます.
+///
+/// # Returns
+///
+/// `paths` と同じ順序の, エントリの有無の配列 (あれば `true`).
+/// 走査のスレッドが異常終了した場合はエラー文字列を含む [`Err`] を返します.
+#[tauri::command]
+pub async fn dirs_have_entries(paths: Vec<String>, show_hidden: bool) -> Result<Vec<bool>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        paths
+            .iter()
+            .map(|path| dir_has_entries(path, show_hidden))
+            .collect()
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 /// 実行環境におけるユーザーのホームディレクトリの絶対パスを取得します.
 ///
 /// # Returns
@@ -299,6 +353,40 @@ mod tests {
         assert!(!get("a.txt").hidden);
         assert!(get("ro.txt").readonly);
         assert!(get(".hidden").hidden == cfg!(not(windows)));
+    }
+
+    #[test]
+    fn test_dirs_have_entries_empty_files_hidden_and_missing() {
+        let dir = tempdir().unwrap();
+        let path_of = |name: &str| dir.path().join(name).to_string_lossy().into_owned();
+        for name in [
+            "empty",
+            "with_file",
+            "with_dir",
+            "only_hidden",
+            "missing_parent",
+        ] {
+            if name != "missing_parent" {
+                fs::create_dir(dir.path().join(name)).unwrap();
+            }
+        }
+        fs::write(dir.path().join("with_file").join("a.txt"), "x").unwrap();
+        fs::create_dir(dir.path().join("with_dir").join("sub")).unwrap();
+        fs::write(dir.path().join("only_hidden").join(".secret"), "x").unwrap();
+        let paths = vec![
+            path_of("empty"),
+            path_of("with_file"),
+            path_of("with_dir"),
+            path_of("only_hidden"),
+            path_of("none"),
+        ];
+
+        let shown = tauri::async_runtime::block_on(dirs_have_entries(paths.clone(), true)).unwrap();
+        let hidden_off = tauri::async_runtime::block_on(dirs_have_entries(paths, false)).unwrap();
+
+        assert_eq!(shown, vec![false, true, true, true, false]);
+        // Windows では, 名前が `.` で始まるだけでは隠しファイルにならない.
+        assert_eq!(hidden_off, vec![false, true, true, cfg!(windows), false]);
     }
 
     #[test]

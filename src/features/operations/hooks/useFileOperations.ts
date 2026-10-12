@@ -191,6 +191,18 @@ export function useFileOperations(
     }
   }, [selectedEntry, attempt]);
 
+  /**
+   * 指定したパスを, 関連付けられた外部アプリで開きます (ツリー表示のファイル用).
+   *
+   * @param path - 開く対象の絶対パス.
+   */
+  const openPath = useCallback(
+    (path: string): void => {
+      void attempt("外部アプリで開く", () => openItem(path));
+    },
+    [attempt],
+  );
+
   /** カーソル位置の項目を, エディタで開きます. */
   const openEditor = useCallback((): void => {
     const file = selectedEntry();
@@ -208,6 +220,7 @@ export function useFileOperations(
     startTouch,
     startRename,
     openExternal,
+    openPath,
     openEditor,
   };
 }

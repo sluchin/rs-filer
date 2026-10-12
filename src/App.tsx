@@ -152,7 +152,7 @@ export default function App(): ReactElement {
   const marks = useMarks(activePane, updatePane, moveCursor, reportError);
   const activeState = activePane === "left" ? leftPane : rightPane;
   const { handleEnter } = navigation;
-  const { openExternal } = operations;
+  const { openExternal, openPath } = operations;
 
   /**
    * 指定したペインのカーソル位置の項目を開く. ディレクトリなら入り, ファイルなら外部アプリで開く.
@@ -519,10 +519,16 @@ export default function App(): ReactElement {
         showHidden={state.showHidden}
         isActive={activePane === paneId}
         onActivate={() => setActivePane(paneId)}
-        onSelect={(path) => {
+        onSelect={(path, isDir) => {
+          if (!isDir) {
+            // ファイルは, ツリーを残したまま, 外部アプリで開く.
+            openPath(path);
+            return;
+          }
           setTreePanes((p) => ({ ...p, [paneId]: false }));
           loadDirectory(paneId, path);
         }}
+        onOpenExternal={openPath}
         onCancel={() => setTreePanes((p) => ({ ...p, [paneId]: false }))}
         onSwitchPane={switchPane}
       />

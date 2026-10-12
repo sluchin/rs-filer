@@ -28,6 +28,7 @@ pub fn run() {
         .manage(commands::TransferState::default())
         .invoke_handler(tauri::generate_handler![
             commands::fs::read_directory,
+            commands::fs::dirs_have_entries,
             commands::fs::get_home_dir,
             commands::ops::create_directory,
             commands::ops::create_file,

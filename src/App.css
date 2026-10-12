@@ -131,6 +131,14 @@ body,
   font-weight: bold;
 }
 
+/* ツリー表示のパス. 通常の一覧のパス入力欄と, 文字の縦位置をそろえる (入力欄は, 文字が縦の中央に並ぶ). */
+.tree-path {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .file-list {
   flex: 1;
   min-height: 0;
@@ -441,4 +449,9 @@ body,
   margin-right: 2px;
   text-align: center;
   color: var(--muted);
+}
+
+/* 展開したら, ▶ を 90 度回転して下向きにする (別の文字 ▼ にすると, 大きさが変わる). */
+.tree-icon[data-expanded="true"] {
+  transform: rotate(90deg);
 }
