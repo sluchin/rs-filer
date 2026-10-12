@@ -99,7 +99,8 @@ cargo install cargo-tarpaulin
 * **`src-tauri/src/commands/`**
 * `fs.rs`: ディレクトリ走査 (`read_directory`。走査自体は `spawn_blocking` で別スレッド実行し, IPC を処理するスレッドを塞がない)、ホームディレクトリ取得 (`get_home_dir`)、ドライブ一覧、ディスク容量。
 * `ops.rs`: 作成・名前変更。
-* `config.rs`: 設定ファイルの読み書き (`keymap.json` の読み込み、`config.json` のテーマ・フォントサイズ・エディタ・ターミナルの読み書き)。
+* `config.rs`: 設定ファイルの読み書き (`keymap.json` の読み込み、`config.json` のテーマ・フォントサイズ・エディタ・ターミナル・ウィンドウの状態の読み書き)。
+* `window_state.rs`: ウィンドウの大きさ・位置・最大化の状態を、終了時に `config.json` の `window` へ保存して、起動時に復元する (保存と復元の判断は、Tauri に依存しない関数)。Linux の Wayland では、位置を取得も設定もできないため、起動時に `GDK_BACKEND=x11` を設定して、XWayland で動かす (`GDK_BACKEND` を自分で指定している場合や、`DISPLAY` が無い場合は、設定しない)。
 * `app.rs`: アプリケーションの終了。
 * `transfer.rs`: コピー・移動・削除 (別スレッドで実行し、進捗を Channel で通知。中断に対応)。
 * `preview.rs`: テキスト・画像・バイナリのプレビュー。

@@ -126,6 +126,24 @@ pub struct PaneColumnWidths {
     pub right: ColumnWidths,
 }
 
+/// ウィンドウの状態 (終了時に保存して, 起動時に復元する).
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct WindowState {
+    /// ウィンドウの内側の幅 (論理ピクセル). 最大化していないときの値.
+    pub width: u32,
+    /// ウィンドウの内側の高さ (論理ピクセル). 最大化していないときの値.
+    pub height: u32,
+    /// ウィンドウの左上の x 座標 (物理ピクセル). 不明な場合は `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub x: Option<i32>,
+    /// ウィンドウの左上の y 座標 (物理ピクセル). 不明な場合は `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y: Option<i32>,
+    /// 最大化している場合は `true`.
+    #[serde(default)]
+    pub maximized: bool,
+}
+
 /// アプリケーションの設定.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 #[serde(default)]
@@ -141,6 +159,10 @@ pub struct AppConfig {
     /// ファイル一覧の列幅 (ペイン毎).
     #[serde(default)]
     pub pane_column_widths: PaneColumnWidths,
+    /// 前回終了時のウィンドウの状態. 保存されていない場合は `None`.
+    /// バックエンドが終了時に書き込む. フロントエンドからの保存では上書きしない.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window: Option<WindowState>,
 }
 
 impl Default for AppConfig {
@@ -151,6 +173,7 @@ impl Default for AppConfig {
             editor: None,
             terminal: None,
             pane_column_widths: PaneColumnWidths::default(),
+            window: None,
         }
     }
 }
@@ -223,6 +246,9 @@ pub(crate) fn load_config_from(config_dir: Option<&Path>) -> Result<AppConfig, S
 
 /// 設定ディレクトリへアプリ設定を書き込みます.
 ///
+/// ウィンドウの状態 (`window`) は, バックエンドが終了時に書くものなので, 渡された設定の値ではなく,
+/// 保存されている値を残します (フロントエンドが読み込んだ古い値で, 上書きしないため).
+///
 /// # Arguments
 ///
 /// * `config_dir` - OS の設定ディレクトリ.
@@ -234,7 +260,32 @@ pub(crate) fn load_config_from(config_dir: Option<&Path>) -> Result<AppConfig, S
 /// エラー文字列を含む [`Err`].
 fn save_config_to(config_dir: Option<&Path>, config: &AppConfig) -> Result<(), String> {
     let dir = config_dir.ok_or_else(|| "Config directory is not available".to_string())?;
-    write_config(&config_path(dir), config)
+    let path = config_path(dir);
+    let mut merged = config.clone();
+    merged.window = read_config(&path).ok().and_then(|saved| saved.window);
+    write_config(&path, &merged)
+}
+
+/// 設定ディレクトリの設定ファイルへ, ウィンドウの状態だけを書き込みます. 他の項目は変えません.
+///
+/// # Arguments
+///
+/// * `config_dir` - OS の設定ディレクトリ. 取得できなかった場合は `None`.
+/// * `state` - 書き込むウィンドウの状態.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok(())`]. 設定ディレクトリを取得できない場合, 既存の設定が読み込めない場合
+/// (壊れた設定を上書きしないため), 書き込みに失敗した場合は, エラー文字列を含む [`Err`].
+pub(crate) fn save_window_state_to(
+    config_dir: Option<&Path>,
+    state: &WindowState,
+) -> Result<(), String> {
+    let dir = config_dir.ok_or_else(|| "Config directory is not available".to_string())?;
+    let path = config_path(dir);
+    let mut config = read_config(&path)?;
+    config.window = Some(state.clone());
+    write_config(&path, &config)
 }
 
 /// ユーザーのアプリ設定を読み込みます.
@@ -269,6 +320,34 @@ pub fn save_config(config: AppConfig) -> Result<(), String> {
     })?;
     log::info!("アプリ設定書き込み完了");
     Ok(())
+}
+
+/// ユーザーの設定から, 前回終了時のウィンドウの状態を読み込みます.
+///
+/// # Returns
+///
+/// 保存されていれば `Some`. 設定が無い場合や読み込めない場合は `None` (既定のウィンドウで開く).
+// 実際のユーザーの設定ディレクトリを読むため, カバレッジの対象外にする (ロジックは load_config_from で検証する).
+#[cfg(not(tarpaulin_include))]
+pub fn load_window_state() -> Option<WindowState> {
+    load_config_from(dirs::config_dir().as_deref())
+        .inspect_err(|e| log::warn!("ウィンドウの状態の読み込み失敗: {}", e))
+        .ok()
+        .and_then(|config| config.window)
+}
+
+/// ユーザーの設定へ, ウィンドウの状態を書き込みます.
+///
+/// # Arguments
+///
+/// * `state` - 書き込むウィンドウの状態.
+// 実際のユーザーの設定ディレクトリへ書くため, カバレッジの対象外にする (ロジックは save_window_state_to で検証する).
+#[cfg(not(tarpaulin_include))]
+pub fn store_window_state(state: &WindowState) {
+    match save_window_state_to(dirs::config_dir().as_deref(), state) {
+        Ok(()) => log::info!("ウィンドウの状態書き込み完了"),
+        Err(e) => log::warn!("ウィンドウの状態書き込み失敗: {}", e),
+    }
 }
 
 #[cfg(test)]
@@ -349,6 +428,7 @@ mod tests {
             editor: Some("code".to_string()),
             terminal: Some("konsole".to_string()),
             pane_column_widths: PaneColumnWidths::default(),
+            window: Some(sample_window(false)),
         };
 
         write_config(&path, &config).unwrap();
@@ -422,5 +502,115 @@ mod tests {
             load_keymap_from(Some(dir.path())).unwrap()["j"],
             Some("cursorDown".to_string())
         );
+    }
+
+    fn sample_window(maximized: bool) -> WindowState {
+        WindowState {
+            width: 1000,
+            height: 700,
+            x: Some(120),
+            y: Some(80),
+            maximized,
+        }
+    }
+
+    #[test]
+    fn test_read_config_without_window_is_none() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("config.json");
+        fs::write(&file, r#"{"theme": "dark"}"#).unwrap();
+
+        let config = read_config(&file).unwrap();
+
+        assert_eq!(config.window, None);
+        assert_eq!(config.theme, Theme::Dark);
+    }
+
+    #[test]
+    fn test_window_state_round_trip_and_optional_fields() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("config.json");
+        let mut config = AppConfig::default();
+        config.window = Some(sample_window(true));
+        write_config(&file, &config).unwrap();
+
+        assert_eq!(
+            read_config(&file).unwrap().window,
+            Some(sample_window(true))
+        );
+
+        // 位置と最大化が無い保存値も読める (位置は None, 最大化は false).
+        fs::write(&file, r#"{"window": {"width": 900, "height": 600}}"#).unwrap();
+        let window = read_config(&file).unwrap().window.unwrap();
+        assert_eq!((window.width, window.height), (900, 600));
+        assert_eq!((window.x, window.y, window.maximized), (None, None, false));
+
+        // 保存していない (None) ときは, ファイルに window を書かない.
+        write_config(&file, &AppConfig::default()).unwrap();
+        assert!(!fs::read_to_string(&file).unwrap().contains("window"));
+    }
+
+    #[test]
+    fn test_save_config_to_keeps_the_saved_window() {
+        let dir = tempdir().unwrap();
+        save_window_state_to(Some(dir.path()), &sample_window(false)).unwrap();
+
+        // フロントエンドが読み込んだ古い値 (window なし / 別の値) で保存しても, 保存済みの window を残す.
+        let mut stale = AppConfig::default();
+        stale.theme = Theme::Dark;
+        save_config_to(Some(dir.path()), &stale).unwrap();
+        stale.window = Some(WindowState {
+            width: 500,
+            height: 400,
+            x: None,
+            y: None,
+            maximized: false,
+        });
+        save_config_to(Some(dir.path()), &stale).unwrap();
+
+        let saved = load_config_from(Some(dir.path())).unwrap();
+        assert_eq!(saved.theme, Theme::Dark);
+        assert_eq!(saved.window, Some(sample_window(false)));
+    }
+
+    #[test]
+    fn test_save_config_to_without_saved_window_drops_the_given_one() {
+        let dir = tempdir().unwrap();
+        let mut config = AppConfig::default();
+        config.window = Some(sample_window(false));
+
+        save_config_to(Some(dir.path()), &config).unwrap();
+
+        assert_eq!(load_config_from(Some(dir.path())).unwrap().window, None);
+    }
+
+    #[test]
+    fn test_save_window_state_to_keeps_other_settings() {
+        let dir = tempdir().unwrap();
+        let mut config = AppConfig::default();
+        config.theme = Theme::Dark;
+        config.editor = Some("vim".to_string());
+        save_config_to(Some(dir.path()), &config).unwrap();
+
+        save_window_state_to(Some(dir.path()), &sample_window(true)).unwrap();
+
+        let saved = load_config_from(Some(dir.path())).unwrap();
+        assert_eq!(saved.theme, Theme::Dark);
+        assert_eq!(saved.editor, Some("vim".to_string()));
+        assert_eq!(saved.window, Some(sample_window(true)));
+    }
+
+    #[test]
+    fn test_save_window_state_to_failures() {
+        let state = sample_window(false);
+        assert!(save_window_state_to(None, &state).is_err());
+
+        // 壊れた設定ファイルは, 上書きしない.
+        let dir = tempdir().unwrap();
+        let file = config_path(dir.path());
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, "{ broken").unwrap();
+        assert!(save_window_state_to(Some(dir.path()), &state).is_err());
+        assert_eq!(fs::read_to_string(&file).unwrap(), "{ broken");
     }
 }
