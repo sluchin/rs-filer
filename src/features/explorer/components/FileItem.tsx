@@ -38,6 +38,8 @@ interface FileItemProps {
 /**
  * ファイル一覧の 1 行分 (名前・サイズ・更新日時・属性).
  *
+ * 名前の列には, 長い名前が「…」で省略されていても全体を確認できるよう, 名前をツールチップ (`title`) で付けます.
+ *
  * @param props - コンポーネントのプロパティ.
  * @returns 行のReact要素.
  */
@@ -65,7 +67,11 @@ export default function FileItem({
       onDoubleClick={onDoubleClick}
     >
       <FileIcon kind={file.is_dir ? "dir" : "file"} />
-      <span className="col-name file-name" style={colNameStyle}>
+      <span
+        className="col-name file-name"
+        style={colNameStyle}
+        title={file.name}
+      >
         {file.name}
       </span>
       {showDetails && (
