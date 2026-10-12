@@ -1,5 +1,6 @@
 import { useState } from "react";
 import log from "loglevel";
+import { useScrollToEnd } from "../../../hooks/useScrollToEnd";
 import { completePath } from "../../../services/tauriApi";
 import { commonPrefix } from "../../../utils/strings";
 import type { ChangeEvent, KeyboardEvent, ReactElement } from "react";
@@ -22,6 +23,9 @@ interface PathBarProps {
  * カレントパスの表示・直接入力バー. 入力中の文字列は, Enter で確定するまでペインの状態へ反映しません.
  * 呼び出し側は, 表示中のパスが変わったときに入力を作り直せるよう, パスを `key` に指定します.
  *
+ * 長いパスが入り切らないときは, いま開いているディレクトリ (末尾) が見えるようにして, 全体を
+ * ツールチップ (`title`) でも確認できるようにします. 編集中 (フォーカスがある間) は, 通常の入力欄と同じです.
+ *
  * @param props - コンポーネントのプロパティ.
  * @returns 入力欄のReact要素.
  */
@@ -32,11 +36,17 @@ export default function PathBar({
   label,
 }: PathBarProps): ReactElement {
   const [draft, setDraft] = useState(path);
+  const { ref, scrollToEnd } = useScrollToEnd<HTMLInputElement>(path);
 
   return (
     <input
       type="text"
-      ref={inputRef}
+      ref={(element) => {
+        ref.current = element;
+        inputRef(element);
+      }}
+      title={path}
+      onBlur={scrollToEnd}
       aria-label={label}
       value={draft}
       onChange={(e: ChangeEvent<HTMLInputElement>) => setDraft(e.target.value)}

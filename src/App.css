@@ -107,6 +107,8 @@ body,
 
 .path-bar {
   font: inherit;
+  width: 100%;
+  min-width: 0;
   height: var(--bar-height);
   box-sizing: border-box;
   padding: 0 2px;
