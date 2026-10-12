@@ -19,6 +19,21 @@ export function readDirectory(path: string): Promise<FileEntry[]> {
 }
 
 /**
+ * 複数のディレクトリについて, 直下に表示対象のエントリ (ファイルまたはディレクトリ) があるかを,
+ * まとめて調べます. ツリー表示で, 配下に何も無いディレクトリの展開マークを消すために使います.
+ *
+ * @param paths - 調べるディレクトリの絶対パスの配列.
+ * @param showHidden - 隠しファイルも数えるか.
+ * @returns paths と同じ順序の, エントリの有無の配列 (あれば true).
+ */
+export function dirsHaveEntries(
+  paths: string[],
+  showHidden: boolean,
+): Promise<boolean[]> {
+  return invoke<boolean[]>("dirs_have_entries", { paths, showHidden });
+}
+
+/**
  * ユーザーのホームディレクトリの絶対パスを取得します.
  *
  * @returns ホームディレクトリのパス.

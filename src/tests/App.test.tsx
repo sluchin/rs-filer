@@ -263,6 +263,10 @@ function mockHome(
         { name: "in.txt", path: "/mock/home/FolderA/in.txt", is_dir: false },
       ]);
     }
+    if (cmd === "dirs_have_entries") {
+      const paths = (args as { paths: string[] }).paths;
+      return Promise.resolve(paths.map(() => true));
+    }
     return Promise.resolve(defaultResult(cmd));
   });
 }
@@ -776,7 +780,7 @@ describe("App (分岐の網羅)", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("正常系: t でペインの一覧がディレクトリだけのツリー表示になり, もう一方のペインは残ること", async () => {
+  it("正常系: t でペインの一覧がツリー表示になり, ディレクトリの後ろにファイルが並び, もう一方のペインは残ること", async () => {
     mockHome();
     const user = await renderLoaded();
 
@@ -785,13 +789,142 @@ describe("App (分岐の網羅)", () => {
     expect(
       await paneOf("left").findByRole("treeitem", { name: /FolderA/ }),
     ).toBeInTheDocument();
-    expect(
-      paneOf("left").queryByRole("treeitem", { name: /b\.txt/ }),
-    ).not.toBeInTheDocument();
+    const file = paneOf("left").getByRole("treeitem", { name: /b\.txt/ });
+    expect(file.querySelector('svg[data-icon="file"]')).not.toBeNull();
+    expect(file).not.toHaveAttribute("aria-expanded");
+    const items = paneOf("left").getAllByRole("treeitem");
+    expect(items.indexOf(file)).toBeGreaterThan(
+      items.indexOf(paneOf("left").getByRole("treeitem", { name: /FolderA/ })),
+    );
     expect(paneOf("right").queryByRole("treeitem")).not.toBeInTheDocument();
     expect(screen.getAllByRole("region")).toHaveLength(2);
     const folder = paneOf("left").getByRole("treeitem", { name: /FolderA/ });
     expect(folder.querySelector('svg[data-icon="dir"]')).not.toBeNull();
+  });
+
+  it("正常系: ツリーで, 配下にディレクトリもファイルも無いディレクトリには展開マークを表示せず, ある方には表示すること", async () => {
+    mockHome((cmd, args) => {
+      if (cmd === "read_directory" && pathOf(args) === "/mock/home") {
+        return Promise.resolve([
+          { name: "Empty", path: "/mock/home/Empty", is_dir: true },
+          { name: "Full", path: "/mock/home/Full", is_dir: true },
+        ]);
+      }
+      if (cmd === "dirs_have_entries") {
+        return Promise.resolve([false, true]);
+      }
+      return undefined;
+    });
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findAllByText("Empty");
+    await user.keyboard("t");
+
+    const empty = await paneOf("left").findByRole("treeitem", {
+      name: /Empty/,
+    });
+    const full = paneOf("left").getByRole("treeitem", { name: /Full/ });
+    expect(empty.querySelector(".tree-icon")?.textContent).toBe("");
+    expect(empty).not.toHaveAttribute("aria-expanded");
+    expect(full.querySelector(".tree-icon")?.textContent).toBe("▶");
+    expect(full).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("正常系: ツリーでファイルに Enter を押すと, 外部アプリで開き, ツリーは残ること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /b\.txt/ });
+
+    await user.keyboard("j{Enter}");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("open_item", {
+        path: "/mock/home/b.txt",
+      }),
+    );
+    expect(paneOf("left").getAllByRole("treeitem")).toHaveLength(2);
+  });
+
+  it("正常系: ツリーのファイルをダブルクリックすると, 外部アプリで開くこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("t");
+
+    await user.dblClick(
+      await paneOf("left").findByRole("treeitem", { name: /b\.txt/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("open_item", {
+        path: "/mock/home/b.txt",
+      }),
+    );
+  });
+
+  it("異常系: ツリーのファイルを開けなかったら, エラーを表示し, ツリーは残ること", async () => {
+    mockHome((cmd) =>
+      cmd === "open_item" ? Promise.reject("起動できません") : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /b\.txt/ });
+
+    await user.keyboard("j{Enter}");
+
+    expect(await screen.findByText(/起動できません/)).toBeInTheDocument();
+    expect(paneOf("left").getAllByRole("treeitem")).toHaveLength(2);
+  });
+
+  it("正常系: ツリーで x を押すと, カーソル位置の項目 (ファイルもディレクトリも) を外部アプリで開き, ツリーは残ること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /b\.txt/ });
+
+    await user.keyboard("x");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("open_item", {
+        path: "/mock/home/FolderA",
+      }),
+    );
+    await user.keyboard("jx");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("open_item", {
+        path: "/mock/home/b.txt",
+      }),
+    );
+    expect(paneOf("left").getAllByRole("treeitem")).toHaveLength(2);
+  });
+
+  it("境界: ツリーで Ctrl+x を押しても, 外部アプリで開かないこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
+
+    await user.keyboard("{Control>}x{/Control}");
+
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "open_item",
+      expect.anything(),
+    );
+  });
+
+  it("境界: ツリーでファイルに → を押しても, 展開もカーソル移動もしないこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /b\.txt/ });
+
+    const before = paneOf("left").getAllByRole("treeitem").length;
+
+    await user.keyboard("j");
+    await user.keyboard("l");
+
+    const file = paneOf("left").getByRole("treeitem", { name: /b\.txt/ });
+    expect(file).toHaveAttribute("data-cursor", "active");
+    expect(paneOf("left").getAllByRole("treeitem")).toHaveLength(before);
   });
 
   it("正常系: ツリーで → により展開し, Enter を押すとそのディレクトリの一覧に切り替わること", async () => {
@@ -806,8 +939,17 @@ describe("App (分岐の網羅)", () => {
     await user.keyboard("t");
     await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
 
+    const icon = (): Element | null | undefined =>
+      paneOf("left")
+        .getByRole("treeitem", { name: /FolderA/ })
+        .querySelector(".tree-icon");
+    expect(icon()?.textContent).toBe("▶");
+    expect(icon()).toHaveAttribute("data-expanded", "false");
     await user.keyboard("l");
     await paneOf("left").findByRole("treeitem", { name: /Sub/ });
+    // 展開しても同じ文字 (大きさが変わらない) で, 向きだけ回転の指定で変える.
+    expect(icon()?.textContent).toBe("▶");
+    expect(icon()).toHaveAttribute("data-expanded", "true");
     await user.keyboard("{Enter}");
 
     expect(await paneOf("left").findByText("Sub")).toBeInTheDocument();

@@ -11,14 +11,16 @@ interface TreePaneProps {
   paneId: PaneId;
   /** ツリーの根にするディレクトリ (ペインのカレントディレクトリ). */
   rootPath: string;
-  /** 隠しディレクトリを表示するかどうか. */
+  /** 隠しファイル・隠しディレクトリを表示するかどうか. */
   showHidden: boolean;
   /** このペインがアクティブかどうか. アクティブな間だけ, キー操作を受け付ける. */
   isActive: boolean;
   /** このペインをアクティブにするハンドラー (クリック時). */
   onActivate: () => void;
-  /** ディレクトリを選んだ (`Enter` またはダブルクリック) ときのハンドラー. */
-  onSelect: (path: string) => void;
+  /** ディレクトリまたはファイルを選んだ (`Enter` またはダブルクリック) ときのハンドラー. ファイルは開く. */
+  onSelect: (path: string, isDir: boolean) => void;
+  /** カーソル位置の項目 (ディレクトリも可) を, 外部アプリで開く (`x`) ハンドラー. ツリーは残す. */
+  onOpenExternal: (path: string) => void;
   /** 通常のファイル一覧へ戻る (`t` / `Esc` / `C-g`) ハンドラー. */
   onCancel: () => void;
   /** `Tab` で, もう一方のペインをアクティブにするハンドラー. */
@@ -26,10 +28,13 @@ interface TreePaneProps {
 }
 
 /**
- * ペインのファイル一覧を, ディレクトリだけのツリー形式の表示に差し替えるビュー.
+ * ペインのファイル一覧を, ツリー形式の表示に差し替えるビュー.
  *
  * ペインのカレントディレクトリ配下を, ディレクトリの展開・折り畳みができるツリーで表示します.
- * `Enter` またはダブルクリックでそのディレクトリへ移動して, 通常のファイル一覧に戻ります.
+ * ファイルはディレクトリの後ろに並べます (展開はできません).
+ * `Enter` またはダブルクリックで, ディレクトリならそのディレクトリへ移動して, 通常のファイル一覧に戻ります.
+ * ファイルなら, ツリーを残したまま, 関連付けられた外部アプリで開きます.
+ * `x` でも, カーソル位置の項目 (ディレクトリを含む) を外部アプリで開きます.
  *
  * @param props - コンポーネントのプロパティ.
  * @returns ツリー形式のペインのReact要素.
@@ -41,6 +46,7 @@ export default function TreePane({
   isActive,
   onActivate,
   onSelect,
+  onOpenExternal,
   onCancel,
   onSwitchPane,
 }: TreePaneProps): ReactElement {
@@ -81,8 +87,15 @@ export default function TreePane({
         collapseDeep();
       } else if (e.key === "Enter") {
         e.preventDefault();
+        const row = rows.find((r) => r.node.path === cursorPath);
+        if (row) {
+          onSelect(row.node.path, row.node.isDir);
+        }
+      } else if (e.key === "x" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // 通常の一覧の `x` (外部アプリで開く) と同じ. 全体のキー操作は無効なので, ここで代わりに行う.
+        e.preventDefault();
         if (cursorPath) {
-          onSelect(cursorPath);
+          onOpenExternal(cursorPath);
         }
       } else if (
         e.key === "t" ||
@@ -123,7 +136,9 @@ export default function TreePane({
             <li
               key={node.path}
               role="treeitem"
-              aria-expanded={node.expanded}
+              aria-expanded={
+                node.isDir && !node.empty ? node.expanded : undefined
+              }
               aria-level={depth + 1}
               className="file-row"
               data-cursor={
@@ -139,15 +154,21 @@ export default function TreePane({
                 }
               }}
               onClick={() => setCursorPath(node.path)}
-              onDoubleClick={() => onSelect(node.path)}
+              onDoubleClick={() => onSelect(node.path, node.isDir)}
             >
               <span
                 className="col-name"
                 style={{ paddingLeft: `${depth * 16}px` }}
               >
-                <span className="tree-icon">{node.expanded ? "▼" : "▶"}</span>
-                <FileIcon kind="dir" />
-                {node.name}/
+                {/* 展開の向きは, 同じ ▶ を回転して表す (▼ は別の文字で, 大きさが変わるため). */}
+                <span
+                  className="tree-icon"
+                  data-expanded={node.isDir && !node.empty && node.expanded}
+                >
+                  {node.isDir && !node.empty ? "▶" : ""}
+                </span>
+                <FileIcon kind={node.isDir ? "dir" : "file"} />
+                {node.isDir ? `${node.name}/` : node.name}
               </span>
             </li>
           ))}

@@ -34,7 +34,8 @@ pub use config::{load_config, load_keymap, save_config, AppConfig, FontSize, The
 pub use exec::run_external_command;
 pub use frontend_log::{log_frontend_message, LogLevel};
 pub use fs::{
-    complete_path, get_disk_space, get_home_dir, list_drives, read_directory, DiskSpace, FileEntry,
+    complete_path, dirs_have_entries, get_disk_space, get_home_dir, list_drives, read_directory,
+    DiskSpace, FileEntry,
 };
 pub use open::{open_in_editor, open_item, open_terminal};
 pub use ops::{create_directory, create_file, rename_item};
