@@ -399,7 +399,7 @@ export function useTransfer(
           openConfirm(
             "コピーの上書き",
             `${conflicts.length} 件が既に存在します (${names}${more}). 上書きしてコピーしますか? (y/n)`,
-            () => run(request),
+            () => runWithNestedConfirm(request, LABELS.copy),
           );
         } else {
           await run(request);
@@ -408,7 +408,7 @@ export function useTransfer(
         setError(String(e));
       }
     }
-  }, [source, setError, openPrompt, openConfirm, run]);
+  }, [source, setError, openPrompt, openConfirm, run, runWithNestedConfirm]);
 
   /** ファイルを同じディレクトリ内でコピーします. */
   const duplicateFile = useCallback((): void => {

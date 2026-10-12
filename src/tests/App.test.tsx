@@ -2079,6 +2079,81 @@ describe("App (コピー・移動・削除の実行)", () => {
     expect(transferRequest()).toBeUndefined();
   });
 
+  /** クリップボードに別のディレクトリのファイルがあり, 貼り付け先に同名のディレクトリがある状況を模す. */
+  function mockPasteConflicts(nested: boolean): void {
+    mockHome((cmd) => {
+      if (cmd === "read_clipboard_files")
+        return Promise.resolve(["/mock/other/FolderA"]);
+      if (cmd === "check_conflicts") return Promise.resolve(["FolderA"]);
+      if (cmd === "check_nested_conflicts") {
+        return Promise.resolve(
+          nested
+            ? [
+                { source: "/mock/other/FolderA/a.txt", label: "FolderA/a.txt" },
+                {
+                  source: "/mock/other/FolderA/sub/b.txt",
+                  label: "FolderA/sub/b.txt",
+                },
+              ]
+            : [],
+        );
+      }
+      return undefined;
+    });
+  }
+
+  it("正常系: C-v の貼り付けでも, 同名のディレクトリの中の同名のファイルを 1 件ずつ確認すること", async () => {
+    mockPasteConflicts(true);
+    const user = await renderLoaded();
+
+    await user.keyboard("{Control>}v{/Control}");
+    await user.keyboard("y");
+    await screen.findByText(/FolderA\/a\.txt」は既に存在します \(1\/2\)/);
+    await user.keyboard("n");
+    await screen.findByText(/FolderA\/sub\/b\.txt」は既に存在します \(2\/2\)/);
+    await user.keyboard("y");
+
+    await waitFor(() =>
+      expect(transferRequest()).toEqual(
+        expect.objectContaining({
+          kind: "copy",
+          sources: ["/mock/other/FolderA"],
+          dest_dir: "/mock/home",
+          overwrite: true,
+          skip: ["/mock/other/FolderA/a.txt"],
+        }),
+      ),
+    );
+  });
+
+  it("正常系: C-v の貼り付けで, 同名のファイルが無ければ, 1 件ずつの確認は出さずに実行すること", async () => {
+    mockPasteConflicts(false);
+    const user = await renderLoaded();
+
+    await user.keyboard("{Control>}v{/Control}");
+    await user.keyboard("y");
+
+    await waitFor(() =>
+      expect(transferRequest()).toEqual(
+        expect.objectContaining({ kind: "copy", overwrite: true }),
+      ),
+    );
+    expect(transferRequest()).not.toHaveProperty("skip");
+  });
+
+  it("正常系: C-v の貼り付けの 1 件ずつの確認で Esc を押すと, 何も実行しないこと", async () => {
+    mockPasteConflicts(true);
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}v{/Control}");
+    await user.keyboard("y");
+    await screen.findByText(/\(1\/2\)/);
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(transferRequest()).toBeUndefined();
+  });
+
   it("正常系: C と M は, 同名が無くても実行前に確認すること", async () => {
     mockHome();
     const user = await renderTwoDirs();
