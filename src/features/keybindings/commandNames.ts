@@ -30,6 +30,7 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   moveConfirm: "確認してから対向ペインへ移動",
   syncPane: "反対側のペインを同じディレクトリにする",
   preview: "プレビューの表示 / 非表示",
+  info: "詳細情報の表示 / 非表示",
   log: "操作ログ",
   delete: "ゴミ箱へ移動",
   deletePermanent: "完全に削除",

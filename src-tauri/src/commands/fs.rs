@@ -34,7 +34,19 @@ pub struct FileEntry {
 ///
 /// UNIX 時刻の秒. 取得できない場合は `None`.
 fn modified_secs(metadata: &fs::Metadata) -> Option<i64> {
-    let time = metadata.modified().ok()?;
+    unix_secs(metadata.modified().ok()?)
+}
+
+/// システム時刻を, UNIX 時刻の秒に変換します.
+///
+/// # Arguments
+///
+/// * `time` - 変換する時刻.
+///
+/// # Returns
+///
+/// UNIX 時刻の秒 (1970 年より前は負). 範囲を超える場合は `None`.
+pub(crate) fn unix_secs(time: std::time::SystemTime) -> Option<i64> {
     match time.duration_since(UNIX_EPOCH) {
         Ok(d) => i64::try_from(d.as_secs()).ok(),
         Err(e) => i64::try_from(e.duration().as_secs()).ok().map(|n| -n),
@@ -52,7 +64,7 @@ fn modified_secs(metadata: &fs::Metadata) -> Option<i64> {
 ///
 /// 隠しファイルの場合は `true`.
 #[cfg(not(tarpaulin_include))]
-fn is_hidden(name: &str, metadata: &fs::Metadata) -> bool {
+pub(crate) fn is_hidden(name: &str, metadata: &fs::Metadata) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;

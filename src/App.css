@@ -320,6 +320,31 @@ body,
   overflow: auto;
 }
 
+/* 詳細情報 (見出しと値の組). 長い値 (パスなど) は, 折り返す. */
+.info-list {
+  margin: 0;
+  padding: 4px;
+}
+
+.info-row {
+  display: flex;
+  gap: 8px;
+  padding: 1px 0;
+}
+
+.info-row dt {
+  flex: none;
+  width: 9em;
+  color: var(--dim);
+}
+
+.info-row dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .preview-message {
   margin: 8px;
   color: var(--dim);

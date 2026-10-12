@@ -2781,6 +2781,184 @@ const textPreview = (text: string, over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/** 詳細 (get_item_info) と配下の合計 (dir_stats) を返す invoke のモックを設定する. */
+function mockInfoHome(options: { infoFails?: boolean } = {}): void {
+  const dirs = new Set(["/mock/home", "/mock/home/Dir"]);
+  mockedInvoke.mockImplementation(async (cmd, args) => {
+    if (cmd === "get_home_dir") return "/mock/home";
+    if (cmd === "read_directory") {
+      return pathOf(args) === "/mock/home"
+        ? [
+            {
+              name: "Dir",
+              path: "/mock/home/Dir",
+              is_dir: true,
+              size: 0,
+              modified: 1000,
+              readonly: false,
+              hidden: false,
+            },
+            {
+              name: "a.txt",
+              path: "/mock/home/a.txt",
+              is_dir: false,
+              size: 2048,
+              modified: 1000,
+              readonly: false,
+              hidden: false,
+            },
+          ]
+        : [];
+    }
+    if (cmd === "get_item_info") {
+      if (options.infoFails) throw "読めません";
+      const path = String(pathOf(args));
+      const isDir = dirs.has(path);
+      return {
+        name: path.substring(path.lastIndexOf("/") + 1),
+        path,
+        kind: isDir ? "dir" : "file",
+        size: isDir ? 0 : 2048,
+        modified: 1790000000,
+        created: null,
+        accessed: null,
+        readonly: false,
+        hidden: false,
+        permissions: null,
+        symlink_target: null,
+        extension: isDir ? null : "txt",
+        child_files: isDir ? 3 : null,
+        child_dirs: isDir ? 1 : null,
+      };
+    }
+    if (cmd === "dir_stats") {
+      return { files: 30, dirs: 4, bytes: 4096, errors: 0, complete: true };
+    }
+    return defaultResult(cmd);
+  });
+}
+
+describe("App (詳細情報)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: I で反対側のペインの場所に, カーソル位置のディレクトリの詳細と配下の合計が出て, もう一度 I で閉じること", async () => {
+    mockInfoHome();
+    const user = await renderLoadedFor("Dir");
+
+    await user.keyboard("I");
+
+    const info = screen.getByRole("region", { name: "info pane" });
+    expect(await within(info).findByText("/mock/home/Dir")).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("get_item_info", {
+      path: "/mock/home/Dir",
+    });
+    expect(
+      await within(info).findByText("ファイル 3 / ディレクトリ 1"),
+    ).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("dir_stats", {
+      path: "/mock/home/Dir",
+    });
+    expect(
+      await within(info).findByText(
+        "ファイル 30 / ディレクトリ 4 / 4,096 バイト (4KB)",
+      ),
+    ).toBeInTheDocument();
+    // 反対側 (右) のペインの場所に出る. 左のペインは一覧のまま.
+    expect(screen.queryByRole("region", { name: "right pane" })).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "left pane" }),
+    ).toBeInTheDocument();
+
+    await user.keyboard("I");
+    expect(screen.queryByRole("region", { name: "info pane" })).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "right pane" }),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: カーソルを動かすと, その項目の詳細に切り替わること (ファイルでは配下の合計を数えない)", async () => {
+    mockInfoHome();
+    const user = await renderLoadedFor("Dir");
+    await user.keyboard("I");
+    await screen.findByText("/mock/home/Dir");
+    mockedInvoke.mockClear();
+
+    await user.keyboard("j");
+
+    const info = screen.getByRole("region", { name: "info pane" });
+    expect(
+      await within(info).findByText("/mock/home/a.txt"),
+    ).toBeInTheDocument();
+    expect(within(info).getByText("2,048 バイト (2KB)")).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("get_item_info", {
+      path: "/mock/home/a.txt",
+    });
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "dir_stats",
+      expect.anything(),
+    );
+  });
+
+  it("正常系: `..` の行にカーソルがあるときは, 開いているディレクトリの詳細を出すこと", async () => {
+    mockInfoHome();
+    const user = await renderLoadedFor("Dir");
+    await user.keyboard("k"); // `..` の行
+    await user.keyboard("I");
+
+    const info = screen.getByRole("region", { name: "info pane" });
+    expect(await within(info).findByText("/mock/home")).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("get_item_info", {
+      path: "/mock/home",
+    });
+  });
+
+  it("正常系: プレビュー (v) と詳細 (I) は同時に出ず, 一方を出すと, もう一方は閉じること", async () => {
+    mockInfoHome();
+    const user = await renderLoadedFor("Dir");
+
+    await user.keyboard("I");
+    expect(
+      screen.getByRole("region", { name: "info pane" }),
+    ).toBeInTheDocument();
+    await user.keyboard("v");
+    expect(screen.queryByRole("region", { name: "info pane" })).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "preview pane" }),
+    ).toBeInTheDocument();
+
+    await user.keyboard("I");
+    expect(screen.queryByRole("region", { name: "preview pane" })).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "info pane" }),
+    ).toBeInTheDocument();
+  });
+
+  it("異常系: 詳細を取得できなかったら, そのメッセージを表示すること", async () => {
+    mockInfoHome({ infoFails: true });
+    const user = await renderLoadedFor("Dir");
+
+    await user.keyboard("I");
+
+    const info = screen.getByRole("region", { name: "info pane" });
+    expect(await within(info).findByText("読めません")).toBeInTheDocument();
+  });
+
+  it("正常系: 小文字の i は, これまでどおり詳細列 (サイズ・日時) の表示を切り替え, 詳細情報は開かないこと", async () => {
+    mockInfoHome();
+    const user = await renderLoadedFor("Dir");
+
+    await user.keyboard("i");
+
+    expect(screen.queryByRole("region", { name: "info pane" })).toBeNull();
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "get_item_info",
+      expect.anything(),
+    );
+  });
+});
+
 describe("App (プレビュー)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
