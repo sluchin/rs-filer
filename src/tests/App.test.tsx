@@ -780,6 +780,21 @@ describe("App (分岐の網羅)", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("正常系: ファイル一覧とツリーの名前に, 省略されていない名前のツールチップ (title) が付くこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    // ファイル一覧: ディレクトリもファイルも, 名前がそのまま title になる.
+    expect(paneOf("left").getByTitle("FolderA")).toHaveTextContent("FolderA");
+    expect(paneOf("left").getByTitle("b.txt")).toHaveTextContent("b.txt");
+
+    // ツリー: ディレクトリの表示は「FolderA/」だが, title には「/」を付けない名前を入れる.
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
+    expect(paneOf("left").getByTitle("FolderA")).toHaveTextContent("FolderA/");
+    expect(paneOf("left").getByTitle("b.txt")).toHaveTextContent("b.txt");
+  });
+
   it("正常系: t でペインの一覧がツリー表示になり, ディレクトリの後ろにファイルが並び, もう一方のペインは残ること", async () => {
     mockHome();
     const user = await renderLoaded();
