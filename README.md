@@ -2,6 +2,8 @@
 
 Tauri v2 + Rust + React + TypeScript で構築するクロスプラットフォーム対応のモダンなファイルマネージャーです。
 
+<a href="assets/rs-filer.png"><img src="assets/rs-filer.png" width="720" alt="rsfiler の画面 (2 ペインのファイル一覧)"></a>
+
 ## 技術構成
 
 - **GUI / OS Bridge**: Tauri v2
