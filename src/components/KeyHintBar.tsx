@@ -41,8 +41,18 @@ const HINTS: string[] = [
 /**
  * キー操作の案内バー. xyzzy のファイラと同様に, 画面下部へ並べて表示します.
  *
+ * 窓の幅が狭いときは, 案内と案内の間で折り返します (1 つの案内を, 途中で分けない).
+ *
  * @returns 案内バーのReact要素.
  */
 export default function KeyHintBar(): ReactElement {
-  return <div className="key-hint-bar">{HINTS.join(" ")}</div>;
+  return (
+    <div className="key-hint-bar">
+      {HINTS.map((hint) => (
+        <span key={hint} className="key-hint">
+          {hint}
+        </span>
+      ))}
+    </div>
+  );
 }
