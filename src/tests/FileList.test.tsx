@@ -322,6 +322,23 @@ describe("FileList の列の位置", () => {
     });
   });
 
+  it("正常系: マウスが境界線の上 (左右 6px 未満) にあるときだけ、ヘッダーのカーソルを col-resize にすること", () => {
+    stubColumnRects();
+    const { container } = renderList(undefined, true);
+    const header = container.querySelector(".file-header") as HTMLElement;
+
+    fireEvent.mouseMove(header, { clientX: 100 });
+    expect(header.style.cursor).toBe("auto");
+    fireEvent.mouseMove(header, { clientX: 305 });
+    expect(header.style.cursor).toBe("col-resize");
+    fireEvent.mouseMove(header, { clientX: 307 });
+    expect(header.style.cursor).toBe("auto");
+    fireEvent.mouseMove(header, { clientX: 295 });
+    expect(header.style.cursor).toBe("col-resize");
+    fireEvent.mouseLeave(header);
+    expect(header.style.cursor).toBe("auto");
+  });
+
   it("境界: ドラッグして離したあとは, マウスを動かしても幅を変えないこと", () => {
     stubColumnRects();
     const changed = vi.fn();
