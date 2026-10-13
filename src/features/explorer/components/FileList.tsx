@@ -29,6 +29,9 @@ const MIN_COLUMN_WIDTH = 30;
 /** サイズ・更新日時・属性の列の, 幅を保存していないときの幅 (px). CSS の `.col-size` などと同じ. */
 const DEFAULT_COLUMN_WIDTH = { col_size: 72, col_date: 136, col_attr: 52 };
 
+/** ヘッダーの境界線をつかめる範囲 (境界線から左右にこの px 未満). */
+const BORDER_GRAB_RANGE = 6;
+
 /** 文字の左右の余白 (4 + 4) と, ヘッダーの右の区切り線 (1) の幅 (px). 内容に合わせた幅に足す. */
 const CELL_PADDING = 9;
 
@@ -192,6 +195,8 @@ export default function FileList({
   const [drag, setDrag] = useState<ColumnDrag | null>(null);
   // 行の一覧の横スクロールの位置. ヘッダーも同じだけ動かして, 列の位置をそろえる.
   const [scrollLeft, setScrollLeft] = useState(0);
+  // マウスが, ヘッダーの境界線の上にあるか. あるときは, つかめることを示すカーソルにする.
+  const [overBorder, setOverBorder] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
 
   const totalCount = files.length + (hasParent ? 1 : 0);
@@ -299,7 +304,7 @@ export default function FileList({
     cursor: drag ? "col-resize" : "auto",
   };
 
-  // ヘッダーの列の右の境界線を検出します (4 px 幅). 境界線の左にある列を返します. 詳細を表示していない
+  // ヘッダーの列の右の境界線を検出します (左右に 6 px ずつ). 境界線の左にある列を返します. 詳細を表示していない
   // (名前の列だけの) ときは, 幅を変えられない.
   const detectColumn = useCallback((x: number): ColumnName | null => {
     if (!headerRef.current) return null;
@@ -310,7 +315,7 @@ export default function FileList({
 
     for (let i = 0; i < spans.length; i++) {
       const colEnd = spans[i].getBoundingClientRect().right;
-      if (Math.abs(x - colEnd) < 4) {
+      if (Math.abs(x - colEnd) < BORDER_GRAB_RANGE) {
         return COLUMN_ORDER[i];
       }
     }
@@ -436,8 +441,11 @@ export default function FileList({
         ref={headerRef}
         onMouseDown={handleHeaderMouseDown}
         onDoubleClick={handleHeaderDoubleClick}
+        onMouseMove={(e) => setOverBorder(detectColumn(e.clientX) !== null)}
+        onMouseLeave={() => setOverBorder(false)}
         style={{
           userSelect: drag ? "none" : "auto",
+          cursor: drag || overBorder ? "col-resize" : "auto",
           paddingRight: scrollbarWidth,
         }}
       >
