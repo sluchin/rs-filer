@@ -399,6 +399,9 @@ export default function App(): ReactElement {
         });
         break;
       }
+      case "resetColumnWidths":
+        settings.updatePaneColumnWidth(activePane, {});
+        break;
       case "autoFitColumn":
         // 自動調整は未実装 (FileList コンポーネントで実装する予定).
         break;

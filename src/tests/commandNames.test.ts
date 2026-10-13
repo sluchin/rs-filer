@@ -11,6 +11,7 @@ describe("commandNames", () => {
     expect(names).toEqual([...names].sort());
     expect(names).toContain("refresh");
     expect(names).toContain("cursorDown");
+    expect(names).toContain("resetColumnWidths");
     expect(names).not.toContain("palette");
   });
 });

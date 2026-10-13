@@ -3847,6 +3847,35 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
     expect(app()).toHaveAttribute("data-font-size", "medium");
   });
 
+  it("正常系: M-x resetColumnWidths で, アクティブなペインの列幅だけが既定に戻り, 保存されること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_config"
+        ? Promise.resolve({
+            theme: "classic",
+            font_size: "medium",
+            editor: null,
+            terminal: null,
+            pane_column_widths: {
+              left: { col_name: 900, col_size: 80 },
+              right: { col_name: 500 },
+            },
+          })
+        : undefined,
+    );
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}x{/Alt}");
+    await user.keyboard("resetColumnWidths{Enter}");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("save_config", {
+        config: expect.objectContaining({
+          pane_column_widths: { left: {}, right: { col_name: 500 } },
+        }),
+      }),
+    );
+  });
+
   it("正常系: 起動時に読み込んだ設定 (テーマ・フォントサイズ) が反映されること", async () => {
     mockHome((cmd) =>
       cmd === "load_config"
