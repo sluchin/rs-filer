@@ -197,9 +197,18 @@ body,
   background: linear-gradient(var(--header-from), var(--header-to));
   border-bottom: 1px solid var(--border-light);
   user-select: none;
+  overflow: hidden;
 }
 
-.file-header > span {
+/* 行の一覧の横スクロールに合わせて動く, 列見出しの本体. */
+.file-header-row {
+  display: flex;
+  align-items: center;
+  flex: 1 0 auto;
+  height: 100%;
+}
+
+.file-header-row > span {
   border-right: 1px solid var(--border-light);
   padding: 0 4px;
   box-sizing: border-box;
@@ -210,6 +219,7 @@ body,
   list-style: none;
   margin: 0;
   padding: 0;
+  overflow-x: auto;
   overflow-y: scroll;
 }
 

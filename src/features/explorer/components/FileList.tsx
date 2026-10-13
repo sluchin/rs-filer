@@ -26,6 +26,9 @@ const ICON_COLUMN_WIDTH = 21;
 /** 列の幅の最小値 (px). */
 const MIN_COLUMN_WIDTH = 30;
 
+/** サイズ・更新日時・属性の列の, 幅を保存していないときの幅 (px). CSS の `.col-size` などと同じ. */
+const DEFAULT_COLUMN_WIDTH = { col_size: 72, col_date: 136, col_attr: 52 };
+
 /** 文字の左右の余白 (4 + 4) と, ヘッダーの右の区切り線 (1) の幅 (px). 内容に合わせた幅に足す. */
 const CELL_PADDING = 9;
 
@@ -70,15 +73,25 @@ const COLUMN_TEXT: Record<
 };
 
 /**
- * 境界線の「右側」の列を返します. 名前の列は残りの幅 (右端が固定されたサイズ・更新日時・属性が
- * 右にそろう) ので, 境界線の操作 (ドラッグ・ダブルクリック) は, 境界の右側の列に対して行います.
+ * 列の幅の最小値 (px) を返します. 名前の列は, アイコンの分も含みます.
  *
- * @param left - 境界線の左側の列 (境界線の位置にある, 列の右端を持つ列).
- * @returns 境界線の右側の列. 一番右の列の場合は, その列自身.
+ * @param column - 列.
+ * @returns 最小の幅.
  */
-function columnRightOf(left: ColumnName): ColumnName {
-  const index = COLUMN_ORDER.indexOf(left);
-  return COLUMN_ORDER[Math.min(index + 1, COLUMN_ORDER.length - 1)];
+function minWidthOf(column: ColumnName): number {
+  return column === "col_name"
+    ? MIN_COLUMN_WIDTH + ICON_COLUMN_WIDTH
+    : MIN_COLUMN_WIDTH;
+}
+
+/** 列の境界線をドラッグしている間の状態. */
+interface ColumnDrag {
+  /** ドラッグしている境界線の左側の列 (幅が変わる列). */
+  column: ColumnName;
+  /** ドラッグを始めたときのマウスの x 座標. */
+  startX: number;
+  /** ドラッグを始めたときの, すべての列の幅 (px). */
+  widths: Required<ColumnWidths>;
 }
 
 /**
@@ -123,6 +136,7 @@ function ParentRow({
   onClick,
   onDoubleClick,
   colNameStyle,
+  rowStyle,
 }: {
   cursor: "active" | "inactive" | "none";
   measureRef: (element: HTMLElement | null) => void;
@@ -132,11 +146,13 @@ function ParentRow({
   colSizeStyle?: React.CSSProperties;
   colDateStyle?: React.CSSProperties;
   colAttrStyle?: React.CSSProperties;
+  rowStyle?: React.CSSProperties;
 }): ReactElement {
   return (
     <li
       ref={measureRef}
       className="file-row"
+      style={rowStyle}
       data-cursor={cursor}
       aria-current={cursor === "active" ? "true" : undefined}
       onClick={onClick}
@@ -173,8 +189,9 @@ export default function FileList({
   columnWidths = {},
   onColumnWidthChange,
 }: FileListProps): ReactElement {
-  const [draggingColumn, setDraggingColumn] = useState<ColumnName | null>(null);
-  const [dragStartX, setDragStartX] = useState(0);
+  const [drag, setDrag] = useState<ColumnDrag | null>(null);
+  // 行の一覧の横スクロールの位置. ヘッダーも同じだけ動かして, 列の位置をそろえる.
+  const [scrollLeft, setScrollLeft] = useState(0);
   const headerRef = useRef<HTMLDivElement>(null);
 
   const totalCount = files.length + (hasParent ? 1 : 0);
@@ -240,70 +257,65 @@ export default function FileList({
         measureTextWidth(title),
         ...files.map((f) => measureTextWidth(cell(f)) + extra),
       );
-      return Math.max(Math.ceil(widest) + CELL_PADDING, MIN_COLUMN_WIDTH);
+      return Math.max(Math.ceil(widest) + CELL_PADDING, minWidthOf(column));
     },
     [files, measureTextWidth],
   );
 
-  // 各列のスタイル. 名前の列は, 常に残りの幅を使う (保存した幅は使わない). サイズ・更新日時・属性の列は
-  // 固定の幅で右にそろい, 属性の列は, 起動したときから, ペインの右はじに合う.
-  const colNameStyle: React.CSSProperties = { flex: 1 };
+  // 各列のスタイル. 名前の列は, 幅を保存していなければ残りの幅を使い (属性の列が, ペインの右はじに合う),
+  // 保存していれば固定の幅になる. 幅を保存した名前の列は, 行ではアイコンの分だけ狭くする.
+  // 固定の幅の合計がペインより広いときは, 行の一覧が横にスクロールする.
+  const nameWidth = showDetails ? columnWidths.col_name : undefined;
+  const headerNameStyle: React.CSSProperties =
+    nameWidth === undefined
+      ? { flex: 1 }
+      : { width: `${nameWidth}px`, flex: "none" };
+  const colNameStyle: React.CSSProperties =
+    nameWidth === undefined
+      ? { flex: 1 }
+      : {
+          width: `${Math.max(nameWidth - ICON_COLUMN_WIDTH, 0)}px`,
+          flex: "none",
+        };
 
-  const colSizeStyle: React.CSSProperties | undefined = columnWidths.col_size
-    ? {
-        width: `${columnWidths.col_size}px`,
-        flex: "none",
-      }
-    : undefined;
+  const fixedStyle = (width: number | undefined) =>
+    width === undefined ? undefined : { width: `${width}px`, flex: "none" };
+  const colSizeStyle = fixedStyle(columnWidths.col_size);
+  const colDateStyle = fixedStyle(columnWidths.col_date);
+  const colAttrStyle = fixedStyle(columnWidths.col_attr);
 
-  const colDateStyle: React.CSSProperties | undefined = columnWidths.col_date
-    ? {
-        width: `${columnWidths.col_date}px`,
-        flex: "none",
-      }
-    : undefined;
-
-  const colAttrStyle: React.CSSProperties | undefined = columnWidths.col_attr
-    ? {
-        width: `${columnWidths.col_attr}px`,
-        flex: "none",
-      }
+  // 行とヘッダーの最小の幅 (すべての列が収まる幅). これより狭いペインでは, 横にスクロールする.
+  const totalWidth =
+    (nameWidth ?? minWidthOf("col_name")) +
+    (columnWidths.col_size ?? DEFAULT_COLUMN_WIDTH.col_size) +
+    (columnWidths.col_date ?? DEFAULT_COLUMN_WIDTH.col_date) +
+    (columnWidths.col_attr ?? DEFAULT_COLUMN_WIDTH.col_attr);
+  const rowStyle: React.CSSProperties | undefined = showDetails
+    ? { minWidth: `${totalWidth}px` }
     : undefined;
 
   // ファイルリスト全体のスタイル.
   const fileListStyle: React.CSSProperties = {
-    cursor: draggingColumn ? "col-resize" : "auto",
+    cursor: drag ? "col-resize" : "auto",
   };
 
-  // ヘッダーの列区切り目を検出します (4 px 幅).
+  // ヘッダーの列の右の境界線を検出します (4 px 幅). 境界線の左にある列を返します. 詳細を表示していない
+  // (名前の列だけの) ときは, 幅を変えられない.
   const detectColumn = useCallback((x: number): ColumnName | null => {
     if (!headerRef.current) return null;
     const spans = headerRef.current.querySelectorAll(
       ".col-name, .col-size, .col-date, .col-attr",
     );
+    if (spans.length < 2) return null;
 
-    for (let i = 0; i < spans.length - 1; i++) {
-      const rect = spans[i].getBoundingClientRect();
-      const colEnd = rect.right;
+    for (let i = 0; i < spans.length; i++) {
+      const colEnd = spans[i].getBoundingClientRect().right;
       if (Math.abs(x - colEnd) < 4) {
         return COLUMN_ORDER[i];
       }
     }
     return null;
   }, []);
-
-  // ドラッグ開始.
-  const handleHeaderMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      const col = detectColumn(e.clientX);
-      if (col) {
-        setDraggingColumn(col);
-        setDragStartX(e.clientX);
-        e.preventDefault();
-      }
-    },
-    [detectColumn],
-  );
 
   // ヘッダーの列 (`.col-size` など) の, 今の幅を測ります. 見つからなければ 0.
   const measureColumn = useCallback((column: ColumnName): number => {
@@ -313,22 +325,39 @@ export default function FileList({
     return element ? element.getBoundingClientRect().width : 0;
   }, []);
 
-  // ドラッグ中. 名前の列は残りの幅で, サイズ・更新日時・属性は右にそろっているので, 境界線をつかんで動かすと,
-  // 境界の「右側」の列が (右端を固定したまま) 逆向きに変わる. 右へ動かすと狭く, 左へ動かすと広くなる.
-  // 保存していない列は, 今の見た目の幅から変える.
+  // ドラッグ開始. このとき, 幅を保存していない列は, 今の見た目の幅で固定する (動かした列より右の列の位置が、
+  // 動かさないうちに変わらないように).
+  const handleHeaderMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const column = detectColumn(e.clientX);
+      if (!column) {
+        return;
+      }
+      const widths: Required<ColumnWidths> = {
+        col_name: columnWidths.col_name ?? measureColumn("col_name"),
+        col_size: columnWidths.col_size ?? measureColumn("col_size"),
+        col_date: columnWidths.col_date ?? measureColumn("col_date"),
+        col_attr: columnWidths.col_attr ?? measureColumn("col_attr"),
+      };
+      setDrag({ column, startX: e.clientX, widths });
+      e.preventDefault();
+    },
+    [detectColumn, measureColumn, columnWidths],
+  );
+
+  // ドラッグ中. 境界線の「左側」の列の幅を、境界線がカーソルについて動くように変える. 右の列は、その分
+  // 右へずれる. ペインより広くなったら、行の一覧に横のスクロールバーが出る.
   useEffect(() => {
-    if (!draggingColumn) return;
+    if (!drag) return;
     const handleMouseMove = (e: MouseEvent) => {
-      const delta = e.clientX - dragStartX;
-      const target = columnRightOf(draggingColumn);
-      const newWidths = { ...columnWidths };
-      const current = newWidths[target] ?? measureColumn(target);
-      newWidths[target] = Math.max(MIN_COLUMN_WIDTH, current - delta);
-      onColumnWidthChange?.(newWidths);
-      setDragStartX(e.clientX);
+      const width = Math.max(
+        minWidthOf(drag.column),
+        drag.widths[drag.column] + e.clientX - drag.startX,
+      );
+      onColumnWidthChange?.({ ...drag.widths, [drag.column]: width });
     };
     const handleMouseUp = () => {
-      setDraggingColumn(null);
+      setDrag(null);
     };
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
@@ -336,25 +365,18 @@ export default function FileList({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [
-    draggingColumn,
-    dragStartX,
-    columnWidths,
-    onColumnWidthChange,
-    measureColumn,
-  ]);
+  }, [drag, onColumnWidthChange]);
 
-  // ダブルクリックで列幅を内容に合わせる. 境界の「右側」の列を, 内容に合う幅にする (ドラッグと同じ列).
+  // ダブルクリックで列幅を内容に合わせる. 境界線の「左側」の列を、内容に合う幅にする (ドラッグと同じ列).
   const handleHeaderDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      const col = detectColumn(e.clientX);
-      if (!col) {
+      const column = detectColumn(e.clientX);
+      if (!column) {
         return;
       }
-      const target = columnRightOf(col);
       onColumnWidthChange?.({
         ...columnWidths,
-        [target]: getAutoFitWidth(target),
+        [column]: getAutoFitWidth(column),
       });
       e.preventDefault();
     },
@@ -379,6 +401,7 @@ export default function FileList({
           colSizeStyle={colSizeStyle}
           colDateStyle={colDateStyle}
           colAttrStyle={colAttrStyle}
+          rowStyle={rowStyle}
         />,
       );
       continue;
@@ -401,6 +424,7 @@ export default function FileList({
         colSizeStyle={colSizeStyle}
         colDateStyle={colDateStyle}
         colAttrStyle={colAttrStyle}
+        rowStyle={rowStyle}
       />,
     );
   }
@@ -413,28 +437,40 @@ export default function FileList({
         onMouseDown={handleHeaderMouseDown}
         onDoubleClick={handleHeaderDoubleClick}
         style={{
-          userSelect: draggingColumn ? "none" : "auto",
+          userSelect: drag ? "none" : "auto",
           paddingRight: scrollbarWidth,
         }}
       >
-        <span className="col-name" style={colNameStyle}>
-          ファイル名
-        </span>
-        {showDetails && (
-          <>
-            <span className="col-size" style={colSizeStyle}>
-              サイズ
-            </span>
-            <span className="col-date" style={colDateStyle}>
-              更新日時
-            </span>
-            <span className="col-attr" style={colAttrStyle}>
-              属性
-            </span>
-          </>
-        )}
+        <div
+          className="file-header-row"
+          style={{
+            ...rowStyle,
+            transform: scrollLeft ? `translateX(${-scrollLeft}px)` : undefined,
+          }}
+        >
+          <span className="col-name" style={headerNameStyle}>
+            ファイル名
+          </span>
+          {showDetails && (
+            <>
+              <span className="col-size" style={colSizeStyle}>
+                サイズ
+              </span>
+              <span className="col-date" style={colDateStyle}>
+                更新日時
+              </span>
+              <span className="col-attr" style={colAttrStyle}>
+                属性
+              </span>
+            </>
+          )}
+        </div>
       </div>
-      <ul className="file-rows" ref={setRowsElement}>
+      <ul
+        className="file-rows"
+        ref={setRowsElement}
+        onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
+      >
         {paddingTop > 0 && (
           <li aria-hidden="true" style={{ height: paddingTop }} />
         )}

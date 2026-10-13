@@ -36,6 +36,7 @@ import { useNotice } from "./hooks/useNotice";
 import { useHistoryNav } from "./hooks/useHistoryNav";
 import { useOperationLog } from "./hooks/useOperationLog";
 import { useSettings } from "./hooks/useSettings";
+import { DEFAULT_NAME_COLUMN_WIDTH } from "./features/settings/types";
 import { targetsOf } from "./features/operations/hooks/useTransfer";
 import OperationDialog from "./features/operations/components/OperationDialog";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
@@ -380,7 +381,7 @@ export default function App(): ReactElement {
         const paneWidths =
           settings.config.pane_column_widths?.[activePane] || {};
         const col = "col_name";
-        const current = paneWidths.col_name ?? 0;
+        const current = paneWidths.col_name ?? DEFAULT_NAME_COLUMN_WIDTH;
         settings.updatePaneColumnWidth(activePane, {
           ...paneWidths,
           [col]: Math.max(30, current + 10),
@@ -391,7 +392,7 @@ export default function App(): ReactElement {
         const paneWidths =
           settings.config.pane_column_widths?.[activePane] || {};
         const col = "col_name";
-        const current = paneWidths.col_name ?? 0;
+        const current = paneWidths.col_name ?? DEFAULT_NAME_COLUMN_WIDTH;
         settings.updatePaneColumnWidth(activePane, {
           ...paneWidths,
           [col]: Math.max(30, current - 10),

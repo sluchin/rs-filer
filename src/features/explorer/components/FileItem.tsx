@@ -33,6 +33,8 @@ interface FileItemProps {
   colDateStyle?: CSSProperties;
   /** 属性列のスタイル. */
   colAttrStyle?: CSSProperties;
+  /** 行全体のスタイル (横にスクロールするときの最小の幅). */
+  rowStyle?: CSSProperties;
 }
 
 /**
@@ -55,11 +57,13 @@ export default function FileItem({
   colSizeStyle,
   colDateStyle,
   colAttrStyle,
+  rowStyle,
 }: FileItemProps): ReactElement {
   return (
     <li
       ref={measureRef}
       className="file-row"
+      style={rowStyle}
       data-cursor={cursor}
       data-marked={marked}
       aria-current={cursor === "active" ? "true" : undefined}
