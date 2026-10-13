@@ -22,6 +22,9 @@ export interface ColumnWidths {
   col_attr?: number;
 }
 
+/** 名前の列の幅を保存していないときに, キー操作で幅を変える起点にする幅 (px). */
+export const DEFAULT_NAME_COLUMN_WIDTH = 300;
+
 /**
  * ペイン毎の列幅設定.
  */
