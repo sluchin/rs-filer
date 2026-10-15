@@ -57,6 +57,8 @@ pub struct NestedConflict {
     pub source: String,
     /// 確認で表示する名前. 対象のディレクトリ名から始まる, 相対パス (例: `d/sub/a.txt`).
     pub label: String,
+    /// 配置先のファイルのほうが, 更新日時が新しい (古いもので上書きすることになる).
+    pub stale: bool,
 }
 
 /// 進捗の通知.
@@ -297,6 +299,79 @@ pub fn find_conflicts(
     Ok(names)
 }
 
+/// 配置先のファイルのほうが, 更新日時が新しいかを調べます (古いもので上書きすることになるかの判定).
+///
+/// 両方がファイル (ディレクトリでない) で, 更新日時を読めるときだけ true を返します.
+/// 更新日時が同じ場合は false です.
+///
+/// # Arguments
+///
+/// * `src` - コピー・移動元のファイル.
+/// * `dst` - 配置先の, 既にあるファイル.
+///
+/// # Returns
+///
+/// 配置先のほうが新しければ true.
+fn is_newer_than_source(src: &Path, dst: &Path) -> bool {
+    let modified = |p: &Path| {
+        fs::symlink_metadata(p)
+            .ok()
+            .filter(|m| !m.is_dir())
+            .and_then(|m| m.modified().ok())
+    };
+    match (modified(src), modified(dst)) {
+        (Some(src_time), Some(dst_time)) => dst_time > src_time,
+        _ => false,
+    }
+}
+
+/// 配置先に同名のファイルがあり, 配置先のほうが更新日時が新しい対象を調べます.
+///
+/// # Arguments
+///
+/// * `sources` - 対象のパス.
+/// * `dest_dir` - 配置先のディレクトリ.
+/// * `dest_name` - 配置先の名前 (Copy のみ).
+///
+/// # Returns
+///
+/// 配置先のほうが新しい対象の名前. 名前を取れない対象は [`Err`].
+pub fn find_stale_overwrites(
+    sources: &[String],
+    dest_dir: &str,
+    dest_name: Option<&str>,
+) -> Result<Vec<String>, String> {
+    let mut names = Vec::new();
+    for source in sources {
+        let src = Path::new(source);
+        let dest = destination_of(src, Path::new(dest_dir), dest_name)?;
+        if is_newer_than_source(src, &dest) {
+            names.push(file_name_of(&dest));
+        }
+    }
+    Ok(names)
+}
+
+/// 古いもので上書きすることになる対象 (配置先のほうが更新日時が新しい) を調べます (IPC コマンド).
+///
+/// # Arguments
+///
+/// * `sources` - 対象のパス.
+/// * `dest_dir` - 配置先のディレクトリ.
+/// * `dest_name` - 配置先の名前 (Copy のみ).
+///
+/// # Returns
+///
+/// 配置先のほうが新しい対象の名前. 失敗した場合はエラー文字列を含む [`Err`].
+#[tauri::command]
+pub fn check_stale_overwrites(
+    sources: Vec<String>,
+    dest_dir: String,
+    dest_name: Option<String>,
+) -> Result<Vec<String>, String> {
+    find_stale_overwrites(&sources, &dest_dir, dest_name.as_deref())
+}
+
 /// コピー・移動先に同名のエントリが既にあるかを調べます.
 ///
 /// # Arguments
@@ -356,6 +431,7 @@ fn collect_nested_conflicts(
             Ok(meta) if !src_is_dir && !meta.is_dir() => found.push(NestedConflict {
                 source: child_src.to_string_lossy().into_owned(),
                 label: child_label,
+                stale: is_newer_than_source(&child_src, &child_dst),
             }),
             // ファイルとディレクトリの組み合わせは, 実行するときにエラーになる (ここでは数えない).
             Ok(_) => {}
@@ -1424,6 +1500,111 @@ mod tests {
             vec!["a".to_string()]
         );
         assert!(find_conflicts(&["/".to_string()], "/tmp", None).is_err());
+    }
+
+    /// 更新日時を, 基準から `secs` 秒ずらした時刻に設定する (負なら過去).
+    fn set_mtime(path: &Path, secs: i64) {
+        let base =
+            std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        let time = if secs >= 0 {
+            base + std::time::Duration::from_secs(secs.unsigned_abs())
+        } else {
+            base - std::time::Duration::from_secs(secs.unsigned_abs())
+        };
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_modified(time)
+            .unwrap();
+    }
+
+    #[test]
+    fn test_find_stale_overwrites_lists_only_newer_destinations() {
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("src");
+        let dest = dir.path().join("dest");
+        fs::create_dir(&src).unwrap();
+        fs::create_dir(&dest).unwrap();
+        for name in ["new_dest", "old_dest", "same", "only_src"] {
+            fs::write(src.join(name), "s").unwrap();
+        }
+        for name in ["new_dest", "old_dest", "same"] {
+            fs::write(dest.join(name), "d").unwrap();
+        }
+        set_mtime(&src.join("new_dest"), 0);
+        set_mtime(&dest.join("new_dest"), 100);
+        set_mtime(&src.join("old_dest"), 100);
+        set_mtime(&dest.join("old_dest"), 0);
+        set_mtime(&src.join("same"), 50);
+        set_mtime(&dest.join("same"), 50);
+        let sources: Vec<String> = ["new_dest", "old_dest", "same", "only_src"]
+            .iter()
+            .map(|n| src.join(n).to_string_lossy().into_owned())
+            .collect();
+
+        // 配置先のほうが新しいものだけ (同じ日時と, 配置先にないものは含まない).
+        let expected = vec!["new_dest".to_string()];
+        assert_eq!(
+            find_stale_overwrites(&sources, dest.to_str().unwrap(), None).unwrap(),
+            expected
+        );
+        assert_eq!(
+            check_stale_overwrites(sources, dest.to_string_lossy().into_owned(), None).unwrap(),
+            expected
+        );
+        assert!(find_stale_overwrites(&["/".to_string()], "/tmp", None).is_err());
+    }
+
+    #[test]
+    fn test_find_stale_overwrites_uses_the_new_name_and_ignores_directories() {
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("a.txt");
+        let dest = dir.path().join("dest");
+        fs::create_dir(&dest).unwrap();
+        fs::write(&src, "s").unwrap();
+        fs::write(dest.join("b.txt"), "d").unwrap();
+        set_mtime(&src, 0);
+        set_mtime(&dest.join("b.txt"), 10);
+        let sources = vec![src.to_string_lossy().into_owned()];
+
+        // 名前を付けてコピーするときは, その名前の配置先と比べる.
+        assert_eq!(
+            find_stale_overwrites(&sources, dest.to_str().unwrap(), Some("b.txt")).unwrap(),
+            vec!["b.txt".to_string()]
+        );
+        // ディレクトリ同士 (統合) は, ここでは数えない.
+        let folder = dir.path().join("f");
+        fs::create_dir(&folder).unwrap();
+        fs::create_dir(dest.join("f")).unwrap();
+        assert!(find_stale_overwrites(
+            &[folder.to_string_lossy().into_owned()],
+            dest.to_str().unwrap(),
+            None
+        )
+        .unwrap()
+        .is_empty());
+    }
+
+    #[test]
+    fn test_find_nested_conflicts_marks_the_newer_destination_as_stale() {
+        let dir = tempdir().unwrap();
+        let (src, dest) = nested_fixture(dir.path());
+        set_mtime(&src.join("a.txt"), 0);
+        set_mtime(&dest.join("d/a.txt"), 100);
+        set_mtime(&src.join("sub/b.txt"), 100);
+        set_mtime(&dest.join("d/sub/b.txt"), 0);
+
+        let found = find_nested_conflicts(
+            &[src.to_string_lossy().into_owned()],
+            &dest.to_string_lossy(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            found.iter().map(|c| c.stale).collect::<Vec<_>>(),
+            vec![true, false]
+        );
     }
 
     #[test]

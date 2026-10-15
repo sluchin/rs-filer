@@ -47,7 +47,8 @@ pub use open::{open_in_editor, open_item, open_terminal};
 pub use ops::{create_directory, create_file, rename_item};
 pub use preview::{read_preview, Preview, PreviewKind};
 pub use transfer::{
-    cancel_transfer, check_conflicts, check_nested_conflicts, find_conflicts,
-    find_nested_conflicts, run_transfer, transfer, transfer_with, NestedConflict, TransferKind,
-    TransferProgress, TransferRequest, TransferState, TransferSummary,
+    cancel_transfer, check_conflicts, check_nested_conflicts, check_stale_overwrites,
+    find_conflicts, find_nested_conflicts, find_stale_overwrites, run_transfer, transfer,
+    transfer_with, NestedConflict, TransferKind, TransferProgress, TransferRequest, TransferState,
+    TransferSummary,
 };

@@ -53,6 +53,8 @@ export interface NestedConflict {
   source: string;
   /** 確認で表示する名前 (対象のディレクトリ名から始まる相対パス. 例: `d/sub/a.txt`). */
   label: string;
+  /** 配置先のファイルのほうが更新日時が新しい (古いもので上書きすることになる). */
+  stale?: boolean;
 }
 
 /**

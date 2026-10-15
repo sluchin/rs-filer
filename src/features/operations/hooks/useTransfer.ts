@@ -4,6 +4,7 @@ import {
   cancelTransfer,
   checkConflicts,
   checkNestedConflicts,
+  checkStaleOverwrites,
   copyFilesToClipboard,
   readClipboardFiles,
   runTransfer,
@@ -17,6 +18,7 @@ import type {
   TransferKind,
   TransferRequest,
 } from "../types";
+import { nestedMessage, overwriteMessage } from "../overwriteMessage";
 
 /** 操作の種類ごとの, 表示に使う動詞. */
 const LABELS: Record<TransferKind, string> = {
@@ -169,7 +171,12 @@ export function useTransfer(
         const item = nested[index];
         openChoice(
           `${label}の上書き`,
-          `「${item.label}」は既に存在します (${index + 1}/${nested.length}). 上書きしますか?`,
+          nestedMessage(
+            item.label,
+            index + 1,
+            nested.length,
+            item.stale === true,
+          ),
           [
             { key: "y", label: "はい", run: () => ask(index + 1) },
             {
@@ -253,11 +260,16 @@ export function useTransfer(
       };
       const label = LABELS[kind];
       if (conflicts.length > 0) {
-        const names = conflicts.slice(0, 3).join(", ");
-        const more = conflicts.length > 3 ? " ほか" : "";
+        let stale: string[];
+        try {
+          stale = await checkStaleOverwrites(sources, dest.currentPath);
+        } catch (e) {
+          setError(String(e));
+          return;
+        }
         openConfirm(
           `${label}の上書き`,
-          `${conflicts.length} 件が既に存在します (${names}${more}). 上書きして${label}しますか? (y/n)`,
+          overwriteMessage(label, conflicts, stale),
           () => runWithNestedConfirm(request, label),
         );
       } else if (alwaysConfirm) {
@@ -432,11 +444,13 @@ export function useTransfer(
           permanent: false,
         };
         if (conflicts.length > 0) {
-          const names = conflicts.slice(0, 3).join(", ");
-          const more = conflicts.length > 3 ? " ほか" : "";
+          const stale = await checkStaleOverwrites(
+            clipboardFiles,
+            source.currentPath,
+          );
           openConfirm(
             "コピーの上書き",
-            `${conflicts.length} 件が既に存在します (${names}${more}). 上書きしてコピーしますか? (y/n)`,
+            overwriteMessage(LABELS.copy, conflicts, stale),
             () => runWithNestedConfirm(request, LABELS.copy),
           );
         } else {

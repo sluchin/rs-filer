@@ -150,6 +150,26 @@ export function checkConflicts(
 }
 
 /**
+ * 配置先に同名のファイルがあり, 配置先のほうが更新日時が新しい対象を調べます (古いもので上書きすることになるかの確認).
+ *
+ * @param sources - 対象のパス.
+ * @param destDir - 配置先のディレクトリ.
+ * @param destName - コピー時の新しい名前 (オプション).
+ * @returns 配置先のほうが新しい対象の名前. 無ければ空.
+ */
+export function checkStaleOverwrites(
+  sources: string[],
+  destDir: string,
+  destName?: string,
+): Promise<string[]> {
+  return invoke<string[]>("check_stale_overwrites", {
+    sources,
+    destDir,
+    destName,
+  });
+}
+
+/**
  * 同名のディレクトリを統合するとき, 中にある同名のファイルを調べます. 上書きの確認 (1 件ずつ) に使います.
  *
  * @param sources - 対象のパス.

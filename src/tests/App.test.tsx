@@ -227,6 +227,7 @@ function defaultResult(cmd: string): unknown {
   if (
     cmd === "read_directory" ||
     cmd === "check_conflicts" ||
+    cmd === "check_stale_overwrites" ||
     cmd === "check_nested_conflicts" ||
     cmd === "complete_path"
   )
@@ -2515,6 +2516,91 @@ describe("App (コピー・移動・削除の実行)", () => {
         onProgress: expect.anything(),
       }),
     );
+  });
+
+  it("正常系: 配置先のほうが更新日時が新しいときは, 上書きの確認に警告が出ること", async () => {
+    mockHome((cmd) => {
+      if (cmd === "check_conflicts") return Promise.resolve(["b.txt", "c.txt"]);
+      if (cmd === "check_stale_overwrites") return Promise.resolve(["c.txt"]);
+      return undefined;
+    });
+    const user = await renderTwoDirs();
+
+    await user.keyboard("c");
+
+    expect(
+      screen.getByText(
+        "2 件が既に存在します (b.txt, c.txt). 警告: 1 件 (c.txt) は, 配置先のほうが更新日時が新しく, 古いもので上書きすることになります. 上書きしてコピーしますか? (y/n)",
+      ),
+    ).toBeInTheDocument();
+    await user.keyboard("n");
+    expect(mockedInvoke).toHaveBeenCalledWith("check_stale_overwrites", {
+      sources: ["/mock/home/FolderA"],
+      destDir: "/mock/home/FolderA",
+      destName: undefined,
+    });
+  });
+
+  it("異常系: 更新日時の確認に失敗するとエラーが表示され, 実行されないこと", async () => {
+    mockHome((cmd) => {
+      if (cmd === "check_conflicts") return Promise.resolve(["b.txt"]);
+      if (cmd === "check_stale_overwrites") return Promise.reject("読めません");
+      return undefined;
+    });
+    const user = await renderTwoDirs();
+
+    await user.keyboard("c");
+
+    expect(await screen.findByText("エラー: 読めません")).toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "run_transfer",
+      expect.anything(),
+    );
+  });
+
+  it("正常系: C-v の貼り付けでも, 配置先のほうが新しいときは警告が出ること", async () => {
+    mockHome((cmd) => {
+      if (cmd === "read_clipboard_files")
+        return Promise.resolve(["/mock/other/b.txt"]);
+      if (cmd === "check_conflicts") return Promise.resolve(["b.txt"]);
+      if (cmd === "check_stale_overwrites") return Promise.resolve(["b.txt"]);
+      return undefined;
+    });
+    const user = await renderLoaded();
+
+    await user.keyboard("{Control>}v{/Control}");
+
+    expect(
+      await screen.findByText(
+        "1 件が既に存在します (b.txt). 警告: 1 件 (b.txt) は, 配置先のほうが更新日時が新しく, 古いもので上書きすることになります. 上書きしてコピーしますか? (y/n)",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: 同名のディレクトリの統合で, 配置先のほうが新しいファイルは警告つきで確認されること", async () => {
+    mockHome((cmd) => {
+      if (cmd === "check_conflicts") return Promise.resolve(["FolderA"]);
+      if (cmd === "check_nested_conflicts") {
+        return Promise.resolve([
+          {
+            source: "/mock/home/FolderA/a.txt",
+            label: "FolderA/a.txt",
+            stale: true,
+          },
+        ]);
+      }
+      return undefined;
+    });
+    const user = await renderTwoDirs();
+
+    await user.keyboard("m");
+    await user.keyboard("y");
+
+    expect(
+      await screen.findByText(
+        "「FolderA/a.txt」は既に存在します (1/1). 警告: 配置先のほうが更新日時が新しく, 古いもので上書きすることになります. 上書きしますか?",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("異常系: 同名の確認に失敗するとエラーが表示され, 実行されないこと", async () => {
