@@ -6,13 +6,17 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-/// 1 回の読み書きで扱うバイト数.
-const CHUNK_SIZE: usize = 1024 * 1024;
+/// 進捗を通知する最短の間隔.
+const PROGRESS_INTERVAL: Duration = Duration::from_millis(50);
+
+/// 1 回にコピーするバイト数 (中断を確認する間隔).
+const CHUNK_SIZE: usize = 8 * 1024 * 1024;
 
 /// 実行する操作の種類.
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
@@ -131,6 +135,8 @@ struct Progress<'a> {
     done: u64,
     /// 全体の量.
     total: u64,
+    /// 最後に通知した時刻. まだ通知していない場合は `None`.
+    last_sent: Option<Instant>,
 }
 
 impl Progress<'_> {
@@ -146,6 +152,14 @@ impl Progress<'_> {
     /// 処理済みの量を加えて通知します.
     fn advance(&mut self, amount: u64, current: &str) {
         self.done += amount;
+        // 通知が多すぎると IPC が詰まって遅くなるため, 一定時間ごとにまとめる (最初と最後は必ず通知する).
+        let due = self
+            .last_sent
+            .is_none_or(|t| t.elapsed() >= PROGRESS_INTERVAL);
+        if !due && self.done < self.total {
+            return;
+        }
+        self.last_sent = Some(Instant::now());
         (self.on_progress)(TransferProgress {
             done: self.done,
             total: self.total,
@@ -190,7 +204,6 @@ fn copy_file(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop
     let name = file_name_of(src);
     let mut reader = fs::File::open(src)?;
     let mut writer = fs::File::create(dst)?;
-    let mut buf = vec![0u8; CHUNK_SIZE];
     loop {
         if progress.check().is_err() {
             // 書き込み中のハンドルを閉じてから消す (開いたままだと Windows などで削除できない).
@@ -198,13 +211,13 @@ fn copy_file(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop
             let _ = fs::remove_file(dst);
             return Err(Stop::Cancelled);
         }
-        let n = reader.read(&mut buf)?;
+        // OS が対応していれば, カーネル内でコピーされる (Linux の copy_file_range など).
+        let n = std::io::copy(&mut (&mut reader).take(CHUNK_SIZE as u64), &mut writer)?;
         if n == 0 {
-            // 読み取り 0 バイトはファイル末尾.
+            // コピーした量が 0 バイトはファイル末尾.
             break;
         }
-        writer.write_all(&buf[..n])?;
-        progress.advance(n as u64, &name);
+        progress.advance(n, &name);
     }
     drop(writer);
     // 権限だけコピーする. 失敗しても (読み取り専用の配置先など) コピー自体は成功として扱う.
@@ -706,6 +719,7 @@ pub fn transfer_with(
                 on_progress,
                 done: 0,
                 total: request.sources.len() as u64,
+                last_sent: None,
             };
             request.sources.iter().try_for_each(|source| {
                 progress.check()?;
@@ -725,6 +739,7 @@ pub fn transfer_with(
                 on_progress,
                 done: 0,
                 total,
+                last_sent: None,
             };
             plan.iter().try_for_each(|(src, dst)| {
                 progress.check()?;
@@ -1183,6 +1198,7 @@ mod tests {
             on_progress: &mut |_| {},
             done: 0,
             total: 0,
+            last_sent: None,
         };
 
         let file = move_one(&src, &dst, false, &|a, b| fs::rename(a, b), &mut progress);
@@ -1236,6 +1252,7 @@ mod tests {
             on_progress: &mut |_| {},
             done: 0,
             total: 0,
+            last_sent: None,
         };
 
         let result = merge_directory(
