@@ -32,7 +32,9 @@ pub mod transfer;
 pub use app::quit_app;
 #[cfg(not(tarpaulin_include))]
 pub use clipboard::{copy_files_to_clipboard, read_clipboard_files};
-pub use config::{load_config, load_keymap, save_config, AppConfig, FontSize, Theme};
+pub use config::{
+    load_config, load_keymap, save_config, save_last_paths, AppConfig, FontSize, LastPaths, Theme,
+};
 pub use exec::run_external_command;
 pub use frontend_log::{log_frontend_message, LogLevel};
 pub use fs::{

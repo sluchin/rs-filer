@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import log from "loglevel";
-import { getHomeDir, readDirectory } from "../../../services/tauriApi";
+import {
+  getHomeDir,
+  loadConfig,
+  readDirectory,
+  saveLastPaths,
+} from "../../../services/tauriApi";
 import type { FileEntry, PaneId, PaneState } from "../types";
 import { getParentPath } from "../../../utils/path";
 import { deriveFiles } from "../view";
@@ -70,7 +75,8 @@ function cursorAfterLoad(
 /**
  * 左右ペインの状態とディレクトリ読み込みを管理するフック.
  *
- * 初回マウント時に, 左右ともにホームディレクトリ (取得失敗時はルート) を開きます.
+ * 初回マウント時に, 左右のペインの前回のディレクトリを開きます. 保存されていない場合や開けない場合は,
+ * ホームディレクトリ (取得失敗時はルート) を開きます. ディレクトリが変わるたびに, 設定ファイルへ保存します.
  *
  * @param onError - 読み込みに失敗したときに, エラーメッセージを受け取る関数 (ログへの記録など).
  * @returns ペイン状態, エラー, および状態を操作する関数.
@@ -79,6 +85,8 @@ export function useFileList(onError: (message: string) => void) {
   const [leftPane, setLeftPane] = useState<PaneState>(INITIAL_PANE);
   const [rightPane, setRightPane] = useState<PaneState>(INITIAL_PANE);
   const [error, setError] = useState<string | null>(null);
+  /** 初期化(前回のディレクトリの復元)が終わったら true. 終わるまでは, ディレクトリを保存しない. */
+  const restored = useRef(false);
 
   /**
    * 指定したペインの状態を更新します.
@@ -105,13 +113,14 @@ export function useFileList(onError: (message: string) => void) {
    * @param pane - 更新対象のペイン識別子.
    * @param targetPath - 読み込み対象のディレクトリ絶対パス.
    * @param options - カーソル位置・履歴に関するオプション.
+   * @returns 読み込めたら true. 失敗したら false.
    */
-  const loadDirectory = useCallback(
+  const tryLoadDirectory = useCallback(
     async (
       pane: PaneId,
       targetPath: string,
       options: LoadOptions = {},
-    ): Promise<void> => {
+    ): Promise<boolean> => {
       try {
         setError(null);
         log.debug(`[React] ${pane}ペイン 読み込み要求:`, targetPath);
@@ -149,13 +158,33 @@ export function useFileList(onError: (message: string) => void) {
         });
 
         log.info(`[React] ${pane}ペイン 取得完了: ${result.length} 件`);
+        return true;
       } catch (e) {
         log.error(`[React] ${pane}ペイン 読み込み失敗:`, e);
         setError(String(e));
         onError(String(e));
+        return false;
       }
     },
     [updatePane, onError],
+  );
+
+  /**
+   * 指定されたパスのディレクトリを読み込みます. 失敗した場合は, エラーを設定して, 何もしません.
+   *
+   * @param pane - 更新対象のペイン識別子.
+   * @param targetPath - 読み込み対象のディレクトリ絶対パス.
+   * @param options - カーソル位置・履歴に関するオプション.
+   */
+  const loadDirectory = useCallback(
+    async (
+      pane: PaneId,
+      targetPath: string,
+      options: LoadOptions = {},
+    ): Promise<void> => {
+      await tryLoadDirectory(pane, targetPath, options);
+    },
+    [tryLoadDirectory],
   );
 
   /**
@@ -208,22 +237,52 @@ export function useFileList(onError: (message: string) => void) {
     [updatePane],
   );
 
-  // 初期化: 左右ともにホームディレクトリを開く.
+  // 初期化: 左右のペインの前回のディレクトリを開く. 無い場合や開けない場合は, ホームディレクトリを開く.
   useEffect(() => {
     const init = async (): Promise<void> => {
-      let home = "/";
+      let saved: Partial<Record<PaneId, string>> = {};
       try {
-        home = await getHomeDir();
+        const config = await loadConfig();
+        saved = config.last_paths ?? {};
       } catch (e) {
-        log.warn("[React] ホームディレクトリ取得失敗, ルートを使用します:", e);
+        log.warn("[React] 前回のディレクトリの読み込みに失敗:", e);
       }
-      await Promise.all([
-        loadDirectory("left", home),
-        loadDirectory("right", home),
-      ]);
+      let home: string | null = null;
+      const openPane = async (pane: PaneId): Promise<void> => {
+        const last = saved[pane];
+        if (last !== undefined && (await tryLoadDirectory(pane, last))) {
+          return;
+        }
+        if (home === null) {
+          try {
+            home = await getHomeDir();
+          } catch (e) {
+            log.warn(
+              "[React] ホームディレクトリ取得失敗, ルートを使用します:",
+              e,
+            );
+            home = "/";
+          }
+        }
+        await loadDirectory(pane, home);
+      };
+      await Promise.all([openPane("left"), openPane("right")]);
+      restored.current = true;
     };
     init();
-  }, [loadDirectory]);
+  }, [tryLoadDirectory, loadDirectory]);
+
+  // ディレクトリが変わったら, 設定ファイルへ保存する (復元が終わるまでは, 保存しない).
+  const leftPath = leftPane.currentPath;
+  const rightPath = rightPane.currentPath;
+  useEffect(() => {
+    if (!restored.current) {
+      return;
+    }
+    saveLastPaths({ left: leftPath, right: rightPath }).catch((e) => {
+      log.warn("[React] 前回のディレクトリの保存に失敗:", e);
+    });
+  }, [leftPath, rightPath]);
 
   return {
     leftPane,

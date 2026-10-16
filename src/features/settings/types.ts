@@ -36,6 +36,16 @@ export interface PaneColumnWidths {
 }
 
 /**
+ * 前回終了時の, 左右のペインのディレクトリ.
+ */
+export interface LastPaths {
+  /** 左ペインのディレクトリ. */
+  left: string;
+  /** 右ペインのディレクトリ. */
+  right: string;
+}
+
+/**
  * アプリケーションの設定 (`config.json` に永続化される).
  */
 export interface AppConfig {
@@ -59,6 +69,10 @@ export interface AppConfig {
    * ファイル一覧の列幅 (ペイン毎).
    */
   pane_column_widths?: PaneColumnWidths;
+  /**
+   * 前回終了時の, 左右のペインのディレクトリ. 保存されていない場合は無い.
+   */
+  last_paths?: LastPaths | null;
 }
 
 /** 既定の設定 (バックエンドの `AppConfig::default()` に合わせる). */

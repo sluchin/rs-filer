@@ -8,7 +8,7 @@ import type {
   TransferSummary,
 } from "../features/operations/types";
 import type { Preview } from "../features/preview/types";
-import type { AppConfig } from "../features/settings/types";
+import type { AppConfig, LastPaths } from "../features/settings/types";
 
 /**
  * 指定ディレクトリ内のファイル・ディレクトリ一覧を取得します.
@@ -304,6 +304,15 @@ export function loadConfig(): Promise<AppConfig> {
  */
 export function saveConfig(config: AppConfig): Promise<void> {
   return invoke<void>("save_config", { config });
+}
+
+/**
+ * 左右のペインのディレクトリを, 設定ファイルへ書き込みます. 他の設定は変えません.
+ *
+ * @param paths - 書き込む左右のペインのディレクトリ.
+ */
+export function saveLastPaths(paths: LastPaths): Promise<void> {
+  return invoke<void>("save_last_paths", { paths });
 }
 
 /** バックエンドへ転送する, ログの重大度. */

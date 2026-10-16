@@ -144,6 +144,15 @@ pub struct WindowState {
     pub maximized: bool,
 }
 
+/// 前回終了時の, 左右のペインのディレクトリ (起動時に復元する).
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+pub struct LastPaths {
+    /// 左ペインのディレクトリ.
+    pub left: String,
+    /// 右ペインのディレクトリ.
+    pub right: String,
+}
+
 /// アプリケーションの設定.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 #[serde(default)]
@@ -163,6 +172,10 @@ pub struct AppConfig {
     /// バックエンドが終了時に書き込む. フロントエンドからの保存では上書きしない.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window: Option<WindowState>,
+    /// 前回終了時の, 左右のペインのディレクトリ. 保存されていない場合は `None`.
+    /// `save_last_paths` が書き込む. `save_config` では上書きしない.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_paths: Option<LastPaths>,
 }
 
 impl Default for AppConfig {
@@ -174,6 +187,7 @@ impl Default for AppConfig {
             terminal: None,
             pane_column_widths: PaneColumnWidths::default(),
             window: None,
+            last_paths: None,
         }
     }
 }
@@ -246,8 +260,8 @@ pub(crate) fn load_config_from(config_dir: Option<&Path>) -> Result<AppConfig, S
 
 /// 設定ディレクトリへアプリ設定を書き込みます.
 ///
-/// ウィンドウの状態 (`window`) は, バックエンドが終了時に書くものなので, 渡された設定の値ではなく,
-/// 保存されている値を残します (フロントエンドが読み込んだ古い値で, 上書きしないため).
+/// ウィンドウの状態 (`window`) と前回のディレクトリ (`last_paths`) は, 別に書くものなので,
+/// 渡された設定の値ではなく, 保存されている値を残します (フロントエンドが読み込んだ古い値で, 上書きしないため).
 ///
 /// # Arguments
 ///
@@ -262,7 +276,9 @@ fn save_config_to(config_dir: Option<&Path>, config: &AppConfig) -> Result<(), S
     let dir = config_dir.ok_or_else(|| "Config directory is not available".to_string())?;
     let path = config_path(dir);
     let mut merged = config.clone();
-    merged.window = read_config(&path).ok().and_then(|saved| saved.window);
+    let saved = read_config(&path).ok();
+    merged.window = saved.as_ref().and_then(|saved| saved.window.clone());
+    merged.last_paths = saved.and_then(|saved| saved.last_paths);
     write_config(&path, &merged)
 }
 
@@ -286,6 +302,43 @@ pub(crate) fn save_window_state_to(
     let mut config = read_config(&path)?;
     config.window = Some(state.clone());
     write_config(&path, &config)
+}
+
+/// 設定ディレクトリの設定ファイルへ, 前回のディレクトリだけを書き込みます. 他の項目は変えません.
+///
+/// # Arguments
+///
+/// * `config_dir` - OS の設定ディレクトリ. 取得できなかった場合は `None`.
+/// * `paths` - 書き込む左右のペインのディレクトリ.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok(())`]. 設定ディレクトリを取得できない場合, 既存の設定が読み込めない場合
+/// (壊れた設定を上書きしないため), 書き込みに失敗した場合は, エラー文字列を含む [`Err`].
+fn save_last_paths_to(config_dir: Option<&Path>, paths: &LastPaths) -> Result<(), String> {
+    let dir = config_dir.ok_or_else(|| "Config directory is not available".to_string())?;
+    let path = config_path(dir);
+    let mut config = read_config(&path)?;
+    config.last_paths = Some(paths.clone());
+    write_config(&path, &config)
+}
+
+/// ユーザーの設定へ, 左右のペインのディレクトリを書き込みます.
+///
+/// # Arguments
+///
+/// * `paths` - 書き込む左右のペインのディレクトリ.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
+// 実際のユーザーの設定ディレクトリへ書くため, カバレッジの対象外にする (ロジックは save_last_paths_to で検証する).
+#[cfg(not(tarpaulin_include))]
+#[tauri::command]
+pub fn save_last_paths(paths: LastPaths) -> Result<(), String> {
+    save_last_paths_to(dirs::config_dir().as_deref(), &paths).inspect_err(|e| {
+        log::error!("前回のディレクトリ書き込み失敗: {}", e);
+    })
 }
 
 /// ユーザーのアプリ設定を読み込みます.
@@ -429,6 +482,7 @@ mod tests {
             terminal: Some("konsole".to_string()),
             pane_column_widths: PaneColumnWidths::default(),
             window: Some(sample_window(false)),
+            last_paths: None,
         };
 
         write_config(&path, &config).unwrap();
@@ -606,6 +660,38 @@ mod tests {
         assert_eq!(saved.theme, Theme::Dark);
         assert_eq!(saved.editor, Some("vim".to_string()));
         assert_eq!(saved.window, Some(sample_window(true)));
+    }
+
+    #[test]
+    fn test_save_last_paths_to_keeps_other_settings_and_survives_save_config() {
+        let dir = tempdir().unwrap();
+        let config = AppConfig {
+            editor: Some("vim".to_string()),
+            ..AppConfig::default()
+        };
+        save_config_to(Some(dir.path()), &config).unwrap();
+        let paths = LastPaths {
+            left: "/a".to_string(),
+            right: "/b".to_string(),
+        };
+
+        save_last_paths_to(Some(dir.path()), &paths).unwrap();
+        save_config_to(Some(dir.path()), &config).unwrap();
+
+        let loaded = load_config_from(Some(dir.path())).unwrap();
+        assert_eq!(loaded.last_paths, Some(paths));
+        assert_eq!(loaded.editor.as_deref(), Some("vim"));
+    }
+
+    #[test]
+    fn test_save_last_paths_to_failures() {
+        let paths = LastPaths::default();
+        assert!(save_last_paths_to(None, &paths).is_err());
+        let dir = tempdir().unwrap();
+        let file = config_path(dir.path());
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, "not json").unwrap();
+        assert!(save_last_paths_to(Some(dir.path()), &paths).is_err());
     }
 
     #[test]

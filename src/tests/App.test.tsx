@@ -85,6 +85,87 @@ describe("App (Dual Pane)", () => {
     });
   });
 
+  it("正常系: 前回のディレクトリが保存されていれば, 左右それぞれのペインで復元されること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_config"
+        ? Promise.resolve({
+            theme: "classic",
+            font_size: "medium",
+            editor: null,
+            terminal: null,
+            last_paths: {
+              left: "/mock/home/FolderA",
+              right: "/mock/home",
+            },
+          })
+        : undefined,
+    );
+
+    render(<App />);
+
+    expect(await paneOf("left").findByText("in.txt")).toBeInTheDocument();
+    expect(await paneOf("right").findByText("FolderA")).toBeInTheDocument();
+  });
+
+  it("異常系: 前回のディレクトリを開けなければ, そのペインだけホームディレクトリを開くこと", async () => {
+    mockHome((cmd, args) => {
+      if (cmd === "load_config") {
+        return Promise.resolve({
+          theme: "classic",
+          font_size: "medium",
+          editor: null,
+          terminal: null,
+          last_paths: { left: "/gone", right: "/mock/home/FolderA" },
+        });
+      }
+      if (cmd === "read_directory" && pathOf(args) === "/gone") {
+        return Promise.reject("見つかりません");
+      }
+      return undefined;
+    });
+
+    render(<App />);
+
+    expect(await paneOf("left").findByText("FolderA")).toBeInTheDocument();
+    expect(await paneOf("right").findByText("in.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: ディレクトリを移動すると, 左右のディレクトリが保存されること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("save_last_paths", {
+        paths: { left: "/mock/home/FolderA", right: "/mock/home" },
+      }),
+    );
+  });
+
+  it("異常系: 前回のディレクトリの保存に失敗しても, 操作を続けられること", async () => {
+    mockHome((cmd) =>
+      cmd === "save_last_paths" ? Promise.reject("保存失敗") : undefined,
+    );
+    const user = await renderLoaded();
+
+    await user.keyboard("{Enter}");
+
+    expect(await paneOf("left").findByText("in.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: H でアクティブなペインがホームディレクトリへ移動すること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await user.keyboard("H");
+
+    expect(await paneOf("left").findByText("FolderA")).toBeInTheDocument();
+  });
+
   it("異常系: read_directory 失敗時にエラーメッセージが表示されること", async () => {
     mockedInvoke.mockImplementation((cmd) => {
       if (cmd === "get_home_dir") {
@@ -2756,10 +2837,10 @@ describe("App (操作ログ)", () => {
     vi.clearAllMocks();
   });
 
-  it("正常系: H でログのダイアログが開き, ログが無ければその旨が表示され, Esc で閉じること", async () => {
+  it("正常系: L でログのダイアログが開き, ログが無ければその旨が表示され, Esc で閉じること", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("H");
+    await user.keyboard("L");
     expect(
       screen.getByRole("dialog", { name: "操作ログ" }),
     ).toBeInTheDocument();
@@ -2778,7 +2859,7 @@ describe("App (操作ログ)", () => {
     await user.keyboard("Nx{Enter}");
     await screen.findByText("エラー: 作成できません");
 
-    await user.keyboard("H");
+    await user.keyboard("L");
     const items = within(screen.getByRole("dialog")).getAllByRole("listitem");
     expect(items).toHaveLength(2);
     expect(items[0]).toHaveTextContent("作成できません");
@@ -2800,7 +2881,7 @@ describe("App (操作ログ)", () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findAllByText("エラー: 読めません");
-    await user.keyboard("H");
+    await user.keyboard("L");
     expect(
       within(screen.getByRole("dialog")).getAllByText(/読めません/).length,
     ).toBeGreaterThan(0);
@@ -3528,7 +3609,7 @@ describe("App (ページ送り・先頭末尾・パス補完・パレット・�
     await waitFor(() =>
       expect(mockedInvoke).toHaveBeenCalledWith("load_keymap"),
     );
-    await user.keyboard("H");
+    await user.keyboard("L");
     expect(
       within(screen.getByRole("dialog")).getByText(/キーの表記が不正です/),
     ).toBeInTheDocument();

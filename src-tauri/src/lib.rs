@@ -61,6 +61,7 @@ pub fn run() {
             commands::config::load_keymap,
             commands::config::load_config,
             commands::config::save_config,
+            commands::config::save_last_paths,
             commands::fs::complete_path,
             commands::preview::read_preview,
             commands::transfer::run_transfer,
