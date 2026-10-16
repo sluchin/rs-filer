@@ -81,6 +81,7 @@ export function useTransfer(
     null,
   );
   const [cancelling, setCancelling] = useState(false);
+  const [background, setBackground] = useState(false);
   const otherPane: PaneId = activePane === "left" ? "right" : "left";
   const source = activePane === "left" ? leftPane : rightPane;
   const dest = activePane === "left" ? rightPane : leftPane;
@@ -91,10 +92,17 @@ export function useTransfer(
   const run = useCallback(
     async (request: TransferRequest): Promise<void> => {
       const label = LABELS[request.kind];
+      if (running !== null) {
+        setError(
+          "別のコピー・移動・削除を実行中です. 終わってから実行してください.",
+        );
+        return;
+      }
       const srcPane = activePane;
       const srcPath = source.currentPath;
       const destPath = dest.currentPath;
       setCancelling(false);
+      setBackground(false);
       setTask({ kind: request.kind, done: 0, total: 0, current: "" });
       let failure: string | null = null;
       try {
@@ -124,6 +132,7 @@ export function useTransfer(
       }
     },
     [
+      running,
       activePane,
       otherPane,
       source.currentPath,
@@ -369,6 +378,9 @@ export function useTransfer(
     cancelTransfer().catch((e) => log.warn("[React] 中断の要求に失敗:", e));
   }, []);
 
+  /** 進捗ダイアログを隠して, 処理をバックグラウンドで続けます. */
+  const sendToBackground = useCallback((): void => setBackground(true), []);
+
   /** クリップボードへファイルをコピーします. */
   const copyToClipboard = useCallback((): void => {
     const files = targetsOf(source);
@@ -500,6 +512,8 @@ export function useTransfer(
     copyToClipboard,
     pasteFromClipboard,
     duplicateFile,
+    background,
+    sendToBackground,
     cancel,
   };
 }

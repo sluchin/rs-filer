@@ -10,6 +10,8 @@ interface ModalProps {
   onClose: () => void;
   /** 本文. */
   children: ReactNode;
+  /** false の場合は, 枠外クリックで閉じない (省略時は true). 誤クリックで中断したくないダイアログに使う. */
+  closeOnBackdrop?: boolean;
 }
 
 /**
@@ -22,10 +24,11 @@ export default function Modal({
   title,
   onClose,
   children,
+  closeOnBackdrop = true,
 }: ModalProps): ReactElement {
   return (
     <div
-      onClick={onClose}
+      onClick={closeOnBackdrop ? onClose : undefined}
       style={{
         position: "fixed",
         inset: 0,

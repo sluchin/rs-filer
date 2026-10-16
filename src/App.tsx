@@ -20,6 +20,7 @@ import { resolveCommandName } from "./features/keybindings/commandNames";
 import { useUserKeymap } from "./features/keybindings/hooks/useUserKeymap";
 import type { Command } from "./features/keybindings/types";
 import { useKeymap } from "./features/keybindings/useKeymap";
+import BackgroundTaskBar from "./features/operations/components/BackgroundTaskBar";
 import TaskProgressModal from "./features/operations/components/TaskProgressModal";
 import { useTransfer } from "./features/operations/hooks/useTransfer";
 import {
@@ -438,7 +439,7 @@ export default function App(): ReactElement {
       !logOpen &&
       !paletteOpen &&
       !helpOpen &&
-      transfer.task === null,
+      (transfer.task === null || transfer.background),
     keymap,
   );
 
@@ -637,6 +638,9 @@ export default function App(): ReactElement {
         <HelpDialog keymap={keymap} onClose={() => setHelpOpen(false)} />
       )}
       <KeyHintBar mode={treePanes[activePane] ? "tree" : "list"} />
+      {transfer.task && transfer.background && (
+        <BackgroundTaskBar task={transfer.task} onCancel={transfer.cancel} />
+      )}
       <StatusBar
         error={error}
         // プレフィクスキー入力中は, 続きを待っていることが分かるよう通知の末尾に付け足す.
@@ -651,8 +655,12 @@ export default function App(): ReactElement {
         ].join(" / ")}
         disk={disk}
       />
-      {transfer.task && (
-        <TaskProgressModal task={transfer.task} onCancel={transfer.cancel} />
+      {transfer.task && !transfer.background && (
+        <TaskProgressModal
+          task={transfer.task}
+          onCancel={transfer.cancel}
+          onBackground={transfer.sendToBackground}
+        />
       )}
       {logOpen && (
         <OperationLogDialog

@@ -17,10 +17,13 @@ interface TaskProgressModalProps {
   task: TaskState;
   /** 中断のハンドラー. */
   onCancel: () => void;
+  /** バックグラウンドへ回すハンドラー. */
+  onBackground: () => void;
 }
 
 /**
- * コピー・移動・削除の進捗を示すダイアログ. `C-g` または `Esc` で中断します.
+ * コピー・移動・削除の進捗を示すダイアログ. `C-g` または `Esc` か「中断」ボタンで中断します.
+ * 枠外のクリックでは中断しません. 「バックグラウンド」ボタンで, ダイアログを隠して処理を続けます.
  *
  * @param props - コンポーネントのプロパティ.
  * @returns ダイアログのReact要素.
@@ -28,9 +31,10 @@ interface TaskProgressModalProps {
 export default function TaskProgressModal({
   task,
   onCancel,
+  onBackground,
 }: TaskProgressModalProps): ReactElement {
   return (
-    <Modal title={TITLES[task.kind]} onClose={onCancel}>
+    <Modal title={TITLES[task.kind]} onClose={onCancel} closeOnBackdrop={false}>
       <div
         onKeyDown={(e) => {
           if (e.ctrlKey && e.key === "g") {
@@ -54,6 +58,9 @@ export default function TaskProgressModal({
             onClick={onCancel}
           >
             {task.cancelling ? "中断しています..." : "中断 (C-g)"}
+          </button>{" "}
+          <button type="button" onClick={onBackground}>
+            バックグラウンド
           </button>
         </div>
       </div>

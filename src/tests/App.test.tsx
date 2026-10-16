@@ -2785,6 +2785,58 @@ describe("App (コピー・移動・削除の実行)", () => {
     },
   );
 
+  it("正常系: 進捗ダイアログの枠外をクリックしても, 中断されないこと", async () => {
+    const transfer = mockControlledTransfer();
+    const user = await renderTwoDirs();
+    await user.keyboard("c");
+    const dialog = await screen.findByRole("dialog", { name: "コピー中" });
+
+    await user.click(dialog.parentElement as HTMLElement);
+
+    expect(mockedInvoke).not.toHaveBeenCalledWith("cancel_transfer");
+    expect(
+      screen.getByRole("dialog", { name: "コピー中" }),
+    ).toBeInTheDocument();
+    await act(async () => transfer.resolve({ processed: 1, cancelled: false }));
+  });
+
+  it("正常系: バックグラウンドへ回すと, ダイアログが消えて進捗バーが出て, 操作できること", async () => {
+    const transfer = mockControlledTransfer();
+    const user = await renderTwoDirs();
+    await user.keyboard("j");
+    await user.keyboard("c");
+    await screen.findByRole("dialog", { name: "コピー中" });
+
+    await user.click(screen.getByRole("button", { name: "バックグラウンド" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const bar = screen.getByRole("status", { name: "バックグラウンドの処理" });
+    act(() => transfer.emit({ done: 3, total: 6, current: "c.txt" }));
+    expect(within(bar).getByText("コピー中: c.txt")).toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith("cancel_transfer");
+
+    await user.keyboard("k");
+    expect(cursorNames()).not.toEqual(["b.txt"]);
+
+    await user.keyboard("c");
+    expect(
+      screen.getByText(/別のコピー・移動・削除を実行中です/),
+    ).toBeInTheDocument();
+
+    await user.click(within(bar).getByRole("button", { name: "中断" }));
+    expect(mockedInvoke).toHaveBeenCalledWith("cancel_transfer");
+    expect(
+      within(bar).getByRole("button", { name: "中断しています..." }),
+    ).toBeDisabled();
+
+    await act(async () => transfer.resolve({ processed: 0, cancelled: true }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("status", { name: "バックグラウンドの処理" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
   it("異常系: 中断の要求に失敗しても, 操作は続き画面は動作すること", async () => {
     const transfer = mockControlledTransfer((cmd) =>
       cmd === "cancel_transfer" ? Promise.reject("失敗") : undefined,
