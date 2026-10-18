@@ -49,11 +49,11 @@ const PAGE_SIZE = 10;
 
 // バックエンドのログファイルにも残すため, コンソールへの出力に加えて IPC 経由で転送する.
 installLogForwarding();
-// 開発環境では debug 以上, 本番では warn 以上を出力.
+// 開発環境では debug 以上, 本番では info 以上 (最低限の情報, 警告, エラー) を出力.
 if (import.meta.env.DEV) {
   log.setLevel("debug");
 } else {
-  log.setLevel("warn");
+  log.setLevel("info");
 }
 
 /**

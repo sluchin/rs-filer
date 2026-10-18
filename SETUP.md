@@ -90,6 +90,14 @@ cargo install cargo-tarpaulin
 
 ---
 
+## ログ
+
+ログは、標準エラー出力と、ログファイルに出ます。フロントエンド (`loglevel`) のログも、バックエンドに転送して、同じファイルに残します。
+
+* ログファイル: `<データディレクトリ>/rsfiler/logs/rsfiler.log` (Linux は `~/.local/share/rsfiler/logs/rsfiler.log`、Windows は `%LOCALAPPDATA%\rsfiler\logs\rsfiler.log`、macOS は `~/Library/Application Support/rsfiler/logs/rsfiler.log`)。5 MB を超えると世代送りして、3 世代 (`.1` から `.3`) を残します。
+* レベル: デバッグ版 (`npm run tauri:dev`) はデバッグ以上、リリース版 (`npm run tauri:build`) は情報、警告、エラーを出します。
+* レベルを変えるとき: `RUST_LOG=debug npm run tauri:dev` のように、環境変数 `RUST_LOG` で上書きします (リリース版でも効きます)。
+
 ## 4. プロジェクトのファイル構成
 
 ### 4.1 バックエンド (Rust)

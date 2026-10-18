@@ -55,6 +55,8 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 - 公開する型・関数・コンポーネントには、TSDoc (`/** ... */`) を付ける (typedoc で出力する)。
 - Tauri の API は `@tauri-apps/api` から取り込む。バックエンドの呼び出しは、`invoke` を通す。
 - ログは `console.*` ではなく `loglevel` (`log.debug` / `log.warn` / `log.error`) を使う。
+- ログのレベル: デバッグ版 (`npm run tauri:dev`、`debug_assertions`) はデバッグ以上、リリース版は情報 (最低限)、警告、エラーを出す (Rust は `logging.rs` の `default_level`、フロントエンドは `App.tsx` の `log.setLevel`)。判定は、ログの初期化の中でする (呼ぶ側では、判定しない)。Rust は `log::debug!` / `info!` / `warn!` / `error!` を使う。フロントエンドのログは、`log_frontend_message` で、バックエンドのログにも転送する。
+- ログは、標準エラー出力と、ログファイル (`<データディレクトリ>/rsfiler/logs/rsfiler.log`。5 MB で世代送り、3 世代) に出す。環境変数 `RUST_LOG` で、レベルを上書きできる。パスワードなどの秘密は書かない。
 - キーボード操作を優先する。キーバインドを足すときは、`KEYBINDINGS.md` の既存の割り当てと衝突しないことを確認する。
 - `FILETREE.md` の構成 (`components/`、`features/<機能>/{components,hooks,types.ts}`) に沿って、ファイルを分ける。コードが `App.tsx` に集中してきたら、この構成へ切り出す。
 

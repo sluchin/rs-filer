@@ -156,16 +156,38 @@ fn default_log_path() -> Option<PathBuf> {
     dirs::data_local_dir().map(|dir| log_path_from(&dir))
 }
 
+/// 環境変数 `RUST_LOG` がないときの, ログレベルを返します.
+///
+/// デバッグ版 (`debug_assertions`) はデバッグ以上, リリース版は情報以上 (最低限の情報, 警告, エラー) を出します.
+///
+/// # Arguments
+///
+/// * `debug` - デバッグ版か.
+///
+/// # Returns
+///
+/// ログレベル.
+fn default_level(debug: bool) -> log::LevelFilter {
+    if debug {
+        log::LevelFilter::Debug
+    } else {
+        log::LevelFilter::Info
+    }
+}
+
 /// ログ出力を初期化します. 標準エラー出力と, ローテートするログファイルの両方へ出力します.
 ///
-/// ログレベルは環境変数 `RUST_LOG` で変更できます (既定はエラーのみ).
+/// ログレベルは環境変数 `RUST_LOG` で変更できます (既定は, デバッグ版はデバッグ以上, リリース版は情報以上).
 /// ログファイルを開けない場合 (データディレクトリを取得できない, 権限が無いなど) は,
 /// 標準エラー出力のみへ出力します.
 // グローバルなロガーを 1 度だけ初期化するもので, 実際のデータディレクトリにも依存するため,
 // cargo test では検証できない (ロジックは RotatingFile / Tee / log_path_from で検証する).
 #[cfg(not(tarpaulin_include))]
 pub fn init_logging() {
-    let mut builder = env_logger::Builder::from_default_env();
+    let mut builder = env_logger::Builder::new();
+    builder.filter_level(default_level(cfg!(debug_assertions)));
+    // RUST_LOG があれば, 既定のレベルを上書きする
+    builder.parse_env(env_logger::Env::default());
     if let Some(path) = default_log_path() {
         if let Ok(file) = RotatingFile::open(&path, MAX_LOG_BYTES, MAX_BACKUPS) {
             builder.target(env_logger::Target::Pipe(Box::new(Tee {
@@ -181,6 +203,12 @@ pub fn init_logging() {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn test_default_level_by_build() {
+        assert_eq!(default_level(true), log::LevelFilter::Debug);
+        assert_eq!(default_level(false), log::LevelFilter::Info);
+    }
 
     #[test]
     fn test_backup_path_success() {
