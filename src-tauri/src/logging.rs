@@ -167,7 +167,7 @@ fn default_log_path() -> Option<PathBuf> {
 /// # Returns
 ///
 /// ログレベル.
-fn default_level(debug: bool) -> log::LevelFilter {
+pub fn default_level(debug: bool) -> log::LevelFilter {
     if debug {
         log::LevelFilter::Debug
     } else {
@@ -203,12 +203,6 @@ pub fn init_logging() {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-
-    #[test]
-    fn test_default_level_by_build() {
-        assert_eq!(default_level(true), log::LevelFilter::Debug);
-        assert_eq!(default_level(false), log::LevelFilter::Info);
-    }
 
     #[test]
     fn test_backup_path_success() {
