@@ -58,6 +58,8 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   C: "copyConfirm",
   "C-c": "copyToClipboard",
   "C-v": "pasteFromClipboard",
+  "M-w": "copyFullPath",
+  "M-n": "copyName",
   m: "move",
   M: "moveConfirm",
   O: "syncPane",

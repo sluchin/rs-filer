@@ -556,3 +556,27 @@ body,
 .tree-icon[data-expanded="true"] {
   transform: rotate(90deg);
 }
+
+/* 右クリックのメニュー. 右クリックした位置に重ねて表示する. */
+.context-menu {
+  position: fixed;
+  z-index: 100;
+  margin: 0;
+  padding: 2px 0;
+  list-style: none;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+}
+
+.context-menu-item {
+  padding: 2px 16px;
+  cursor: default;
+}
+
+.context-menu-item[data-selected="true"] {
+  background: var(--cursor-active);
+  color: #ffffff;
+}

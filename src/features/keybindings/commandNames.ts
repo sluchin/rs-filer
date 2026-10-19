@@ -25,6 +25,8 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   copyConfirm: "確認してから対向ペインへコピー",
   copyToClipboard: "クリップボードへコピー",
   pasteFromClipboard: "クリップボードから貼り付け",
+  copyFullPath: "フルパスを文字としてコピー",
+  copyName: "ファイル名 (ディレクトリ名) を文字としてコピー",
   duplicate: "同じディレクトリ内でコピー",
   move: "対向ペインへ移動",
   moveConfirm: "確認してから対向ペインへ移動",

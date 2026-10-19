@@ -121,6 +121,13 @@ interface FileListProps {
   onItemClick: (index: number, file: FileEntry) => void;
   /** 項目ダブルクリック時のハンドラー. */
   onItemOpen: (index: number, file: FileEntry) => void;
+  /** 項目の右クリック時のハンドラー (右クリックした位置を渡す). */
+  onItemContextMenu: (
+    index: number,
+    file: FileEntry,
+    x: number,
+    y: number,
+  ) => void;
   /** 列幅設定. */
   columnWidths?: ColumnWidths;
   /** 列幅が変更されたときのハンドラー. */
@@ -189,6 +196,7 @@ export default function FileList({
   onParentClick,
   onItemClick,
   onItemOpen,
+  onItemContextMenu,
   columnWidths = {},
   onColumnWidthChange,
 }: FileListProps): ReactElement {
@@ -425,6 +433,7 @@ export default function FileList({
         measureRef={rowMeasureRef}
         onClick={() => onItemClick(idx, file)}
         onDoubleClick={() => onItemOpen(idx, file)}
+        onContextMenu={(x, y) => onItemContextMenu(idx, file, x, y)}
         colNameStyle={colNameStyle}
         colSizeStyle={colSizeStyle}
         colDateStyle={colDateStyle}

@@ -27,6 +27,14 @@ interface DualPaneContainerProps {
   onItemClick: (pane: PaneId, index: number, file: FileEntry) => void;
   /** 項目ダブルクリックのハンドラー. */
   onItemOpen: (pane: PaneId, index: number, file: FileEntry) => void;
+  /** 項目の右クリックのハンドラー (右クリックした位置を渡す). */
+  onItemContextMenu: (
+    pane: PaneId,
+    index: number,
+    file: FileEntry,
+    x: number,
+    y: number,
+  ) => void;
   /** ペインの通常表示を差し替える内容 (プレビュー・詳細・ブックマーク一覧・履歴・ツリーなど). 無いペインは通常表示のまま. */
   overrides: Partial<Record<PaneId, ReactElement>>;
   /** パス入力欄の要素を登録するハンドラー. */
@@ -56,6 +64,7 @@ export default function DualPaneContainer({
   onFilterChange,
   onItemClick,
   onItemOpen,
+  onItemContextMenu,
   overrides,
   registerPathInput,
   registerFilterInput,
@@ -75,6 +84,9 @@ export default function DualPaneContainer({
         onFilterChange={(value) => onFilterChange(paneId, value)}
         onItemClick={(index, file) => onItemClick(paneId, index, file)}
         onItemOpen={(index, file) => onItemOpen(paneId, index, file)}
+        onItemContextMenu={(index, file, x, y) =>
+          onItemContextMenu(paneId, index, file, x, y)
+        }
         pathInputRef={(element) => registerPathInput(paneId, element)}
         filterInputRef={(element) => registerFilterInput(paneId, element)}
         paneColumnWidths={paneColumnWidths}

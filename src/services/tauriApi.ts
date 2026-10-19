@@ -222,6 +222,15 @@ export function copyFilesToClipboard(paths: string[]): Promise<void> {
 }
 
 /**
+ * 文字列 (フルパスや名前) を, そのままシステムクリップボードにコピーします.
+ *
+ * @param text - コピーする文字列.
+ */
+export function copyTextToClipboard(text: string): Promise<void> {
+  return invoke<void>("copy_text_to_clipboard", { text });
+}
+
+/**
  * システムクリップボードからファイルリストを読み取ります.
  *
  * @returns ファイルパスの配列.

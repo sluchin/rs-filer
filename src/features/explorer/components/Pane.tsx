@@ -30,6 +30,13 @@ interface PaneProps {
   onItemClick: (index: number, file: FileEntry) => void;
   /** 項目ダブルクリックのハンドラー. */
   onItemOpen: (index: number, file: FileEntry) => void;
+  /** 項目の右クリックのハンドラー (右クリックした位置を渡す). */
+  onItemContextMenu: (
+    index: number,
+    file: FileEntry,
+    x: number,
+    y: number,
+  ) => void;
   /** パス入力欄の要素を受け取る ref コールバック. */
   pathInputRef: (element: HTMLInputElement | null) => void;
   /** 絞り込み入力欄の要素を受け取る ref コールバック. */
@@ -57,6 +64,7 @@ export default function Pane({
   onFilterChange,
   onItemClick,
   onItemOpen,
+  onItemContextMenu,
   pathInputRef,
   filterInputRef,
   paneColumnWidths,
@@ -98,6 +106,7 @@ export default function Pane({
         onParentClick={onParentClick}
         onItemClick={onItemClick}
         onItemOpen={onItemOpen}
+        onItemContextMenu={onItemContextMenu}
         columnWidths={columnWidths}
         onColumnWidthChange={(widths) => onColumnWidthChange?.(paneId, widths)}
       />

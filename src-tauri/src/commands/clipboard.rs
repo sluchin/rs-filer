@@ -146,6 +146,44 @@ pub fn read_clipboard_files() -> Result<Vec<String>, String> {
     OsClipboard.get_files()
 }
 
+/// クリップボードへ入れる文字列を確かめます (空の文字列は入れません).
+///
+/// # Arguments
+///
+/// * `text` - クリップボードへ入れる文字列.
+///
+/// # Returns
+///
+/// 入れてよい場合は [`Ok`]. 空の場合はエラー文字列を含む [`Err`].
+pub fn check_text(text: &str) -> Result<(), String> {
+    if text.is_empty() {
+        return Err("No text to copy".to_string());
+    }
+    Ok(())
+}
+
+/// 文字列 (フルパスや名前) を, そのままクリップボードへコピーします.
+///
+/// ファイルのコピー (`copy_files_to_clipboard`) とは違い, パスの存在は確かめません.
+///
+/// # Arguments
+///
+/// * `text` - コピーする文字列.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok`]. 失敗した場合はエラー文字列を含む [`Err`].
+#[tauri::command]
+#[cfg(not(tarpaulin_include))]
+pub fn copy_text_to_clipboard(text: String) -> Result<(), String> {
+    check_text(&text)?;
+    let mut clipboard =
+        arboard::Clipboard::new().map_err(|e| format!("Failed to access clipboard: {}", e))?;
+    clipboard
+        .set_text(text)
+        .map_err(|e| format!("Failed to copy text: {}", e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

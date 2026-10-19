@@ -24,6 +24,7 @@ import BackgroundTaskBar from "./features/operations/components/BackgroundTaskBa
 import TaskProgressModal from "./features/operations/components/TaskProgressModal";
 import { useTransfer } from "./features/operations/hooks/useTransfer";
 import {
+  copyTextToClipboard,
   getHomeDir,
   openTerminal,
   quitApp,
@@ -43,6 +44,13 @@ import OperationDialog from "./features/operations/components/OperationDialog";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
 import { installLogForwarding } from "./services/logForwarder";
 import TreePane from "./features/tree/components/TreePane";
+import ContextMenu from "./components/ContextMenu";
+import {
+  copyChoicesOf,
+  copyTextOf,
+  type CopyKind,
+  type CopyTarget,
+} from "./features/explorer/copyText";
 
 /** ページ送り (`PageUp` / `PageDown`) で動かす行数. */
 const PAGE_SIZE = 10;
@@ -106,6 +114,12 @@ export default function App(): ReactElement {
     [addLog],
   );
   const { notice, notify } = useNotice(logInfo);
+  // 右クリックのメニュー (フルパスや名前のコピー) の対象と位置. 開いていないときは null.
+  const [copyMenu, setCopyMenu] = useState<{
+    target: CopyTarget;
+    x: number;
+    y: number;
+  } | null>(null);
   const keymap = useUserKeymap(logError);
   const settings = useSettings();
   const bookmarks = useBookmarks();
@@ -176,6 +190,32 @@ export default function App(): ReactElement {
     },
     [handleEnter, openExternal],
   );
+
+  /**
+   * 対象のフルパスか名前を, 文字としてクリップボードへコピーする.
+   */
+  const copyText = useCallback(
+    (target: CopyTarget, kind: CopyKind): void => {
+      const text = copyTextOf(target, kind);
+      copyTextToClipboard(text)
+        .then(() => notify(`コピーしました: ${text}`))
+        .catch((e) => reportError(String(e)));
+    },
+    [notify, reportError],
+  );
+
+  /**
+   * アクティブなペインのカーソル位置の項目のフルパスか名前を, 文字としてコピーする (`..` の行と, 空の一覧では
+   * コピーしない).
+   */
+  const copyCursorText = (kind: CopyKind): void => {
+    const file = activeState.files[activeState.selectedIndex];
+    if (!file) {
+      reportError("対象の項目が選択されていません.");
+      return;
+    }
+    copyText({ path: file.path, name: file.name, isDir: file.is_dir }, kind);
+  };
 
   /** ペインを切り替える. */
   const switchPane = (): void =>
@@ -260,6 +300,12 @@ export default function App(): ReactElement {
         break;
       case "pasteFromClipboard":
         transfer.pasteFromClipboard();
+        break;
+      case "copyFullPath":
+        copyCursorText("fullPath");
+        break;
+      case "copyName":
+        copyCursorText("name");
         break;
       case "duplicate":
         transfer.duplicateFile();
@@ -439,6 +485,7 @@ export default function App(): ReactElement {
       !logOpen &&
       !paletteOpen &&
       !helpOpen &&
+      copyMenu === null &&
       (transfer.task === null || transfer.background),
     keymap,
   );
@@ -452,6 +499,21 @@ export default function App(): ReactElement {
       updatePane(pane, (p) => ({ ...p, selectedIndex: index }));
     },
     [updatePane],
+  );
+
+  /**
+   * 項目の右クリック時に, その項目にカーソルを移して, コピーのメニューを開く.
+   */
+  const handleItemContextMenu = useCallback(
+    (pane: PaneId, index: number, file: FileEntry, x: number, y: number) => {
+      handleItemClick(pane, index);
+      setCopyMenu({
+        target: { path: file.path, name: file.name, isDir: file.is_dir },
+        x,
+        y,
+      });
+    },
+    [handleItemClick],
   );
 
   /**
@@ -557,13 +619,18 @@ export default function App(): ReactElement {
           setTreePanes((p) => ({ ...p, [paneId]: false }));
           loadDirectory(paneId, path);
         }}
-        keysEnabled={operations.dialog === null}
+        keysEnabled={operations.dialog === null && copyMenu === null}
         onCreateDirectory={operations.startMkdirAt}
         onRename={operations.startRenameAt}
         onDelete={(path, name, permanent, onDone) =>
           transfer.startDeletePaths([{ path, name }], permanent, onDone)
         }
         onOpenExternal={openPath}
+        onCopyMenu={(target, x, y) => {
+          setActivePane(paneId);
+          setCopyMenu({ target, x, y });
+        }}
+        onCopyText={copyText}
         onCancel={() => setTreePanes((p) => ({ ...p, [paneId]: false }))}
         onSwitchPane={switchPane}
       />
@@ -588,6 +655,7 @@ export default function App(): ReactElement {
           onFilterChange={(pane, value) => setView(pane, { filter: value })}
           onItemClick={handleItemClick}
           onItemOpen={handleItemOpen}
+          onItemContextMenu={handleItemContextMenu}
           overrides={paneOverrides}
           registerPathInput={(pane, element) => {
             pathInputs.current[pane] = element;
@@ -632,6 +700,17 @@ export default function App(): ReactElement {
             }
           }}
           onClose={() => setPaletteOpen(false)}
+        />
+      )}
+      {copyMenu && (
+        <ContextMenu
+          x={copyMenu.x}
+          y={copyMenu.y}
+          items={copyChoicesOf(copyMenu.target).map(({ kind, label }) => ({
+            label,
+            onSelect: () => copyText(copyMenu.target, kind),
+          }))}
+          onClose={() => setCopyMenu(null)}
         />
       )}
       {helpOpen && (

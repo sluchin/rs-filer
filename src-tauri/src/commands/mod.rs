@@ -30,8 +30,9 @@ pub mod preview;
 pub mod transfer;
 
 pub use app::quit_app;
+pub use clipboard::check_text;
 #[cfg(not(tarpaulin_include))]
-pub use clipboard::{copy_files_to_clipboard, read_clipboard_files};
+pub use clipboard::{copy_files_to_clipboard, copy_text_to_clipboard, read_clipboard_files};
 pub use config::{
     load_config, load_keymap, save_config, save_last_paths, AppConfig, FontSize, LastPaths, Theme,
 };

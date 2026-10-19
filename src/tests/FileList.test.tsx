@@ -44,6 +44,7 @@ function renderList(
       onParentClick={() => {}}
       onItemClick={() => {}}
       onItemOpen={() => {}}
+      onItemContextMenu={() => {}}
       columnWidths={columnWidths}
       onColumnWidthChange={onColumnWidthChange}
     />,
@@ -124,6 +125,7 @@ describe("FileList の列の位置", () => {
         onParentClick={() => {}}
         onItemClick={() => {}}
         onItemOpen={() => {}}
+        onItemContextMenu={() => {}}
         columnWidths={{ col_name: 400 }}
       />,
     );
@@ -365,6 +367,7 @@ describe("FileList の列の位置", () => {
         onParentClick={() => {}}
         onItemClick={() => {}}
         onItemOpen={() => {}}
+        onItemContextMenu={() => {}}
         onColumnWidthChange={changed}
       />,
     );

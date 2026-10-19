@@ -2067,7 +2067,7 @@ describe("App (履歴一覧)", () => {
     await waitFor(() => expect(leftNames()).toContain("a.txt"));
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
-    // 履歴: [/mock/home, /mock/home/FolderA, /mock/home, /mock/home/FolderA] (現在地は末尾).
+    // 履歴: [/mock/home, /mock/home/FolderA] (同じディレクトリは足さない. 現在地は末尾).
 
     await user.keyboard("{Alt>}h{/Alt}");
     await user.keyboard("kkk");
@@ -4197,5 +4197,167 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
       }
       Element.prototype.getBoundingClientRect = originalRect;
     }
+  });
+});
+
+describe("App (右クリックでフルパス・名前のコピー)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  /** copy_text_to_clipboard に渡された文字列を返す (呼ばれていなければ undefined). */
+  const copiedTexts = (): unknown[] =>
+    mockedInvoke.mock.calls
+      .filter((c) => c[0] === "copy_text_to_clipboard")
+      .map((c) => (c[1] as { text: unknown }).text);
+
+  /** 左のペインの, 名前の行を返す. */
+  const leftRow = (name: string): HTMLElement =>
+    paneOf("left").getByText(name).closest("li") as HTMLElement;
+
+  it("正常系: ファイルを右クリックすると, カーソルが移り, メニューからフルパスをコピーできること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    fireEvent.contextMenu(leftRow("b.txt"), { clientX: 30, clientY: 40 });
+
+    expect(cursorNames()).toEqual(["b.txt"]);
+    const menu = screen.getByRole("menu");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["フルパスをコピー", "ファイル名をコピー"]);
+    await user.click(within(menu).getByText("フルパスをコピー"));
+
+    await waitFor(() => expect(copiedTexts()).toEqual(["/mock/home/b.txt"]));
+    expect(
+      await screen.findByText("コピーしました: /mock/home/b.txt"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("正常系: ディレクトリを右クリックすると, ディレクトリ名をコピーできること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    fireEvent.contextMenu(leftRow("FolderA"));
+    await user.click(screen.getByText("ディレクトリ名をコピー"));
+
+    await waitFor(() => expect(copiedTexts()).toEqual(["FolderA"]));
+  });
+
+  it("正常系: メニューを開いている間は, 一覧のキー操作が効かず, Esc で閉じること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    fireEvent.contextMenu(leftRow("FolderA"));
+    await user.keyboard("j");
+    // j はメニューの中を動かし, 一覧のカーソルは FolderA のまま.
+    expect(cursorNames()).toEqual(["FolderA"]);
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(copiedTexts()).toEqual([]);
+    await user.keyboard("j");
+    expect(cursorNames()).toEqual(["b.txt"]);
+  });
+
+  it("正常系: M-w でフルパスを, M-n で名前を, カーソル位置からコピーすること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("j");
+    await user.keyboard("{Alt>}w{/Alt}");
+    await user.keyboard("{Alt>}n{/Alt}");
+
+    await waitFor(() =>
+      expect(copiedTexts()).toEqual(["/mock/home/b.txt", "b.txt"]),
+    );
+  });
+
+  it("異常系: .. の行では, コピーせずにエラーを表示すること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("k");
+    await user.keyboard("{Alt>}w{/Alt}");
+
+    expect(
+      await screen.findByText(/対象の項目が選択されていません/),
+    ).toBeInTheDocument();
+    expect(copiedTexts()).toEqual([]);
+  });
+
+  it("異常系: コピーに失敗したら, エラーを表示すること", async () => {
+    mockHome((cmd) =>
+      cmd === "copy_text_to_clipboard"
+        ? Promise.reject("Failed to access clipboard")
+        : undefined,
+    );
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}n{/Alt}");
+
+    expect(
+      await screen.findByText(/Failed to access clipboard/),
+    ).toBeInTheDocument();
+  });
+
+  /** ツリーを開いて, FolderA の行が出るまで待つ (カーソルは先頭の FolderA). */
+  async function openTree(): Promise<ReturnType<typeof userEvent.setup>> {
+    const user = await renderLoaded();
+    await user.keyboard("t");
+    await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
+    return user;
+  }
+
+  it("正常系: ツリーの行を右クリックすると, カーソルが移り, ファイル名をコピーできること. メニューの間は, ツリーのキーが効かないこと", async () => {
+    mockHome();
+    const user = await openTree();
+    const file = await paneOf("left").findByRole("treeitem", {
+      name: /b\.txt/,
+    });
+
+    fireEvent.contextMenu(file, { clientX: 5, clientY: 5 });
+    expect(file).toHaveAttribute("data-cursor", "active");
+    // k はメニューの中を動かし, ツリーのカーソルは b.txt のまま.
+    await user.keyboard("k");
+    expect(file).toHaveAttribute("data-cursor", "active");
+    await user.click(screen.getByText("ファイル名をコピー"));
+
+    await waitFor(() => expect(copiedTexts()).toEqual(["b.txt"]));
+    // ツリーは残っている.
+    expect(paneOf("left").getByRole("tree")).toBeInTheDocument();
+  });
+
+  it("正常系: ツリーで M-w と M-n で, カーソル位置のフルパスと名前をコピーすること", async () => {
+    mockHome();
+    const user = await openTree();
+
+    await user.keyboard("{Alt>}w{/Alt}");
+    await user.keyboard("{Alt>}n{/Alt}");
+
+    await waitFor(() =>
+      expect(copiedTexts()).toEqual(["/mock/home/FolderA", "FolderA"]),
+    );
+  });
+
+  it("境界: 空のツリーで M-w を押しても, コピーしないこと", async () => {
+    mockHome((cmd, args) =>
+      cmd === "read_directory" && pathOf(args) === "/mock/home/FolderA"
+        ? Promise.resolve([])
+        : undefined,
+    );
+    const user = await renderLoaded();
+    // 空の FolderA に入ってから, ツリーにする.
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(paneOf("left").queryByText("b.txt")).toBeNull());
+    await user.keyboard("t");
+    await paneOf("left").findByText("(空)");
+
+    await user.keyboard("{Alt>}w{/Alt}");
+
+    expect(copiedTexts()).toEqual([]);
   });
 });

@@ -4,6 +4,7 @@ import { useTree } from "../hooks/useTree";
 import FileIcon from "../../explorer/components/FileIcon";
 import { useScrollToEnd } from "../../../hooks/useScrollToEnd";
 import { getParentPath } from "../../../utils/path";
+import type { CopyKind, CopyTarget } from "../../explorer/copyText";
 
 /**
  * TreePane コンポーネントのプロパティ.
@@ -52,6 +53,10 @@ interface TreePaneProps {
   ) => void;
   /** カーソル位置の項目 (ディレクトリも可) を, 外部アプリで開く (`x`) ハンドラー. ツリーは残す. */
   onOpenExternal: (path: string) => void;
+  /** 右クリックのメニュー (フルパスや名前のコピー) を開くハンドラー. 対象と, 右クリックした位置を受け取る. */
+  onCopyMenu: (target: CopyTarget, x: number, y: number) => void;
+  /** カーソル位置の項目のフルパス (`M-w`) か名前 (`M-n`) を, 文字としてコピーするハンドラー. */
+  onCopyText: (target: CopyTarget, kind: CopyKind) => void;
   /** 通常のファイル一覧へ戻る (`t` / `Esc` / `C-g`) ハンドラー. */
   onCancel: () => void;
   /** `Tab` で, もう一方のペインをアクティブにするハンドラー. */
@@ -70,6 +75,8 @@ interface TreePaneProps {
  * `N` で, カーソル位置のディレクトリの下に, `+` で, ツリーの根の直下に, 新しいディレクトリを作ります (作ったものが
  * ツリーに加わり, カーソルが合います). `r` / `F2` で名前の変更, `d` / `Delete` でゴミ箱へ, `D` / `Shift+Delete` で
  * 完全に削除します (通常の一覧と同じキーで, ツリーに反映します).
+ * 行を右クリックすると, その行にカーソルを合わせて, フルパスや名前をコピーするメニューを開きます.
+ * `M-w` でフルパスを, `M-n` で名前を, 文字としてコピーします (通常の一覧と同じ).
  *
  * @param props - コンポーネントのプロパティ.
  * @returns ツリー形式のペインのReact要素.
@@ -86,6 +93,8 @@ export default function TreePane({
   onRename,
   onDelete,
   onOpenExternal,
+  onCopyMenu,
+  onCopyText,
   onCancel,
   onSwitchPane,
 }: TreePaneProps): ReactElement {
@@ -193,6 +202,25 @@ export default function TreePane({
           onOpenExternal(cursorPath);
         }
       } else if (
+        (e.key === "w" || e.key === "n") &&
+        e.altKey &&
+        !e.ctrlKey &&
+        !e.metaKey
+      ) {
+        // 通常の一覧の `M-w` (フルパスをコピー) と `M-n` (名前をコピー) と同じ.
+        e.preventDefault();
+        const row = rows.find((r) => r.node.path === cursorPath);
+        if (row) {
+          onCopyText(
+            {
+              path: row.node.path,
+              name: row.node.name,
+              isDir: row.node.isDir,
+            },
+            e.key === "w" ? "fullPath" : "name",
+          );
+        }
+      } else if (
         e.key === "t" ||
         e.key === "Escape" ||
         (e.ctrlKey && e.key === "g")
@@ -250,6 +278,16 @@ export default function TreePane({
               }}
               onClick={() => setCursorPath(node.path)}
               onDoubleClick={() => onSelect(node.path, node.isDir)}
+              onContextMenu={(e) => {
+                // 右クリックした行に, カーソルを合わせてから, メニューを開く.
+                e.preventDefault();
+                setCursorPath(node.path);
+                onCopyMenu(
+                  { path: node.path, name: node.name, isDir: node.isDir },
+                  e.clientX,
+                  e.clientY,
+                );
+              }}
             >
               <span
                 className="col-name"

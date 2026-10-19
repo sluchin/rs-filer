@@ -31,7 +31,7 @@ src/
 │   ├── Button.tsx
 │   ├── Minibuffer.tsx                  # 画面下部の入力領域 (作成・名前変更・確認・ドライブ選択・M-x を表示)
 │   ├── Dialog.tsx                      # 確認ダイアログ (上書き確認・削除確認等)
-│   ├── ContextMenu.tsx                 # 右クリックメニュー
+│   ├── ContextMenu.tsx                 # 右クリックメニュー (フルパス・名前のコピー)
 │   ├── Modal.tsx                       # 汎用モーダル枠
 │   ├── OperationLogDialog.tsx          # 操作ログの表示
 │   ├── KeyHintBar.tsx                  # 画面下部のキー操作案内
@@ -54,6 +54,8 @@ src/
 │   │   │   ├── useMarks.ts             # マーク (複数選択) 処理
 │   │   │   └── useVirtualRows.ts       # 仮想スクロール (表示範囲の計算・スクロール追従)
 │   │   ├── view.ts                     # 隠しファイル除外・絞り込み・ソート・パターン一致
+│   │   ├── history.ts                  # ディレクトリ移動履歴への追加 (同じディレクトリは足さない)
+│   │   ├── copyText.ts                 # 右クリックのメニューで, 文字としてコピーするもの (フルパス・名前)
 │   │   └── types.ts                    # FileEntry, PaneState, SortOption等の型定義
 │   │
 │   ├── operations/                     # ファイル操作・進捗管理 (Phase 3)

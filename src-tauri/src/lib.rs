@@ -77,7 +77,8 @@ pub fn run() {
             commands::fs::get_disk_space,
             commands::frontend_log::log_frontend_message,
             commands::clipboard::copy_files_to_clipboard,
-            commands::clipboard::read_clipboard_files
+            commands::clipboard::read_clipboard_files,
+            commands::clipboard::copy_text_to_clipboard
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

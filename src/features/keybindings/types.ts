@@ -24,6 +24,8 @@ export const COMMANDS = [
   "copyConfirm",
   "copyToClipboard",
   "pasteFromClipboard",
+  "copyFullPath",
+  "copyName",
   "duplicate",
   "move",
   "moveConfirm",

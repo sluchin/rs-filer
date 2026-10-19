@@ -25,6 +25,8 @@ interface FileItemProps {
   onClick: () => void;
   /** ダブルクリック時のハンドラー. */
   onDoubleClick: () => void;
+  /** 右クリック時のハンドラー (右クリックした位置を渡す). */
+  onContextMenu: (x: number, y: number) => void;
   /** ファイル名列のスタイル. */
   colNameStyle?: CSSProperties;
   /** サイズ列のスタイル. */
@@ -53,6 +55,7 @@ export default function FileItem({
   measureRef,
   onClick,
   onDoubleClick,
+  onContextMenu,
   colNameStyle,
   colSizeStyle,
   colDateStyle,
@@ -69,6 +72,10 @@ export default function FileItem({
       aria-current={cursor === "active" ? "true" : undefined}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onContextMenu(e.clientX, e.clientY);
+      }}
     >
       <FileIcon kind={file.is_dir ? "dir" : "file"} />
       <span
