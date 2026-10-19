@@ -314,6 +314,7 @@ function defaultResult(cmd: string): unknown {
   )
     return [];
   if (cmd === "load_keymap") return {};
+  if (cmd === "load_history") return { left: [], right: [] };
   if (cmd === "load_config") {
     return {
       theme: "classic",
@@ -4359,5 +4360,108 @@ describe("App (右クリックでフルパス・名前のコピー)", () => {
     await user.keyboard("{Alt>}w{/Alt}");
 
     expect(copiedTexts()).toEqual([]);
+  });
+});
+
+describe("App (移動履歴の保存と復元)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  /** save_history に渡された履歴を, 古い順に返す. */
+  const savedHistories = (): unknown[] =>
+    mockedInvoke.mock.calls
+      .filter((c) => c[0] === "save_history")
+      .map((c) => (c[1] as { history: unknown }).history);
+
+  it("正常系: 前回の履歴を復元し, 開いたディレクトリが履歴にあれば, そこが現在地になること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_history"
+        ? Promise.resolve({
+            left: ["/mock/home", "/mock/old"],
+            right: ["/mock/other"],
+          })
+        : undefined,
+    );
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}h{/Alt}");
+
+    // 左: 開いた /mock/home は履歴にあるので, 足さずに, そこが現在地.
+    expect(
+      paneOf("left")
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["/mock/home現在地", "/mock/old"]);
+    // 右: 開いた /mock/home は履歴に無いので, 末尾に足す.
+    await user.keyboard("{Escape}{Tab}{Alt>}h{/Alt}");
+    expect(
+      paneOf("right")
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["/mock/other", "/mock/home現在地"]);
+  });
+
+  it("正常系: ディレクトリを移動すると, 左右の履歴を保存すること. 戻るだけでは保存しないこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await waitFor(() =>
+      expect(savedHistories().at(-1)).toEqual({
+        left: ["/mock/home", "/mock/home/FolderA"],
+        right: ["/mock/home"],
+      }),
+    );
+    const count = savedHistories().length;
+    await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
+    await paneOf("left").findByText("FolderA");
+    expect(savedHistories()).toHaveLength(count);
+  });
+
+  it("正常系: 設定の history_limit を超えたら, 古い方から捨てて保存すること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_config"
+        ? Promise.resolve({
+            theme: "classic",
+            font_size: "medium",
+            editor: null,
+            terminal: null,
+            history_limit: 1,
+          })
+        : undefined,
+    );
+    const user = await renderLoaded();
+
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await waitFor(() =>
+      expect(savedHistories().at(-1)).toEqual({
+        left: ["/mock/home/FolderA"],
+        right: ["/mock/home"],
+      }),
+    );
+  });
+
+  it("異常系: 履歴の読み込みと保存に失敗しても, 空の履歴から使えること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_history" || cmd === "save_history"
+        ? Promise.reject("Failed to read history.json")
+        : undefined,
+    );
+    const user = await renderLoaded();
+
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("{Alt>}h{/Alt}");
+
+    expect(
+      paneOf("left")
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["/mock/home", "/mock/home/FolderA現在地"]);
   });
 });

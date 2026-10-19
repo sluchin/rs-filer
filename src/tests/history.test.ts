@@ -29,6 +29,31 @@ describe("pushHistory", () => {
     });
   });
 
+  it("境界: 追加して上限を超えたら, 古い方から捨てること", () => {
+    expect(
+      pushHistory({ history: ["/a", "/b"], historyIndex: 0 }, "/c", 2),
+    ).toEqual({
+      history: ["/b", "/c"],
+      historyIndex: 1,
+    });
+  });
+
+  it("境界: 上限ちょうどまでは捨てず, 履歴にあるディレクトリでは, 上限を超えていても捨てないこと", () => {
+    expect(
+      pushHistory({ history: ["/a"], historyIndex: 0 }, "/b", 2).history,
+    ).toEqual(["/a", "/b"]);
+    expect(
+      pushHistory({ history: ["/a", "/b", "/c"], historyIndex: 2 }, "/a", 2),
+    ).toEqual({ history: ["/a", "/b", "/c"], historyIndex: 0 });
+  });
+
+  it("境界: 上限が 1 より小さければ, 今のディレクトリの 1 件だけを残すこと", () => {
+    expect(pushHistory({ history: ["/a"], historyIndex: 0 }, "/b", 0)).toEqual({
+      history: ["/b"],
+      historyIndex: 0,
+    });
+  });
+
   it("境界: 空の履歴には, 最初のディレクトリを追加すること", () => {
     expect(pushHistory({ history: [], historyIndex: -1 }, "/a")).toEqual({
       history: ["/a"],

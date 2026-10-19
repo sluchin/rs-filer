@@ -203,6 +203,12 @@
   - [x] 文字のコピーは, バックエンドの `arboard` で行う (`copy_text_to_clipboard`). `C-c` (ファイルのコピー. rs-filer 内で貼り付ける) とは, 別のコマンドにした
   - [x] キーボードからも使えるように, コマンド (`M-x` の `copyFullPath` と `copyName`) と, キーバインド (`M-w` と `M-n`. ツリーでも同じ) を足した
   - [x] テスト (vitest と cargo test) を足し, `KEYBINDINGS.md` / `README.md` / `INTEGRATION_TESTS.md` (28 章) を更新した
+- [x] **ディレクトリの移動履歴を, 再起動しても残す**
+  - [x] ペインごとの履歴を, 設定ディレクトリの `rsfiler/history.json` に保存する (件数が多くなるので, `config.json` とは別のファイル. 整形せずに書く). 履歴に追加したときだけ保存する (戻る・進むでは保存しない). 書き込みは非同期のコマンド (`save_history`) で行い, 画面を止めない
+  - [x] 起動のときに読み込み (`load_history`), 今は無いディレクトリ (ファイルに変わったものも) を削除する. 開いたディレクトリが履歴にあれば, そこを現在地にする
+  - [x] 件数の上限は, ペインごとに 100000 件. `config.json` の `history_limit` で変えられる (フロントエンドからの `save_config` では上書きしない). 超えたら古い方から捨てる (起動のときと, 追加のとき)
+  - [x] テスト (vitest と cargo test) を足し, `KEYBINDINGS.md` / `README.md` / `INTEGRATION_TESTS.md` (8-20 から 8-24) を更新した
+  - [ ] 履歴一覧 (`M-h`) は, 全ての行を描くので, 数万件の履歴では, 開くのが遅くなる. ファイル一覧と同じ仮想スクロール (`useVirtualRows`) にする
 
 ### Phase 11: 情報の表示
 - [x] **ファイル・ディレクトリの詳細情報を, 反対側のペインに表示する (`I`)**

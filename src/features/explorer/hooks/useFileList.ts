@@ -3,9 +3,12 @@ import log from "loglevel";
 import {
   getHomeDir,
   loadConfig,
+  loadHistory,
   readDirectory,
+  saveHistory,
   saveLastPaths,
 } from "../../../services/tauriApi";
+import { DEFAULT_HISTORY_LIMIT } from "../../settings/types";
 import type { FileEntry, PaneId, PaneState } from "../types";
 import { getParentPath } from "../../../utils/path";
 import { deriveFiles } from "../view";
@@ -78,6 +81,8 @@ function cursorAfterLoad(
  *
  * 初回マウント時に, 左右のペインの前回のディレクトリを開きます. 保存されていない場合や開けない場合は,
  * ホームディレクトリ (取得失敗時はルート) を開きます. ディレクトリが変わるたびに, 設定ファイルへ保存します.
+ * ディレクトリの移動履歴も, 前回のものを読み込み (今は無いディレクトリは, バックエンドが除く), 履歴が変わるたびに,
+ * 履歴のファイルへ保存します. 履歴の件数の上限は, 設定の `history_limit` (既定は 100000) です.
  *
  * @param onError - 読み込みに失敗したときに, エラーメッセージを受け取る関数 (ログへの記録など).
  * @returns ペイン状態, エラー, および状態を操作する関数.
@@ -88,6 +93,8 @@ export function useFileList(onError: (message: string) => void) {
   const [error, setError] = useState<string | null>(null);
   /** 初期化(前回のディレクトリの復元)が終わったら true. 終わるまでは, ディレクトリを保存しない. */
   const restored = useRef(false);
+  /** 履歴の, ペインごとの件数の上限 (設定の `history_limit`). */
+  const historyLimit = useRef(DEFAULT_HISTORY_LIMIT);
 
   /**
    * 指定したペインの状態を更新します.
@@ -140,6 +147,7 @@ export function useFileList(onError: (message: string) => void) {
             ({ history, historyIndex } = pushHistory(
               { history, historyIndex },
               targetPath,
+              historyLimit.current,
             ));
           }
           return {
@@ -247,8 +255,24 @@ export function useFileList(onError: (message: string) => void) {
       try {
         const config = await loadConfig();
         saved = config.last_paths ?? {};
+        historyLimit.current = config.history_limit ?? DEFAULT_HISTORY_LIMIT;
       } catch (e) {
         log.warn("[React] 前回のディレクトリの読み込みに失敗:", e);
+      }
+      // 前回の履歴を戻してから, ディレクトリを開く. 開いたディレクトリが履歴にあれば, そこが現在位置になる.
+      try {
+        const loaded = await loadHistory();
+        (["left", "right"] as const).forEach((pane) => {
+          // 片方のペインの履歴が無いファイルでも, そのペインは空の履歴から始める.
+          const history = loaded[pane] ?? [];
+          updatePane(pane, (prev) => ({
+            ...prev,
+            history,
+            historyIndex: history.length - 1,
+          }));
+        });
+      } catch (e) {
+        log.warn("[React] 移動履歴の読み込みに失敗:", e);
       }
       let home: string | null = null;
       const openPane = async (pane: PaneId): Promise<void> => {
@@ -273,7 +297,7 @@ export function useFileList(onError: (message: string) => void) {
       restored.current = true;
     };
     init();
-  }, [tryLoadDirectory, loadDirectory]);
+  }, [tryLoadDirectory, loadDirectory, updatePane]);
 
   // ディレクトリが変わったら, 設定ファイルへ保存する (復元が終わるまでは, 保存しない).
   const leftPath = leftPane.currentPath;
@@ -286,6 +310,19 @@ export function useFileList(onError: (message: string) => void) {
       log.warn("[React] 前回のディレクトリの保存に失敗:", e);
     });
   }, [leftPath, rightPath]);
+
+  // 履歴が変わったら, 履歴のファイルへ保存する (復元が終わるまでは, 保存しない).
+  // 履歴の配列は, ディレクトリを追加したときだけ新しくなる (戻る・進むでは, 保存しない).
+  const leftHistory = leftPane.history;
+  const rightHistory = rightPane.history;
+  useEffect(() => {
+    if (!restored.current) {
+      return;
+    }
+    saveHistory({ left: leftHistory, right: rightHistory }).catch((e) => {
+      log.warn("[React] 移動履歴の保存に失敗:", e);
+    });
+  }, [leftHistory, rightHistory]);
 
   return {
     leftPane,

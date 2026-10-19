@@ -176,6 +176,9 @@ pub struct AppConfig {
     /// `save_last_paths` が書き込む. `save_config` では上書きしない.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_paths: Option<LastPaths>,
+    /// ディレクトリの移動履歴の, ペインごとの件数の上限 (既定は 100000). 超えたら, 古い方から捨てる.
+    /// 利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
+    pub history_limit: usize,
 }
 
 impl Default for AppConfig {
@@ -188,6 +191,7 @@ impl Default for AppConfig {
             pane_column_widths: PaneColumnWidths::default(),
             window: None,
             last_paths: None,
+            history_limit: super::history::DEFAULT_HISTORY_LIMIT,
         }
     }
 }
@@ -251,7 +255,7 @@ fn write_config(path: &Path, config: &AppConfig) -> Result<(), String> {
 /// # Returns
 ///
 /// 設定. 設定ディレクトリやファイルが無い場合は既定値. 失敗した場合はエラー文字列を含む [`Err`].
-pub(crate) fn load_config_from(config_dir: Option<&Path>) -> Result<AppConfig, String> {
+pub fn load_config_from(config_dir: Option<&Path>) -> Result<AppConfig, String> {
     match config_dir {
         Some(dir) => read_config(&config_path(dir)),
         None => Ok(AppConfig::default()),
@@ -262,6 +266,7 @@ pub(crate) fn load_config_from(config_dir: Option<&Path>) -> Result<AppConfig, S
 ///
 /// ウィンドウの状態 (`window`) と前回のディレクトリ (`last_paths`) は, 別に書くものなので,
 /// 渡された設定の値ではなく, 保存されている値を残します (フロントエンドが読み込んだ古い値で, 上書きしないため).
+/// 履歴の件数の上限 (`history_limit`) も, 利用者が書き換えるものなので, 保存されている値を残します.
 ///
 /// # Arguments
 ///
@@ -272,12 +277,15 @@ pub(crate) fn load_config_from(config_dir: Option<&Path>) -> Result<AppConfig, S
 ///
 /// 成功した場合は [`Ok(())`], 設定ディレクトリを取得できない場合や書き込みに失敗した場合は
 /// エラー文字列を含む [`Err`].
-fn save_config_to(config_dir: Option<&Path>, config: &AppConfig) -> Result<(), String> {
+pub fn save_config_to(config_dir: Option<&Path>, config: &AppConfig) -> Result<(), String> {
     let dir = config_dir.ok_or_else(|| "Config directory is not available".to_string())?;
     let path = config_path(dir);
     let mut merged = config.clone();
     let saved = read_config(&path).ok();
     merged.window = saved.as_ref().and_then(|saved| saved.window.clone());
+    if let Some(saved) = &saved {
+        merged.history_limit = saved.history_limit;
+    }
     merged.last_paths = saved.and_then(|saved| saved.last_paths);
     write_config(&path, &merged)
 }
@@ -483,6 +491,7 @@ mod tests {
             pane_column_widths: PaneColumnWidths::default(),
             window: Some(sample_window(false)),
             last_paths: None,
+            history_limit: 500,
         };
 
         write_config(&path, &config).unwrap();

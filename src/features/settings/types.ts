@@ -46,6 +46,19 @@ export interface LastPaths {
 }
 
 /**
+ * 左右のペインの, ディレクトリの移動履歴 (`history.json` に永続化される).
+ */
+export interface PaneHistory {
+  /** 左ペインの履歴 (古い順). */
+  left: string[];
+  /** 右ペインの履歴 (古い順). */
+  right: string[];
+}
+
+/** ディレクトリの移動履歴の, ペインごとの件数の上限の既定値 (バックエンドの `DEFAULT_HISTORY_LIMIT` に合わせる). */
+export const DEFAULT_HISTORY_LIMIT = 100000;
+
+/**
  * アプリケーションの設定 (`config.json` に永続化される).
  */
 export interface AppConfig {
@@ -73,6 +86,11 @@ export interface AppConfig {
    * 前回終了時の, 左右のペインのディレクトリ. 保存されていない場合は無い.
    */
   last_paths?: LastPaths | null;
+  /**
+   * ディレクトリの移動履歴の, ペインごとの件数の上限. 超えたら, 古い方から捨てる. 利用者が `config.json` を
+   * 書き換えて変える.
+   */
+  history_limit?: number;
 }
 
 /** 既定の設定 (バックエンドの `AppConfig::default()` に合わせる). */
@@ -82,6 +100,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   editor: null,
   terminal: null,
   pane_column_widths: { left: {}, right: {} },
+  history_limit: DEFAULT_HISTORY_LIMIT,
 };
 
 /** `M-t` でテーマを切り替えるときの順番. */

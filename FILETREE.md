@@ -150,6 +150,7 @@ src-tauri/src/
 │   ├── search.rs                       # 高速ファイル検索
 │   ├── preview.rs                      # テキスト(文字コード自動判別)/画像/バイナリのプレビューデータ取得
 │   ├── config.rs                       # 設定ファイルの読み書き (keymap.json / config.json)
+│   ├── history.rs                      # ディレクトリの移動履歴の保存と読み込み (history.json)
 │   └── app.rs                          # 終了 (quit_app)
 │
 └── core/                               # ドメインロジック (OS依存処理・最適化実装)

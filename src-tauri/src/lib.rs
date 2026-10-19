@@ -78,7 +78,9 @@ pub fn run() {
             commands::frontend_log::log_frontend_message,
             commands::clipboard::copy_files_to_clipboard,
             commands::clipboard::read_clipboard_files,
-            commands::clipboard::copy_text_to_clipboard
+            commands::clipboard::copy_text_to_clipboard,
+            commands::history::load_history,
+            commands::history::save_history
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

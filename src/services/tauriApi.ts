@@ -8,7 +8,11 @@ import type {
   TransferSummary,
 } from "../features/operations/types";
 import type { Preview } from "../features/preview/types";
-import type { AppConfig, LastPaths } from "../features/settings/types";
+import type {
+  AppConfig,
+  LastPaths,
+  PaneHistory,
+} from "../features/settings/types";
 
 /**
  * 指定ディレクトリ内のファイル・ディレクトリ一覧を取得します.
@@ -322,6 +326,25 @@ export function saveConfig(config: AppConfig): Promise<void> {
  */
 export function saveLastPaths(paths: LastPaths): Promise<void> {
   return invoke<void>("save_last_paths", { paths });
+}
+
+/**
+ * 左右のペインのディレクトリの移動履歴を読み込みます. 今は無いディレクトリは除かれ, 設定の件数の上限
+ * (`history_limit`) までになっています.
+ *
+ * @returns 左右のペインの履歴 (古い順). 保存されていない場合は空.
+ */
+export function loadHistory(): Promise<PaneHistory> {
+  return invoke<PaneHistory>("load_history");
+}
+
+/**
+ * 左右のペインのディレクトリの移動履歴を, 履歴のファイルへ書き込みます.
+ *
+ * @param history - 書き込む左右のペインの履歴 (古い順).
+ */
+export function saveHistory(history: PaneHistory): Promise<void> {
+  return invoke<void>("save_history", { history });
 }
 
 /** バックエンドへ転送する, ログの重大度. */
