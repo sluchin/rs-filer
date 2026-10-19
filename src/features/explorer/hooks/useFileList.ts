@@ -9,6 +9,7 @@ import {
 import type { FileEntry, PaneId, PaneState } from "../types";
 import { getParentPath } from "../../../utils/path";
 import { deriveFiles } from "../view";
+import { pushHistory } from "../history";
 
 /** ペインの初期状態. */
 const INITIAL_PANE: PaneState = {
@@ -135,9 +136,11 @@ export function useFileList(onError: (message: string) => void) {
           let { history, historyIndex } = prev;
           if (options.historyIndex !== undefined) {
             historyIndex = options.historyIndex;
-          } else if (history[historyIndex] !== targetPath) {
-            history = [...history.slice(0, historyIndex + 1), targetPath];
-            historyIndex = history.length - 1;
+          } else {
+            ({ history, historyIndex } = pushHistory(
+              { history, historyIndex },
+              targetPath,
+            ));
           }
           return {
             ...prev,
