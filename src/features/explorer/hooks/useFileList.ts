@@ -10,7 +10,11 @@ import {
 } from "../../../services/tauriApi";
 import { DEFAULT_HISTORY_LIMIT } from "../../settings/types";
 import type { FileEntry, PaneId, PaneState } from "../types";
-import { getParentPath } from "../../../utils/path";
+import {
+  getParentPath,
+  toNativePath,
+  uniqueNativePaths,
+} from "../../../utils/path";
 import { deriveFiles } from "../view";
 import { pushHistory } from "../history";
 
@@ -119,16 +123,18 @@ export function useFileList(onError: (message: string) => void) {
    * ディレクトリが変わった場合は, マークと絞り込みを解除し, 履歴へ追加します.
    *
    * @param pane - 更新対象のペイン識別子.
-   * @param targetPath - 読み込み対象のディレクトリ絶対パス.
+   * @param requestedPath - 読み込み対象のディレクトリ絶対パス.
    * @param options - カーソル位置・履歴に関するオプション.
    * @returns 読み込めたら true. 失敗したら false.
    */
   const tryLoadDirectory = useCallback(
     async (
       pane: PaneId,
-      targetPath: string,
+      requestedPath: string,
       options: LoadOptions = {},
     ): Promise<boolean> => {
+      // Windows のパスは `\` 区切りにそろえる (履歴やブックマークで, 区切りが混ざらないように)
+      const targetPath = toNativePath(requestedPath);
       try {
         setError(null);
         log.debug(`[React] ${pane}ペイン 読み込み要求:`, targetPath);
@@ -264,7 +270,8 @@ export function useFileList(onError: (message: string) => void) {
         const loaded = await loadHistory();
         (["left", "right"] as const).forEach((pane) => {
           // 片方のペインの履歴が無いファイルでも, そのペインは空の履歴から始める.
-          const history = loaded[pane] ?? [];
+          // 以前の版で保存した, 区切りが混ざったパスも, そろえて重複を除く
+          const history = uniqueNativePaths(loaded[pane] ?? []);
           updatePane(pane, (prev) => ({
             ...prev,
             history,

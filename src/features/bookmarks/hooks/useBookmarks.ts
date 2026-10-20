@@ -1,11 +1,13 @@
 import { useCallback, useState } from "react";
 import log from "loglevel";
+import { uniqueNativePaths } from "../../../utils/path";
 
 /** ブックマークを保存する localStorage のキー. */
 const STORAGE_KEY = "rsfiler.bookmarks";
 
 /**
  * 保存されているブックマークを読み込みます. 読めない場合は空の一覧を返します.
+ * Windows のパスは `\` 区切りにそろえ, 重複を除きます (以前の版で, 区切りが混ざって保存したもの).
  *
  * @returns ブックマークしたディレクトリのパス.
  */
@@ -15,7 +17,9 @@ function loadBookmarks(): string[] {
       localStorage.getItem(STORAGE_KEY) ?? "[]",
     );
     return Array.isArray(parsed)
-      ? parsed.filter((p): p is string => typeof p === "string")
+      ? uniqueNativePaths(
+          parsed.filter((p): p is string => typeof p === "string"),
+        )
       : [];
   } catch (e) {
     log.warn("[React] ブックマークの読み込みに失敗:", e);

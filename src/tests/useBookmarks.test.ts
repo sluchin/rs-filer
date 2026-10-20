@@ -34,6 +34,15 @@ describe("useBookmarks", () => {
     expect(result.current.bookmarks).toEqual(["/x", "/y"]);
   });
 
+  it("正常系: 区切りが混ざった Windows のパスは, \\ 区切りにそろえて, 重複を除いて読み込むこと", () => {
+    localStorage.setItem(
+      "rsfiler.bookmarks",
+      JSON.stringify(["C:/Users\\foo", "C:\\Users\\foo", "/x"]),
+    );
+    const { result } = renderHook(() => useBookmarks());
+    expect(result.current.bookmarks).toEqual(["C:\\Users\\foo", "/x"]);
+  });
+
   it.each(["not json", '{"a":1}'])(
     "異常系: 保存内容 %s が不正な場合は空の一覧になること",
     (value) => {

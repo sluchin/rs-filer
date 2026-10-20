@@ -19,6 +19,7 @@ import type {
   TransferRequest,
 } from "../types";
 import { nestedMessage, overwriteMessage } from "../overwriteMessage";
+import { getBaseName, getParentPath, isSamePath } from "../../../utils/path";
 
 /** 操作の種類ごとの, 表示に使う動詞. */
 const LABELS: Record<TransferKind, string> = {
@@ -411,21 +412,20 @@ export function useTransfer(
       return;
     }
 
-    // 全ファイルの親ディレクトリが同じかチェック.
-    const parents = new Set(
-      clipboardFiles.map((p) => p.substring(0, p.lastIndexOf("/"))),
-    );
+    // 全ファイルの親ディレクトリが, 今のディレクトリかチェック (Windows の `\` 区切りのパスも比べる).
+    const sameDir = clipboardFiles.every((p) => {
+      const parent = getParentPath(p);
+      return parent !== null && isSamePath(parent, source.currentPath);
+    });
 
-    if (parents.size === 1 && parents.has(source.currentPath)) {
+    if (sameDir) {
       // 同一ディレクトリの場合, 別名でコピーを作成.
       if (clipboardFiles.length !== 1) {
         setError("同一ディレクトリ内では, 1 件ずつコピーしてください.");
         return;
       }
       const originalPath = clipboardFiles[0];
-      const originalName = originalPath.substring(
-        originalPath.lastIndexOf("/") + 1,
-      );
+      const originalName = getBaseName(originalPath);
       openPrompt(
         "名前を付けてコピー",
         (newName: string) => {

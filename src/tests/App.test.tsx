@@ -546,8 +546,9 @@ describe("App (キーボード操作)", () => {
     await user.keyboard("{Alt>}d{/Alt}");
     await user.click(await screen.findByRole("button", { name: "D:/" }));
 
+    // Windows のパスは, `\` 区切りにそろえて開く
     expect(mockedInvoke).toHaveBeenCalledWith("read_directory", {
-      path: "D:/",
+      path: "D:\\",
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -2562,6 +2563,36 @@ describe("App (コピー・移動・削除の実行)", () => {
     expect(transferRequest()).not.toHaveProperty("skip");
   });
 
+  it("正常系: C-v で, 今のディレクトリのファイルを貼り付けると, 区切りが \\ のパス (Windows) でも, 名前を付けてコピーすること", async () => {
+    mockHome((cmd) => {
+      if (cmd === "read_clipboard_files")
+        return Promise.resolve(["\\mock\\home\\b.txt"]);
+      return undefined;
+    });
+    const user = await renderLoaded();
+
+    await user.keyboard("{Control>}v{/Control}");
+    const input = await screen.findByDisplayValue("b.txt");
+    await user.clear(input);
+    await user.type(input, "c.txt{Enter}");
+
+    await waitFor(() =>
+      expect(transferRequest()).toEqual(
+        expect.objectContaining({
+          kind: "copy",
+          sources: ["\\mock\\home\\b.txt"],
+          dest_dir: "/mock/home",
+          overwrite: false,
+          dest_name: "c.txt",
+        }),
+      ),
+    );
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "check_conflicts",
+      expect.anything(),
+    );
+  });
+
   it("正常系: C-v の貼り付けの 1 件ずつの確認で Esc を押すと, 何も実行しないこと", async () => {
     mockPasteConflicts(true);
     const user = await renderLoaded();
@@ -4400,6 +4431,26 @@ describe("App (移動履歴の保存と復元)", () => {
         .getAllByRole("listitem")
         .map((li) => li.textContent),
     ).toEqual(["/mock/other", "/mock/home現在地"]);
+  });
+
+  it("正常系: 区切りが混ざった Windows のパスの履歴は, \\ 区切りにそろえて, 重複を除いて復元すること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_history"
+        ? Promise.resolve({
+            left: ["C:/Users\\foo", "C:\\Users\\foo", "/mock/home"],
+            right: [],
+          })
+        : undefined,
+    );
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}h{/Alt}");
+
+    expect(
+      paneOf("left")
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["C:\\Users\\foo", "/mock/home現在地"]);
   });
 
   it("正常系: ディレクトリを移動すると, 左右の履歴を保存すること. 戻るだけでは保存しないこと", async () => {
