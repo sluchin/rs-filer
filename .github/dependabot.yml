@@ -6,6 +6,9 @@ updates:
     directories:
       - "/"
     ignore:
+      # @types/node は, CI の Node.js (22) と同じメジャー版にする.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
       # TypeScript 7 は, typescript-eslint が対応するまで上げない.
       - dependency-name: "typescript"
         versions: [">= 7.0.0"]
