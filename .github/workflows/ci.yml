@@ -21,7 +21,7 @@ jobs:
 
       # npm run check のフロントエンド部分 (tsc, vite, eslint, vitest) に使う.
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: 'npm'
@@ -70,7 +70,7 @@ jobs:
 
       # Node.jsのセットアップ（npmを使うため）
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: 'npm'
