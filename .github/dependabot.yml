@@ -9,6 +9,12 @@ updates:
       # TypeScript 7 は, typescript-eslint が対応するまで上げない.
       - dependency-name: "typescript"
         versions: [">= 7.0.0"]
+      # ESLint 10 は, eslint-plugin-react が対応するまで上げない.
+      - dependency-name: "eslint"
+        versions: [">= 10.0.0"]
+      # @eslint/js は, ESLint と同じ版にする.
+      - dependency-name: "@eslint/js"
+        versions: [">= 10.0.0"]
     schedule:
       interval: "weekly"
     commit-message:
