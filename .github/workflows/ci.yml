@@ -137,7 +137,7 @@ jobs:
 
       # まとめたフォルダ（combined_docs）をアーティファクト/Pagesとしてアップロード
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           name: github-pages
           path: combined_docs/
