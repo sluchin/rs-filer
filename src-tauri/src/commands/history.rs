@@ -1,6 +1,6 @@
 //! ディレクトリの移動履歴 (ペインごと) の保存と, 起動時の読み込みを行うコマンド.
 //!
-//! 履歴は, 件数が多くなる (既定の上限は 100000 件) ので, `config.json` とは別のファイル
+//! 履歴は, 件数が多くなる (既定の上限は 1000 件) ので, `config.json` とは別のファイル
 //! (`<設定ディレクトリ>/rsfiler/history.json`) に保存します.
 
 use serde::{Deserialize, Serialize};
@@ -11,9 +11,9 @@ use std::path::{Path, PathBuf};
 const HISTORY_FILE: &str = "history.json";
 
 /// 履歴の件数の上限の既定値 (`config.json` の `history_limit` で変えられる).
-pub const DEFAULT_HISTORY_LIMIT: usize = 100_000;
+pub const DEFAULT_HISTORY_LIMIT: usize = 1_000;
 
-/// 左右のペインの, ディレクトリの移動履歴 (古い順. 同じディレクトリは 1 つだけ).
+/// 左右のペインの, ディレクトリの移動履歴 (最後に移動した日時の古い順. 同じディレクトリは 1 つだけ).
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
 #[serde(default)]
 pub struct PaneHistory {

@@ -27,8 +27,8 @@ fn test_history_path_success() {
 }
 
 #[test]
-fn test_default_history_limit_is_100000() {
-    assert_eq!(DEFAULT_HISTORY_LIMIT, 100_000);
+fn test_default_history_limit_is_1000() {
+    assert_eq!(DEFAULT_HISTORY_LIMIT, 1_000);
 }
 
 #[test]

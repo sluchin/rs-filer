@@ -176,7 +176,7 @@ pub struct AppConfig {
     /// `save_last_paths` が書き込む. `save_config` では上書きしない.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_paths: Option<LastPaths>,
-    /// ディレクトリの移動履歴の, ペインごとの件数の上限 (既定は 100000). 超えたら, 古い方から捨てる.
+    /// ディレクトリの移動履歴の, ペインごとの件数の上限 (既定は 1000). 超えたら, 古い方から捨てる.
     /// 利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
     pub history_limit: usize,
 }

@@ -56,7 +56,7 @@ export interface PaneHistory {
 }
 
 /** ディレクトリの移動履歴の, ペインごとの件数の上限の既定値 (バックエンドの `DEFAULT_HISTORY_LIMIT` に合わせる). */
-export const DEFAULT_HISTORY_LIMIT = 100000;
+export const DEFAULT_HISTORY_LIMIT = 1000;
 
 /**
  * アプリケーションの設定 (`config.json` に永続化される).

@@ -4405,7 +4405,7 @@ describe("App (移動履歴の保存と復元)", () => {
       .filter((c) => c[0] === "save_history")
       .map((c) => (c[1] as { history: unknown }).history);
 
-  it("正常系: 前回の履歴を復元し, 開いたディレクトリが履歴にあれば, そこが現在地になること", async () => {
+  it("正常系: 前回の履歴を復元し, 開いたディレクトリが履歴にあれば, 末尾へ移して現在地にすること", async () => {
     mockHome((cmd) =>
       cmd === "load_history"
         ? Promise.resolve({
@@ -4418,12 +4418,12 @@ describe("App (移動履歴の保存と復元)", () => {
 
     await user.keyboard("{Alt>}h{/Alt}");
 
-    // 左: 開いた /mock/home は履歴にあるので, 足さずに, そこが現在地.
+    // 左: 開いた /mock/home は履歴にあるので, 末尾へ移し, そこが現在地.
     expect(
       paneOf("left")
         .getAllByRole("listitem")
         .map((li) => li.textContent),
-    ).toEqual(["/mock/home現在地", "/mock/old"]);
+    ).toEqual(["/mock/old", "/mock/home現在地"]);
     // 右: 開いた /mock/home は履歴に無いので, 末尾に足す.
     await user.keyboard("{Escape}{Tab}{Alt>}h{/Alt}");
     expect(

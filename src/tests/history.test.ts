@@ -20,13 +20,20 @@ describe("pushHistory", () => {
     });
   });
 
-  it("正常系: 履歴にあるディレクトリは追加せず, 現在位置をその位置へ合わせること", () => {
+  it("正常系: 履歴にあるディレクトリは, 古い位置から除いて末尾へ移し, 現在位置を末尾にすること", () => {
     expect(
       pushHistory({ history: ["/a", "/b", "/c"], historyIndex: 2 }, "/a"),
     ).toEqual({
-      history: ["/a", "/b", "/c"],
-      historyIndex: 0,
+      history: ["/b", "/c", "/a"],
+      historyIndex: 2,
     });
+  });
+
+  it("正常系: 末尾のディレクトリをもう一度開いたら, 同じ配列を返し, 現在位置を末尾にすること", () => {
+    const history = ["/a", "/b"];
+    const next = pushHistory({ history, historyIndex: 0 }, "/b");
+    expect(next.history).toBe(history);
+    expect(next.historyIndex).toBe(1);
   });
 
   it("境界: 追加して上限を超えたら, 古い方から捨てること", () => {
@@ -38,13 +45,13 @@ describe("pushHistory", () => {
     });
   });
 
-  it("境界: 上限ちょうどまでは捨てず, 履歴にあるディレクトリでは, 上限を超えていても捨てないこと", () => {
+  it("境界: 上限ちょうどまでは捨てず, 履歴にあるディレクトリを末尾へ移しても, 件数は増えないこと", () => {
     expect(
       pushHistory({ history: ["/a"], historyIndex: 0 }, "/b", 2).history,
     ).toEqual(["/a", "/b"]);
     expect(
-      pushHistory({ history: ["/a", "/b", "/c"], historyIndex: 2 }, "/a", 2),
-    ).toEqual({ history: ["/a", "/b", "/c"], historyIndex: 0 });
+      pushHistory({ history: ["/a", "/b"], historyIndex: 1 }, "/a", 2),
+    ).toEqual({ history: ["/b", "/a"], historyIndex: 1 });
   });
 
   it("境界: 上限が 1 より小さければ, 今のディレクトリの 1 件だけを残すこと", () => {
