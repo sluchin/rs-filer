@@ -1,4 +1,5 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, render, renderHook } from "@testing-library/react";
+import { createElement } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useVirtualRows } from "../features/explorer/hooks/useVirtualRows";
 
@@ -131,6 +132,29 @@ describe("useVirtualRows", () => {
     });
     // null の場合は早期リターンし, 例外にならないこと.
     expect(() => result.current.scrollToIndex(5)).not.toThrow();
+  });
+
+  it("正常系: コンテナを取り外すと, スクロールと大きさの監視を止めること", () => {
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class extends FakeResizeObserver {
+        disconnect = disconnect;
+      },
+    );
+    const removed = vi.spyOn(HTMLElement.prototype, "removeEventListener");
+    /** フックの ref を, 実際の要素に付けるだけのコンポーネント. */
+    function Sample() {
+      const { containerRef } = useVirtualRows(10);
+      return createElement("div", { ref: containerRef });
+    }
+    const { unmount } = render(createElement(Sample));
+
+    unmount();
+
+    expect(disconnect).toHaveBeenCalled();
+    expect(removed).toHaveBeenCalledWith("scroll", expect.any(Function));
+    removed.mockRestore();
   });
 
   it("境界: ResizeObserver が無い環境でも例外にならないこと", () => {

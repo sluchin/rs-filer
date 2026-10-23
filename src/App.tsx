@@ -438,8 +438,7 @@ export default function App(): ReactElement {
         settings.cycleFontSize();
         break;
       case "resizeColumnWider": {
-        const paneWidths =
-          settings.config.pane_column_widths?.[activePane] || {};
+        const paneWidths = settings.config.pane_column_widths[activePane];
         const col = "col_name";
         const current = paneWidths.col_name ?? DEFAULT_NAME_COLUMN_WIDTH;
         settings.updatePaneColumnWidth(activePane, {
@@ -449,8 +448,7 @@ export default function App(): ReactElement {
         break;
       }
       case "resizeColumnNarrower": {
-        const paneWidths =
-          settings.config.pane_column_widths?.[activePane] || {};
+        const paneWidths = settings.config.pane_column_widths[activePane];
         const col = "col_name";
         const current = paneWidths.col_name ?? DEFAULT_NAME_COLUMN_WIDTH;
         settings.updatePaneColumnWidth(activePane, {
@@ -461,9 +459,6 @@ export default function App(): ReactElement {
       }
       case "resetColumnWidths":
         settings.updatePaneColumnWidth(activePane, {});
-        break;
-      case "autoFitColumn":
-        // 自動調整は未実装 (FileList コンポーネントで実装する予定).
         break;
       case "toggleTree":
         setTreePanes((p) => ({ ...p, [activePane]: !p[activePane] }));
@@ -678,13 +673,8 @@ export default function App(): ReactElement {
           registerFilterInput={(pane, element) => {
             filterInputs.current[pane] = element;
           }}
-          paneColumnWidths={{
-            left: settings.config.pane_column_widths?.left ?? {},
-            right: settings.config.pane_column_widths?.right ?? {},
-          }}
-          onColumnWidthChange={(paneId, widths) =>
-            settings.updatePaneColumnWidth(paneId, widths)
-          }
+          paneColumnWidths={settings.config.pane_column_widths}
+          onColumnWidthChange={settings.updatePaneColumnWidth}
         />
       </div>
       {/* コマンド入力・作成・名前変更・削除確認・ドライブ選択は,

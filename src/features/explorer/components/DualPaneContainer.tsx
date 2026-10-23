@@ -1,6 +1,9 @@
 import type { ReactElement } from "react";
 import type { FileEntry, PaneId, PaneState } from "../types";
-import type { ColumnWidths } from "../../../features/settings/types";
+import type {
+  ColumnWidths,
+  PaneColumnWidths,
+} from "../../../features/settings/types";
 import Pane from "./Pane";
 
 /**
@@ -42,9 +45,9 @@ interface DualPaneContainerProps {
   /** 絞り込み入力欄の要素を登録するハンドラー. */
   registerFilterInput: (pane: PaneId, element: HTMLInputElement | null) => void;
   /** ペイン毎の列幅設定. */
-  paneColumnWidths?: Record<"left" | "right", ColumnWidths>;
+  paneColumnWidths: PaneColumnWidths;
   /** 列幅が変更されたときのハンドラー. */
-  onColumnWidthChange?: (paneId: PaneId, widths: ColumnWidths) => void;
+  onColumnWidthChange: (paneId: PaneId, widths: ColumnWidths) => void;
 }
 
 /**

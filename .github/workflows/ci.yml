@@ -57,6 +57,63 @@ jobs:
       - name: Check
         run: npm run check
 
+  # カバレッジ. フロントエンド (vitest) もバックエンド (cargo tarpaulin) も, 100% を下回ったら失敗する.
+  # check と並べて実行する.
+  coverage:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # tarpaulin の計測用のビルドは, check のビルドと別にキャッシュする.
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          prefix-key: "v2-rust-coverage"
+
+      # ビルド済みの cargo-tarpaulin を入れる (ソースからのビルドは時間がかかるため).
+      - name: Install cargo-tarpaulin
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-tarpaulin
+
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libgtk-3-dev
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # cargo のビルドは tauri.conf.json の frontendDist (dist) を参照するため, 先にビルドする.
+      - name: Build frontend
+        run: npm run build
+
+      # vitest --coverage (thresholds 100%) と cargo tarpaulin --fail-under 100
+      - name: Coverage
+        run: npm run coverage
+
+      # 失敗したときに, どこが通っていないかを見られるように, 報告を残す.
+      - name: Upload the coverage reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: |
+            coverage/
+            src-tauri/tarpaulin-report.html
+          if-no-files-found: warn
+          retention-days: 7
+
   deploy-docs:
     needs: check  # checkが成功した後に実行
     runs-on: ubuntu-26.04

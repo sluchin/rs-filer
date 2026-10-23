@@ -331,4 +331,16 @@ mod tests {
             assert!(path.ends_with("rsfiler/logs/rsfiler.log"));
         }
     }
+
+    #[test]
+    fn test_rotating_file_flush_success() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("rsfiler.log");
+        let mut file = RotatingFile::open(&path, 1024, 3).unwrap();
+
+        file.write_all(b"x").unwrap();
+        file.flush().unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "x");
+    }
 }

@@ -1719,4 +1719,33 @@ mod tests {
         assert!(flag.load(Ordering::SeqCst));
         assert!(!state.begin().load(Ordering::SeqCst));
     }
+
+    #[test]
+    fn test_tree_size_missing_is_zero() {
+        let dir = tempdir().unwrap();
+        assert_eq!(tree_size(&dir.path().join("none")), 0);
+    }
+
+    #[test]
+    fn test_copy_file_io_error_failure() {
+        let dir = tempdir().unwrap();
+        let cancel = AtomicBool::new(false);
+        let skip = HashSet::new();
+        let mut progress = Progress {
+            cancel: &cancel,
+            skip: &skip,
+            on_progress: &mut |_| {},
+            done: 0,
+            total: 0,
+            last_sent: None,
+        };
+
+        let result = copy_file(
+            &dir.path().join("none"),
+            &dir.path().join("dst"),
+            &mut progress,
+        );
+
+        assert!(matches!(result, Err(Stop::Failed(m)) if !m.is_empty()));
+    }
 }

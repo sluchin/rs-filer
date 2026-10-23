@@ -128,4 +128,25 @@ mod tests {
             assert!(join_valid_name("/tmp", name).is_err(), "name: {:?}", name);
         }
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_rename_item_rename_failure() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("a.txt");
+        fs::write(&src, "x").unwrap();
+        // 書き込めないディレクトリの中では, 名前を変えられない.
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o555)).unwrap();
+        let writable = fs::write(dir.path().join("probe"), "").is_ok();
+
+        let result = rename_item(src.to_string_lossy().into_owned(), "b.txt".to_string());
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
+
+        // root で動いていて書き込めてしまう場合は, 確かめられない.
+        if !writable {
+            assert!(result.is_err());
+            assert!(src.exists());
+        }
+    }
 }

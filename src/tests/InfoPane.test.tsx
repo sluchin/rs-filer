@@ -80,6 +80,13 @@ describe("infoRows", () => {
     );
   });
 
+  it("境界: 更新日時が取れないときは, 更新日時の行を出さないこと", () => {
+    const rows = infoRows(makeInfo({ modified: null }), IDLE);
+
+    expect(labels(rows)).not.toContain("更新日時");
+    expect(labels(rows)).toContain("作成日時");
+  });
+
   it("正常系: シンボリックリンクは, リンク先を出すこと", () => {
     const rows = infoRows(
       makeInfo({ kind: "symlink", symlink_target: "/real/target" }),

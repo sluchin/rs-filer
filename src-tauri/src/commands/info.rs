@@ -3,7 +3,8 @@
 use crate::commands::fs::{is_hidden, unix_secs};
 use serde::Serialize;
 use std::fs;
-use std::path::Path;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -265,27 +266,61 @@ pub fn compute_dir_stats(
                 stats.complete = false;
                 return Ok(stats);
             }
-            let Ok(entry) = entry else {
-                stats.errors += 1;
-                continue;
-            };
-            let Ok(file_type) = entry.file_type() else {
-                stats.errors += 1;
-                continue;
-            };
-            if file_type.is_dir() {
-                stats.dirs += 1;
-                pending.push(entry.path());
-            } else {
-                stats.files += 1;
-                match entry.metadata() {
-                    Ok(m) => stats.bytes += m.len(),
-                    Err(_) => stats.errors += 1,
-                }
-            }
+            tally_entry(&mut stats, &mut pending, entry);
         }
     }
     Ok(stats)
+}
+
+/// 配下の合計を数えるときの, 1 つの項目の種類.
+enum StatsEntry {
+    /// ディレクトリ. 中をたどる.
+    Dir(PathBuf),
+    /// ディレクトリ以外. 大きさ (バイト) を取得できなかった場合は `None`.
+    File(Option<u64>),
+}
+
+/// ディレクトリの項目の種類を調べます.
+///
+/// # Arguments
+///
+/// * `entry` - `read_dir` で得た項目.
+///
+/// # Returns
+///
+/// 種類. 項目やその種類を読めない場合は `None`.
+fn stats_entry(entry: io::Result<fs::DirEntry>) -> Option<StatsEntry> {
+    let entry = entry.ok()?;
+    let file_type = entry.file_type().ok()?;
+    if file_type.is_dir() {
+        Some(StatsEntry::Dir(entry.path()))
+    } else {
+        Some(StatsEntry::File(entry.metadata().ok().map(|m| m.len())))
+    }
+}
+
+/// ディレクトリの 1 つの項目を, 合計に加えます. ディレクトリは, 後でたどるよう `pending` に積みます.
+///
+/// 読めない項目と, 大きさを取得できなかったファイルは, エラーとして数えます.
+///
+/// # Arguments
+///
+/// * `stats` - 合計.
+/// * `pending` - これからたどるディレクトリ.
+/// * `entry` - `read_dir` で得た項目.
+fn tally_entry(stats: &mut DirStats, pending: &mut Vec<PathBuf>, entry: io::Result<fs::DirEntry>) {
+    match stats_entry(entry) {
+        Some(StatsEntry::Dir(path)) => {
+            stats.dirs += 1;
+            pending.push(path);
+        }
+        Some(StatsEntry::File(len)) => {
+            stats.files += 1;
+            stats.bytes += len.unwrap_or(0);
+            stats.errors += u64::from(len.is_none());
+        }
+        None => stats.errors += 1,
+    }
 }
 
 /// 項目の詳細を取得します (IPC コマンド). 走査 (ディスク I/O) は, ブロッキング用のスレッドで実行します.
@@ -526,5 +561,84 @@ mod tests {
         // 新しい計算が始まると, 前の計算には中断が要求され, 新しい計算は続けられる.
         assert!(first.load(Ordering::SeqCst));
         assert!(!second.load(Ordering::SeqCst));
+    }
+
+    /// 読めないディレクトリ (権限 000) を作る. root で動いていて読めてしまう場合は `None`.
+    #[cfg(unix)]
+    fn unreadable_dir(path: &Path) -> Option<()> {
+        use std::os::unix::fs::PermissionsExt;
+        fs::create_dir(path).unwrap();
+        fs::set_permissions(path, fs::Permissions::from_mode(0o000)).unwrap();
+        if fs::read_dir(path).is_ok() {
+            return None;
+        }
+        Some(())
+    }
+
+    /// 権限を戻して, 一時ディレクトリを消せるようにする.
+    #[cfg(unix)]
+    fn restore(path: &Path) {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_read_item_info_other_kind_and_unreadable_directory() {
+        let dir = tempdir().unwrap();
+        // ソケットは, ファイルでもディレクトリでもない (その他).
+        let socket = dir.path().join("s.sock");
+        let _listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+        let info = read_item_info(&socket.to_string_lossy()).unwrap();
+        assert_eq!(info.kind, ItemKind::Other);
+
+        // 読めないディレクトリは, 直下の数を 0 とする.
+        let locked = dir.path().join("locked");
+        if unreadable_dir(&locked).is_none() {
+            return;
+        }
+        let info = read_item_info(&locked.to_string_lossy());
+        restore(&locked);
+        let info = info.unwrap();
+        assert_eq!(info.kind, ItemKind::Dir);
+        assert_eq!((info.child_files, info.child_dirs), (Some(0), Some(0)));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_compute_dir_stats_counts_unreadable_directory_as_error() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("f"), "12").unwrap();
+        let locked = dir.path().join("locked");
+        if unreadable_dir(&locked).is_none() {
+            return;
+        }
+
+        let stats = compute_dir_stats(dir.path(), &AtomicBool::new(false), far(), 100);
+        restore(&locked);
+        let stats = stats.unwrap();
+
+        assert_eq!((stats.files, stats.dirs, stats.bytes), (1, 1, 2));
+        assert_eq!(stats.errors, 1);
+        assert!(stats.complete);
+    }
+
+    #[test]
+    fn test_tally_entry_counts_unreadable_entry_and_size_as_errors() {
+        let mut stats = DirStats::default();
+        let mut pending = Vec::new();
+
+        tally_entry(&mut stats, &mut pending, Err(io::Error::other("boom")));
+        assert_eq!(stats.errors, 1);
+
+        // 大きさを取得できなかったファイルも, ファイルとして数えたうえで, エラーに数える.
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("gone"), "x").unwrap();
+        let entry = fs::read_dir(dir.path()).unwrap().next().unwrap();
+        fs::remove_file(dir.path().join("gone")).unwrap();
+        tally_entry(&mut stats, &mut pending, entry);
+
+        assert_eq!((stats.files, stats.bytes, stats.errors), (1, 0, 2));
+        assert!(pending.is_empty());
     }
 }

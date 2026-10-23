@@ -228,10 +228,8 @@ export default function FileList({
     [containerRef],
   );
   useLayoutEffect(() => {
-    const element = rowsRef.current;
-    if (!element) {
-      return;
-    }
+    // 行の一覧 (ul) は常に描くので, マウントした後は必ずある
+    const element = rowsRef.current as HTMLElement;
     const measure = (): void =>
       setScrollbarWidth(element.offsetWidth - element.clientWidth);
     measure();
@@ -255,9 +253,8 @@ export default function FileList({
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
     if (!context) return 0;
-    const style = window.getComputedStyle(
-      rowsRef.current ?? headerRef.current ?? document.body,
-    );
+    // 測るのは, マウントした後の操作 (ヘッダーのダブルクリックなど) のときだけなので, 行の一覧は必ずある
+    const style = window.getComputedStyle(rowsRef.current as HTMLElement);
     context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
     return context.measureText(text).width;
   }, []);
@@ -315,8 +312,9 @@ export default function FileList({
   // ヘッダーの列の右の境界線を検出します (左右に 6 px ずつ). 境界線の左にある列を返します. 詳細を表示していない
   // (名前の列だけの) ときは, 幅を変えられない.
   const detectColumn = useCallback((x: number): ColumnName | null => {
-    if (!headerRef.current) return null;
-    const spans = headerRef.current.querySelectorAll(
+    // マウスの操作のときだけ呼ぶので, ヘッダーは必ずある
+    const header = headerRef.current as HTMLDivElement;
+    const spans = header.querySelectorAll(
       ".col-name, .col-size, .col-date, .col-attr",
     );
     if (spans.length < 2) return null;
@@ -330,12 +328,13 @@ export default function FileList({
     return null;
   }, []);
 
-  // ヘッダーの列 (`.col-size` など) の, 今の幅を測ります. 見つからなければ 0.
+  // ヘッダーの列 (`.col-size` など) の, 今の幅を測ります..
   const measureColumn = useCallback((column: ColumnName): number => {
-    const element = headerRef.current?.querySelector(
+    // ドラッグを始められるのは, 詳細を表示して全ての列がヘッダーにあるときだけなので, 列は必ずある
+    const element = (headerRef.current as HTMLDivElement).querySelector(
       `.${column.replace("_", "-")}`,
-    );
-    return element ? element.getBoundingClientRect().width : 0;
+    ) as Element;
+    return element.getBoundingClientRect().width;
   }, []);
 
   // ドラッグ開始. このとき, 幅を保存していない列は, 今の見た目の幅で固定する (動かした列より右の列の位置が、

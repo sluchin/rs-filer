@@ -70,6 +70,48 @@ describe("useItemInfo", () => {
   });
 });
 
+describe("useItemInfo (取得中にパスが変わったとき)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("境界: 古いパスの取得が後から終わっても (成功・失敗とも), その結果を使わないこと", async () => {
+    let finishOld: { resolve: () => void; reject: () => void } = {
+      resolve: () => {},
+      reject: () => {},
+    };
+    mockedInvoke.mockImplementation((_cmd, args) => {
+      const path = (args as { path: string }).path;
+      if (path === "/h/new") {
+        return Promise.resolve(INFO(path));
+      }
+      return new Promise((resolve, reject) => {
+        finishOld = {
+          resolve: () => resolve(INFO(path)),
+          reject: () => reject("old failed"),
+        };
+      });
+    });
+    const { result, rerender } = renderHook(({ path }) => useItemInfo(path), {
+      initialProps: { path: "/h/old1" },
+    });
+    const old1 = finishOld;
+    rerender({ path: "/h/old2" });
+    const old2 = finishOld;
+    rerender({ path: "/h/new" });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    old1.resolve();
+    old2.reject();
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(result.current).toMatchObject({
+      status: "ready",
+      info: { path: "/h/new" },
+    });
+  });
+});
+
 describe("useDirStats", () => {
   beforeEach(() => {
     vi.clearAllMocks();

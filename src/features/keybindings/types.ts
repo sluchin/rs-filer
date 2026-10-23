@@ -59,7 +59,6 @@ export const COMMANDS = [
   "cycleFontSize",
   "resizeColumnWider",
   "resizeColumnNarrower",
-  "autoFitColumn",
   "resetColumnWidths",
   "toggleTree",
   "quit",

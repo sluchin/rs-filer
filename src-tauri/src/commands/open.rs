@@ -106,23 +106,34 @@ pub fn open_in_editor(path: String) -> Result<(), String> {
     open_in_editor_with(Path::new(&path), editor.as_deref())
 }
 
-/// 現在の OS で試す, ターミナルの候補 (プログラム名, 追加の引数).
+/// 現在の OS で試す, ターミナルの候補 (プログラム名, 追加の引数). Windows.
 ///
 /// 先頭から順に起動を試み, 最初に成功したもので処理を終えます.
+#[cfg(target_os = "windows")]
 fn terminal_candidates() -> Vec<(&'static str, Vec<&'static str>)> {
-    if cfg!(target_os = "windows") {
-        vec![("cmd", vec!["/C", "start", "cmd"])]
-    } else if cfg!(target_os = "macos") {
-        vec![("open", vec!["-a", "Terminal"])]
-    } else {
-        vec![
-            ("x-terminal-emulator", vec![]),
-            ("gnome-terminal", vec![]),
-            ("konsole", vec![]),
-            ("xfce4-terminal", vec![]),
-            ("xterm", vec![]),
-        ]
-    }
+    vec![("cmd", vec!["/C", "start", "cmd"])]
+}
+
+/// 現在の OS で試す, ターミナルの候補 (プログラム名, 追加の引数). macOS.
+///
+/// 先頭から順に起動を試み, 最初に成功したもので処理を終えます.
+#[cfg(target_os = "macos")]
+fn terminal_candidates() -> Vec<(&'static str, Vec<&'static str>)> {
+    vec![("open", vec!["-a", "Terminal"])]
+}
+
+/// 現在の OS で試す, ターミナルの候補 (プログラム名, 追加の引数). Windows と macOS 以外.
+///
+/// 先頭から順に起動を試み, 最初に成功したもので処理を終えます.
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn terminal_candidates() -> Vec<(&'static str, Vec<&'static str>)> {
+    vec![
+        ("x-terminal-emulator", vec![]),
+        ("gnome-terminal", vec![]),
+        ("konsole", vec![]),
+        ("xfce4-terminal", vec![]),
+        ("xterm", vec![]),
+    ]
 }
 
 /// ターミナルを開くコマンドの候補を返します. 設定で指定されていれば, それだけを候補にします.
@@ -266,5 +277,54 @@ mod tests {
             let result = open_in_editor_with(&missing, editor);
             assert!(result.unwrap_err().contains("does not exist"));
         }
+    }
+
+    #[test]
+    fn test_candidates_for_success() {
+        // 設定があれば, それだけを候補にする.
+        assert_eq!(
+            candidates_for(Some(" kitty ")),
+            vec![("kitty".to_string(), Vec::new())]
+        );
+        // 無い (空白だけを含む) 場合は, OS ごとの既定の候補.
+        for configured in [None, Some("  ")] {
+            let candidates = candidates_for(configured);
+            assert_eq!(candidates.len(), terminal_candidates().len());
+            assert!(!candidates.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_open_terminal_with_success() {
+        let dir = tempdir().unwrap();
+        let candidates = vec![
+            ("first".to_string(), Vec::new()),
+            ("second".to_string(), vec!["-x".to_string()]),
+        ];
+        let tried = std::cell::RefCell::new(Vec::new());
+
+        let result = open_terminal_with(dir.path(), &candidates, &|program, args, cwd| {
+            tried.borrow_mut().push(program.to_string());
+            assert_eq!(cwd, dir.path());
+            // 2 つ目で起動できたとする.
+            !args.is_empty()
+        });
+
+        assert!(result.is_ok());
+        assert_eq!(*tried.borrow(), vec!["first", "second"]);
+    }
+
+    #[test]
+    fn test_open_terminal_with_failure() {
+        let dir = tempdir().unwrap();
+        let candidates = vec![("none".to_string(), Vec::new())];
+
+        let all_failed = open_terminal_with(dir.path(), &candidates, &|_, _, _| false);
+        assert_eq!(all_failed.unwrap_err(), "Failed to start a terminal");
+
+        let not_dir = open_terminal_with(&dir.path().join("none"), &candidates, &|_, _, _| {
+            panic!("呼ばれないこと")
+        });
+        assert!(not_dir.unwrap_err().starts_with("Not a directory"));
     }
 }

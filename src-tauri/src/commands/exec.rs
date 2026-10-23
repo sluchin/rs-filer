@@ -11,13 +11,24 @@ use std::process::Command;
 ///
 /// # Returns
 ///
-/// シェルの引用符で囲んだ文字列 (Windows では二重引用符, それ以外では単一引用符).
+/// 二重引用符で囲んだ文字列 (Windows).
+#[cfg(windows)]
 fn quote_shell_arg(arg: &str) -> String {
-    if cfg!(windows) {
-        format!("\"{}\"", arg.replace('"', "\"\""))
-    } else {
-        format!("'{}'", arg.replace('\'', "'\\''"))
-    }
+    format!("\"{}\"", arg.replace('"', "\"\""))
+}
+
+/// シェルに渡す 1 つの引数を, 空白や特殊文字を含んでいても安全なように囲みます.
+///
+/// # Arguments
+///
+/// * `arg` - 対象の文字列.
+///
+/// # Returns
+///
+/// 単一引用符で囲んだ文字列 (Windows 以外).
+#[cfg(not(windows))]
+fn quote_shell_arg(arg: &str) -> String {
+    format!("'{}'", arg.replace('\'', "'\\''"))
 }
 
 /// コマンドの文字列と対象のパスから, 実行するコマンド全体の文字列を組み立てます.

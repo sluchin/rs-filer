@@ -160,9 +160,10 @@ export function useTransfer(
       let nested: NestedConflict[];
       try {
         setError(null);
+        // ここに来るのは, 送り先のあるコピーと移動だけ
         nested = await checkNestedConflicts(
           request.sources,
-          request.dest_dir ?? "",
+          request.dest_dir as string,
         );
       } catch (e) {
         setError(String(e));

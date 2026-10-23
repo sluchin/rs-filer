@@ -331,4 +331,211 @@ describe("useTree", () => {
       expect(result.current.cursorPath).toBe("/h/b.txt");
     });
   });
+
+  describe("3 階層の展開・折り畳み, カーソルが無いとき, 読み込みの追い越し", () => {
+    /** 指定したディレクトリの直下を, 差し替える. */
+    function mockDir(
+      parent: string,
+      entries: { name: string; is_dir: boolean }[],
+    ): void {
+      const base = mockedInvoke.getMockImplementation();
+      mockedInvoke.mockImplementation((cmd, args) => {
+        if (
+          cmd === "read_directory" &&
+          (args as { path: string }).path === parent
+        ) {
+          return Promise.resolve(
+            entries.map((e) => ({
+              ...e,
+              path: `${parent}/${e.name}`,
+              hidden: false,
+            })),
+          );
+        }
+        return base?.(cmd, args) as Promise<unknown>;
+      });
+    }
+
+    /** 指定したディレクトリの読み込みを, 返した関数を呼ぶまで待たせる. */
+    function deferDir(parent: string): () => void {
+      const base = mockedInvoke.getMockImplementation();
+      let release = (): void => {};
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      mockedInvoke.mockImplementation((cmd, args) => {
+        const result = base?.(cmd, args) as Promise<unknown>;
+        if (
+          cmd === "read_directory" &&
+          (args as { path: string }).path === parent
+        ) {
+          return gate.then(() => result);
+        }
+        return result;
+      });
+      return release;
+    }
+
+    /** 処理待ちの Promise を, 全て進める. */
+    const flush = () => act(() => new Promise((r) => setTimeout(r, 20)));
+
+    it("正常系: 3 階層まで展開し, 4 階層目は展開せず, ファイルは展開しないこと", async () => {
+      mockDir("/h/docs/sub", [
+        { name: "deep", is_dir: true },
+        { name: "f.txt", is_dir: false },
+      ]);
+      mockDir("/h/docs/sub/deep", [{ name: "deeper", is_dir: true }]);
+      const { result } = renderHook(() => useTree("/h", false));
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+
+      act(() => result.current.expandDeep()); // docs (カーソルは先頭)
+
+      await waitFor(() =>
+        expect(result.current.rows.map((r) => r.node.name)).toEqual([
+          "docs",
+          "sub",
+          "deep",
+          "deeper",
+          "f.txt",
+          "a.txt",
+          "b.txt",
+        ]),
+      );
+      const nodeOf = (name: string) =>
+        result.current.rows.find((r) => r.node.name === name)?.node;
+      expect(nodeOf("deep")?.expanded).toBe(true);
+      expect(nodeOf("deeper")?.expanded).toBe(false);
+      expect(nodeOf("f.txt")?.expanded).toBe(false);
+    });
+
+    it("正常系: 読み込み済みのディレクトリは読み直さずに展開し, 空と分かっているディレクトリは空のままにすること", async () => {
+      const { result } = renderHook(() => useTree("/h", true));
+      await waitFor(() => expect(result.current.rows).toHaveLength(5));
+      act(() => result.current.setCursorPath("/h/docs"));
+      act(() => result.current.expandOrChild());
+      await waitFor(() => expect(result.current.rows).toHaveLength(6));
+      const reads = (path: string) =>
+        mockedInvoke.mock.calls.filter(
+          (c) =>
+            c[0] === "read_directory" &&
+            (c[1] as { path: string }).path === path,
+        ).length;
+
+      act(() => result.current.expandDeep());
+      await flush();
+      expect(reads("/h/docs")).toBe(1);
+      expect(
+        result.current.rows.find((r) => r.node.name === "sub")?.node.expanded,
+      ).toBe(true);
+
+      act(() => result.current.setCursorPath("/h/.git"));
+      act(() => result.current.expandDeep());
+      await flush();
+      const git = result.current.rows.find((r) => r.node.name === ".git")?.node;
+      expect(git?.empty).toBe(true);
+      expect(git?.expanded).toBe(true);
+    });
+
+    it("正常系: 配下をすべて折り畳むこと", async () => {
+      const { result } = renderHook(() => useTree("/h", false));
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+      act(() => result.current.expandDeep());
+      await waitFor(() => expect(result.current.rows).toHaveLength(4));
+
+      act(() => result.current.collapseDeep());
+
+      expect(result.current.rows).toHaveLength(3);
+      const docs = result.current.rows[0].node;
+      expect(docs.expanded).toBe(false);
+      expect(docs.children[0].expanded).toBe(false);
+    });
+
+    it("境界: 展開済みで子の無いディレクトリでは, 子へ移らないこと", async () => {
+      mockDir("/h/docs", []);
+      const { result } = renderHook(() => useTree("/h", false));
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+      act(() => result.current.expandOrChild());
+      await flush();
+
+      act(() => result.current.expandOrChild());
+
+      expect(result.current.cursorPath).toBe("/h/docs");
+    });
+
+    it("境界: 行もカーソルも無いとき, 各操作は何もしないこと", async () => {
+      mockDir("/h", []);
+      const { result } = renderHook(() => useTree("/h", false));
+      await flush();
+
+      act(() => result.current.moveCursor(1));
+      act(() => result.current.collapseOrParent());
+      act(() => result.current.collapseDeep());
+
+      expect(result.current.cursorPath).toBeNull();
+      expect(result.current.rows).toEqual([]);
+    });
+
+    it("正常系: 入れ子のディレクトリを読み込み直して, 展開し, 作ったものにカーソルを合わせること", async () => {
+      const { result } = renderHook(() => useTree("/h", false));
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+      act(() => result.current.expandOrChild());
+      await waitFor(() => expect(result.current.rows).toHaveLength(4));
+      mockDir("/h/docs/sub", [{ name: "made", is_dir: true }]);
+
+      await act(() => result.current.refresh("/h/docs/sub", "made"));
+
+      expect(result.current.cursorPath).toBe("/h/docs/sub/made");
+      expect(
+        result.current.rows.find((r) => r.node.name === "sub")?.node.expanded,
+      ).toBe(true);
+    });
+
+    it("境界: ツリーに無いディレクトリを読み込み直したときは, 前の子を空として扱うこと", async () => {
+      const { result } = renderHook(() => useTree("/h", false));
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+      act(() => result.current.expandOrChild());
+      await waitFor(() => expect(result.current.rows).toHaveLength(4));
+      act(() => result.current.setCursorPath("/h/docs/sub"));
+
+      await act(() => result.current.refresh("/h/none"));
+
+      expect(result.current.cursorPath).toBe("/h/docs/sub");
+      expect(result.current.rows).toHaveLength(4);
+    });
+
+    it("境界: 読み込み中に根が変わったら, 古い読み込みの結果を捨てること", async () => {
+      const releaseRoot = deferDir("/h");
+      const { result, rerender } = renderHook(
+        ({ root }) => useTree(root, false),
+        { initialProps: { root: "/h" } },
+      );
+      rerender({ root: "/h/docs" });
+      await waitFor(() => expect(result.current.rows).toHaveLength(1));
+
+      releaseRoot();
+      await flush();
+
+      expect(result.current.rows.map((r) => r.node.name)).toEqual(["sub"]);
+    });
+
+    it("境界: 展開・3 階層の展開・読み込み直しの途中で根が変わったら, その結果を捨てること", async () => {
+      const { result, rerender } = renderHook(
+        ({ root }) => useTree(root, false),
+        { initialProps: { root: "/h" } },
+      );
+      await waitFor(() => expect(result.current.rows).toHaveLength(3));
+      const releaseDocs = deferDir("/h/docs");
+
+      act(() => result.current.expandOrChild());
+      act(() => result.current.expandDeep());
+      const refreshing = result.current.refresh("/h/docs");
+      rerender({ root: "/h/docs" });
+      releaseDocs();
+      await act(() => refreshing);
+      await flush();
+
+      expect(result.current.rows.map((r) => r.node.name)).toEqual(["sub"]);
+      expect(result.current.rows[0].node.expanded).toBe(false);
+    });
+  });
 });

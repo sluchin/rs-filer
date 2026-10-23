@@ -46,6 +46,10 @@ export default defineConfig(() => ({
         'src/**/*.test.{ts,tsx}',
         'src/test/**',
       ],
+      // フロントエンドは, 命令・分岐・関数・行のすべてで 100% を保つ (下回ると失敗する)
+      thresholds: {
+        100: true,
+      },
     },
   },
 }));

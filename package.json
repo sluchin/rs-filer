@@ -23,7 +23,7 @@
     "test:all": "npm run test && npm run test:rust",
     "test:watch": "vitest",
     "coverage:fe": "vitest run --coverage",
-    "coverage:be": "cd src-tauri && cargo tarpaulin --skip-clean --out Html",
+    "coverage:be": "cd src-tauri && cargo tarpaulin --skip-clean --engine llvm --fail-under 100 --out Html",
     "coverage:be:clean": "cd src-tauri && cargo tarpaulin --out Html",
     "coverage": "npm run coverage:fe && npm run coverage:be",
     "coverage:clean": "npm run coverage:fe && npm run coverage:be:clean",

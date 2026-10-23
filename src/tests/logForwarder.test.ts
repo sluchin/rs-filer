@@ -48,6 +48,20 @@ describe("installLogForwarding", () => {
     });
   });
 
+  it("境界: スタックトレースの無い Error は, メッセージを転送すること", () => {
+    mockedInvoke.mockResolvedValue(undefined);
+    installLogForwarding({ force: true });
+    const error = new Error("no stack");
+    error.stack = undefined;
+
+    log.error(error);
+
+    expect(mockedInvoke).toHaveBeenCalledWith("log_frontend_message", {
+      level: "error",
+      message: "no stack",
+    });
+  });
+
   it("正常系: バックエンドへの転送が失敗しても例外にならないこと", () => {
     mockedInvoke.mockRejectedValue(new Error("network"));
     installLogForwarding({ force: true });

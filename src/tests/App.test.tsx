@@ -130,6 +130,33 @@ describe("App (Dual Pane)", () => {
     expect(await paneOf("right").findByText("in.txt")).toBeInTheDocument();
   });
 
+  it("正常系: 前回のディレクトリを開けなかったペインは, もう一方のペインが取得したホームディレクトリを使い, 取得し直さないこと", async () => {
+    mockHome((cmd, args) => {
+      if (cmd === "load_config") {
+        return Promise.resolve({
+          theme: "classic",
+          font_size: "medium",
+          editor: null,
+          terminal: null,
+          last_paths: { left: "/gone" },
+        });
+      }
+      if (cmd === "read_directory" && pathOf(args) === "/gone") {
+        // ホームディレクトリの取得より後に, 失敗を返す.
+        return new Promise((_, reject) => setTimeout(() => reject("無い"), 20));
+      }
+      return undefined;
+    });
+
+    render(<App />);
+
+    expect(await paneOf("left").findByText("FolderA")).toBeInTheDocument();
+    expect(await paneOf("right").findByText("FolderA")).toBeInTheDocument();
+    expect(
+      mockedInvoke.mock.calls.filter((c) => c[0] === "get_home_dir"),
+    ).toHaveLength(1);
+  });
+
   it("正常系: ディレクトリを移動すると, 左右のディレクトリが保存されること", async () => {
     mockHome();
     const user = await renderLoaded();
@@ -984,6 +1011,29 @@ describe("App (分岐の網羅)", () => {
     expect(
       await paneOf("left").findByRole("treeitem", { name: /Top/ }),
     ).toHaveAttribute("data-cursor", "active");
+  });
+
+  it("正常系: 右のペインのツリーでも, N で作り, r で名前の変更を始められること", async () => {
+    mockMkdirTree();
+    const user = await renderLoaded();
+    await user.keyboard("{Tab}t");
+    await paneOf("right").findByRole("treeitem", { name: /FolderA/ });
+
+    await user.keyboard("N");
+    await user.type(await screen.findByLabelText("名前"), "R{Enter}");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("create_directory", {
+        parent: "/mock/home/FolderA",
+        name: "R",
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+
+    await user.keyboard("r");
+    expect(await screen.findByText("名前の変更")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
   });
 
   it("正常系: ツリーの名前の入力を Esc で取り消すと, 何も作られないこと", async () => {
@@ -2589,6 +2639,30 @@ describe("App (コピー・移動・削除の実行)", () => {
     expect(transferRequest()).not.toHaveProperty("skip");
   });
 
+  it("正常系: C-c で, カーソル位置の項目を, クリップボードへコピーすること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("{Control>}c{/Control}");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("copy_files_to_clipboard", {
+        paths: ["/mock/home/FolderA"],
+      }),
+    );
+  });
+
+  it("正常系: M-x duplicate で, 名前を付けてコピーを始めること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}x{/Alt}");
+    await user.keyboard("duplicate{Enter}");
+
+    expect(await screen.findByText("名前を付けてコピー")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+  });
+
   it("正常系: C-v で, 今のディレクトリのファイルを貼り付けると, 区切りが \\ のパス (Windows) でも, 名前を付けてコピーすること", async () => {
     mockHome((cmd) => {
       if (cmd === "read_clipboard_files")
@@ -3118,6 +3192,21 @@ function mockInfoHome(options: { infoFails?: boolean } = {}): void {
 describe("App (詳細情報)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("正常系: 右のペインがアクティブなときは, 左のペインの場所に詳細を出すこと", async () => {
+    mockInfoHome();
+    const user = await renderLoadedFor("Dir");
+
+    await user.keyboard("{Tab}I");
+
+    expect(
+      screen.getByRole("region", { name: "info pane" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "left pane" })).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "right pane" }),
+    ).toBeInTheDocument();
   });
 
   it("正常系: I で反対側のペインの場所に, カーソル位置のディレクトリの詳細と配下の合計が出て, もう一度 I で閉じること", async () => {
@@ -4123,6 +4212,38 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
     await user.keyboard("{Alt>}0{/Alt}");
     expect(app()).toHaveAttribute("data-font-size", "medium");
   });
+
+  it.each([
+    [">", 310],
+    ["<", 290],
+  ])(
+    "正常系: %s で, アクティブなペインの名前の列の幅を, 既定の幅から 10px 変えて, 保存すること",
+    async (key, width) => {
+      mockHome();
+      const user = await renderLoaded();
+
+      await user.keyboard(key);
+
+      await waitFor(() =>
+        expect(mockedInvoke).toHaveBeenCalledWith("save_config", {
+          config: expect.objectContaining({
+            pane_column_widths: { left: { col_name: width }, right: {} },
+          }),
+        }),
+      );
+      await user.keyboard(key);
+      await waitFor(() =>
+        expect(mockedInvoke).toHaveBeenCalledWith("save_config", {
+          config: expect.objectContaining({
+            pane_column_widths: {
+              left: { col_name: width * 2 - 300 },
+              right: {},
+            },
+          }),
+        }),
+      );
+    },
+  );
 
   it("正常系: M-x resetColumnWidths で, アクティブなペインの列幅だけが既定に戻り, 保存されること", async () => {
     mockHome((cmd) =>

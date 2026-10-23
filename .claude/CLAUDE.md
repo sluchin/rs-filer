@@ -11,7 +11,7 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 - **開発サーバーを起動**: `npm run tauri:dev` — フロントエンドと Rust は両方とも変更時に自動リロード
 - **テスト**: `npm run test`（`src/` に対する Vitest）と `cargo test`（`src-tauri/` に対する）
 - **フォーマット + リント**: `npm run check`（format:check、lint、test を実行 — CI ゲート）
-- CI は `main` へのすべてのプッシュ/PR で同じ内容を実行
+- CI は `main` へのすべてのプッシュ/PR で同じ内容を実行し、別のジョブでカバレッジ (`npm run coverage`。フロントエンドもバックエンドも 100% でなければ失敗する) も実行する
 
 ## プロジェクト構成
 
@@ -83,7 +83,7 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
   - `npm run check` は、整形チェック・eslint・clippy・vitest・cargo test・`cargo fmt --check` を含む。整形で失敗したら、`npm run format` で直してから、もう一度実行する。
   - Rust だけ変更した場合でも、フロントエンドの型と IPC の整合を確認するため、`npm run check` は省略しない。
   - **例外**: 変更が Markdown ファイル (`*.md`) のみの場合は、上記のコマンドを実行しない。
-- 機能追加・修正には、テストを追加する (フロントエンドは vitest、バックエンドは cargo test)。カバレッジは下げない (`npm run coverage` で確認する)。到達できないコードは削除する。カバレッジからの除外 (`tarpaulin_include`、vitest の `coverage.exclude`) は、エントリポイントや、テストできない起動処理に限り、理由をコメントで添えて使う。
+- 機能追加・修正には、テストを追加する (フロントエンドは vitest、バックエンドは cargo test)。カバレッジは下げない (`npm run coverage` で確認する)。フロントエンドもバックエンドも 100% を保つ (フロントエンドは `vite.config.ts` の `thresholds`、バックエンドは `coverage:be` の `--fail-under 100`。下回ると失敗する)。バックエンドは、ジェネリックな関数の行を正しく数えるため、tarpaulin の LLVM の計測 (`--engine llvm`) を使う。OS ごとに異なる処理は、`cfg!` の分岐ではなく、`#[cfg]` で関数を分ける (他の OS の処理を数えないため)。到達できないコードは削除する。カバレッジからの除外 (`tarpaulin_include`、vitest の `coverage.exclude`) は、エントリポイントや、テストできない起動処理に限り、理由をコメントで添えて使う。
 - キーバインドや操作を変更したら、`KEYBINDINGS.md` と `README.md` も更新する。フェーズの進捗が変わったら `TODO.md`、ファイル構成が変わったら `FILETREE.md` も更新する。既存の画面操作に影響する変更 (キーの割り当て・確認手順・表示内容など) は、`INTEGRATION_TESTS.md` の該当項目も見直す。
 - `package.json` の `version`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json` のバージョンは、勝手に変更しない (リリースの操作は、ユーザーが行う)。
 - `package-lock.json` と `Cargo.lock` は、依存を変更したときだけ更新する。

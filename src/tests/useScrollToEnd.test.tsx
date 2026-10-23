@@ -80,6 +80,17 @@ describe("useScrollToEnd", () => {
     expect(target.scrollLeft).toBe(500);
   });
 
+  it("境界: 要素に付ける前に scrollToEnd を呼んでも, 例外にならないこと", () => {
+    /** ref を要素に付けないコンポーネント. */
+    function Detached() {
+      const { scrollToEnd } = useScrollToEnd<HTMLDivElement>("/a");
+      return <button onClick={scrollToEnd}>scroll</button>;
+    }
+    render(<Detached />);
+
+    expect(() => fireEvent.click(screen.getByText("scroll"))).not.toThrow();
+  });
+
   it("正常系: 取り外すとき, 幅の監視を止めること", () => {
     const { unmount } = render(<Sample text="/a" />);
 

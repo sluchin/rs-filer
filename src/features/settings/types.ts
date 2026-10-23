@@ -30,9 +30,9 @@ export const DEFAULT_NAME_COLUMN_WIDTH = 300;
  */
 export interface PaneColumnWidths {
   /** 左ペインの列幅. */
-  left?: ColumnWidths;
+  left: ColumnWidths;
   /** 右ペインの列幅. */
-  right?: ColumnWidths;
+  right: ColumnWidths;
 }
 
 /**
@@ -79,9 +79,9 @@ export interface AppConfig {
    */
   terminal: string | null;
   /**
-   * ファイル一覧の列幅 (ペイン毎).
+   * ファイル一覧の列幅 (ペイン毎). バックエンドは, 保存していなくても必ず返す (`#[serde(default)]`).
    */
-  pane_column_widths?: PaneColumnWidths;
+  pane_column_widths: PaneColumnWidths;
   /**
    * 前回終了時の, 左右のペインのディレクトリ. 保存されていない場合は無い.
    */

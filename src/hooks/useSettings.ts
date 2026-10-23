@@ -80,10 +80,9 @@ export function useSettings() {
   /** ペインの列幅を更新します. */
   const updatePaneColumnWidth = useCallback(
     (paneId: "left" | "right", widths: ColumnWidths): void => {
-      const current = config.pane_column_widths || { left: {}, right: {} };
       update({
         pane_column_widths: {
-          ...current,
+          ...config.pane_column_widths,
           [paneId]: widths,
         },
       });

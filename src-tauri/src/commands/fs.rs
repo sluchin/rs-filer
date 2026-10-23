@@ -2,7 +2,7 @@
 
 use serde::Serialize;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 /// ファイルシステム上の 1 つのエントリ（ファイルまたはディレクトリ）を表す構造体.
@@ -204,8 +204,20 @@ pub async fn dirs_have_entries(paths: Vec<String>, show_hidden: bool) -> Result<
 /// パスを取得できなかった場合はエラー文字列を含む [`Err`] を返します.
 #[tauri::command]
 pub fn get_home_dir() -> Result<String, String> {
-    dirs::home_dir()
-        .map(|p| p.to_string_lossy().into_owned())
+    home_dir_string(dirs::home_dir())
+}
+
+/// ホームディレクトリのパスを, 文字列にします.
+///
+/// # Arguments
+///
+/// * `home` - ホームディレクトリ. 取得できなかった場合は `None`.
+///
+/// # Returns
+///
+/// パス文字列を包んだ [`Ok`]. `home` が `None` の場合はエラー文字列を含む [`Err`].
+fn home_dir_string(home: Option<PathBuf>) -> Result<String, String> {
+    home.map(|p| p.to_string_lossy().into_owned())
         .ok_or_else(|| {
             let message = "ホームディレクトリを取得できませんでした.".to_string();
             log::error!("{}", message);
@@ -245,15 +257,26 @@ pub struct DiskSpace {
 /// 成功した場合は [`DiskSpace`], 取得に失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command]
 pub fn get_disk_space(path: String) -> Result<DiskSpace, String> {
-    let free = fs4::available_space(&path).map_err(|e| {
-        log::error!("ディスク容量取得失敗: {} ({})", path, e);
-        e.to_string()
-    })?;
-    let total = fs4::total_space(&path).map_err(|e| {
-        log::error!("ディスク容量取得失敗: {} ({})", path, e);
-        e.to_string()
-    })?;
+    let free = disk_space_of(&path, |p| fs4::available_space(p))?;
+    let total = disk_space_of(&path, |p| fs4::total_space(p))?;
     Ok(DiskSpace { free, total })
+}
+
+/// ディスクの容量 (空き容量か全体の容量) を, `query` で調べます. 失敗したらログに残します.
+///
+/// # Arguments
+///
+/// * `path` - 調べるパス.
+/// * `query` - 容量を調べる関数 (`fs4::available_space` など).
+///
+/// # Returns
+///
+/// 容量 (バイト). 失敗した場合はエラー文字列を含む [`Err`].
+fn disk_space_of(path: &str, query: fn(&str) -> std::io::Result<u64>) -> Result<u64, String> {
+    query(path).map_err(|e| {
+        log::error!("ディスク容量取得失敗: {} ({})", path, e);
+        e.to_string()
+    })
 }
 
 /// 補完の候補として返す最大の件数.
@@ -285,14 +308,6 @@ fn complete_path_with(input: &str, home: Option<&Path>) -> Vec<String> {
     };
     let Ok(entries) = fs::read_dir(&dir) else {
         return Vec::new();
-    };
-    // Windows は大文字小文字を区別しないファイルシステムのため, 比較前に小文字へ揃える.
-    let fold = |s: &str| {
-        if cfg!(windows) {
-            s.to_lowercase()
-        } else {
-            s.to_string()
-        }
     };
     let wanted = fold(prefix);
     let mut names: Vec<String> = entries
@@ -332,13 +347,52 @@ pub fn complete_path(input: String) -> Vec<String> {
 ///
 /// # Returns
 ///
-/// Windows では `A:/` から `Z:/`, それ以外の OS では `/`.
+/// Windows では `A:/` から `Z:/`.
+#[cfg(windows)]
 fn candidate_roots() -> Vec<String> {
-    if cfg!(windows) {
-        ('A'..='Z').map(|c| format!("{}:/", c)).collect()
-    } else {
-        vec!["/".to_string()]
-    }
+    ('A'..='Z').map(|c| format!("{}:/", c)).collect()
+}
+
+/// 現在の OS で調べるルートパスの候補を返します.
+///
+/// # Returns
+///
+/// Windows 以外の OS では `/`.
+#[cfg(not(windows))]
+fn candidate_roots() -> Vec<String> {
+    vec!["/".to_string()]
+}
+
+/// 名前を比べるために, 大文字小文字をそろえます.
+///
+/// Windows は大文字小文字を区別しないファイルシステムのため, 小文字へそろえます.
+///
+/// # Arguments
+///
+/// * `s` - 名前.
+///
+/// # Returns
+///
+/// 小文字にした名前.
+#[cfg(windows)]
+fn fold(s: &str) -> String {
+    s.to_lowercase()
+}
+
+/// 名前を比べるために, 大文字小文字をそろえます.
+///
+/// Windows 以外では大文字小文字を区別するので, そのまま返します.
+///
+/// # Arguments
+///
+/// * `s` - 名前.
+///
+/// # Returns
+///
+/// 元の名前.
+#[cfg(not(windows))]
+fn fold(s: &str) -> String {
+    s.to_string()
 }
 
 /// 候補のうち, `exists` が真を返すものだけを残します.
@@ -504,6 +558,27 @@ mod tests {
         let space = get_disk_space(dir.path().to_string_lossy().into_owned()).unwrap();
         assert!(space.total > 0);
         assert!(space.free <= space.total);
+    }
+
+    #[test]
+    fn test_home_dir_string_success() {
+        assert_eq!(
+            home_dir_string(Some(PathBuf::from("/home/u"))).unwrap(),
+            "/home/u"
+        );
+    }
+
+    #[test]
+    fn test_home_dir_string_none_failure() {
+        assert!(home_dir_string(None)
+            .unwrap_err()
+            .contains("ホームディレクトリ"));
+    }
+
+    #[test]
+    fn test_disk_space_of_failure() {
+        let result = disk_space_of("/x", |_| Err(std::io::Error::other("boom")));
+        assert_eq!(result.unwrap_err(), "boom");
     }
 
     #[test]

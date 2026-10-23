@@ -60,7 +60,6 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   cycleFontSize: "フォントサイズの切り替え",
   resizeColumnWider: "選択中の列を広くする",
   resizeColumnNarrower: "選択中の列を狭くする",
-  autoFitColumn: "選択中の列の幅を自動調整",
   resetColumnWidths: "アクティブなペインの列幅を既定に戻す",
   toggleTree: "ツリー表示のトグル",
   quit: "終了",

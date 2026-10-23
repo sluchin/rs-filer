@@ -74,7 +74,8 @@ pub fn is_position_supported(wayland_display: Option<&str>, gdk_backend: Option<
 ///
 /// GTK を初期化する前 (他のスレッドを作る前) に, 一度だけ呼びます.
 // 実際の環境変数を読み書きするため, カバレッジの対象外にする (判断は should_use_x11 で検証する).
-#[cfg(all(target_os = "linux", not(tarpaulin_include)))]
+#[cfg(target_os = "linux")]
+#[cfg(not(tarpaulin_include))]
 pub fn prefer_x11() {
     let get = |name: &str| std::env::var(name).ok();
     if should_use_x11(

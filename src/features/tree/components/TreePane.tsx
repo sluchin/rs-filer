@@ -151,13 +151,14 @@ export default function TreePane({
         // ディレクトリ作成. `N`: カーソル位置のディレクトリの下 (ファイルなら, そのファイルのあるディレクトリ.
         // 何も無ければ, ツリーの根). `+`: 通常の一覧と同じく, いま開いているディレクトリ (ツリーの根) の直下.
         e.preventDefault();
+        // ファイルの行の親は, ツリーの行が根の下にあるので, 必ずある.
         const row = rows.find((r) => r.node.path === cursorPath);
         const parent =
           e.key === "+" || !row
             ? rootPath
             : row.node.isDir
               ? row.node.path
-              : (getParentPath(row.node.path) ?? rootPath);
+              : (getParentPath(row.node.path) as string);
         onCreateDirectory(parent, (name) => void refresh(parent, name));
       } else if (
         (e.key === "r" || e.key === "F2") &&
@@ -169,7 +170,8 @@ export default function TreePane({
         e.preventDefault();
         const row = rows.find((r) => r.node.path === cursorPath);
         if (row) {
-          const parent = getParentPath(row.node.path) ?? rootPath;
+          // ツリーの行は根の下にあるので, 親は必ずある
+          const parent = getParentPath(row.node.path) as string;
           onRename(
             row.node.path,
             row.node.name,
@@ -186,7 +188,8 @@ export default function TreePane({
         e.preventDefault();
         const row = rows.find((r) => r.node.path === cursorPath);
         if (row) {
-          const parent = getParentPath(row.node.path) ?? rootPath;
+          // ツリーの行は根の下にあるので, 親は必ずある
+          const parent = getParentPath(row.node.path) as string;
           const permanent = e.key === "D" || (e.key === "Delete" && e.shiftKey);
           onDelete(
             row.node.path,

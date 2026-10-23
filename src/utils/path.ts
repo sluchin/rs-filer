@@ -34,10 +34,8 @@ export function getParentPath(path: string): string | null {
   if (isDrive || isUnc) {
     return toNativePath((isUnc ? "//" : "") + segments.join("/"));
   }
-  return (
-    (isUnc ? "//" : normalizedPath.startsWith("/") ? "/" : "") +
-    segments.join("/")
-  );
+  // ここに来るのは, ドライブでも UNC でもないパスだけ
+  return (normalizedPath.startsWith("/") ? "/" : "") + segments.join("/");
 }
 
 /**

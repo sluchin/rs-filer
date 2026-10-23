@@ -151,12 +151,10 @@ export function useTree(rootPath: string, showHidden: boolean) {
 
   const rows = useMemo(() => flatten(roots, 0), [roots]);
 
-  /** ノードを展開・折り畳みする. 未読込のディレクトリを展開するときは子を読み込む. ファイルは何もしない. */
+  /** ディレクトリのノードを展開・折り畳みする. 未読込のディレクトリを展開するときは子を読み込む. */
   const toggle = useCallback(
     async (node: TreeNode, expand: boolean): Promise<void> => {
-      if (!node.isDir) {
-        return;
-      }
+      // 呼ぶのは, ディレクトリのとき (展開) と, 展開済みのとき (折り畳み. ファイルは展開されない) だけ
       const current = version.current;
       const children =
         expand && !node.loaded
