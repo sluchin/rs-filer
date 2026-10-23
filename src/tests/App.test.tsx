@@ -1939,6 +1939,18 @@ describe("App (履歴・ブックマーク)", () => {
     expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
   });
 
+  it("正常系: ブックマーク一覧の表示中に, もう一度 b を押すと, 通常の表示に戻ること (トグル)", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("b");
+    expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
+
+    await user.keyboard("b");
+
+    expect(paneOf("left").queryByText("登録されていません.")).toBeNull();
+    expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
+  });
+
   it("正常系: M-b でカレントディレクトリが登録され, Enter で選んだ先へ移動して通常表示へ戻ること", async () => {
     mockPhase4();
     const user = await renderLoaded();
@@ -2060,6 +2072,20 @@ describe("App (履歴一覧)", () => {
     expect(paneOf("right").getByText("FolderA")).toBeInTheDocument();
   });
 
+  it("正常系: 履歴一覧の表示中に, もう一度 M-h を押すと, 移動せずに通常の表示に戻ること (トグル)", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}h{/Alt}");
+    expect(paneOf("left").getAllByRole("listitem")[0]).toHaveTextContent(
+      "/mock/home",
+    );
+
+    await user.keyboard("{Alt>}h{/Alt}");
+
+    expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
+    expect(paneOf("left").queryByText("現在地")).toBeNull();
+  });
+
   it("正常系: カーソルは現在地から始まり, j/k で動かして Enter で, 隣り合わない位置へも直接移動できること", async () => {
     mockPhase4();
     const user = await renderLoaded();
@@ -2069,7 +2095,7 @@ describe("App (履歴一覧)", () => {
     await waitFor(() => expect(leftNames()).toContain("a.txt"));
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
-    // 履歴: [/mock/home, /mock/home/FolderA] (同じディレクトリは足さない. 現在地は末尾).
+    // 履歴: [/mock/home, /mock/home/FolderA] (同じディレクトリは末尾へ移す. 現在地は末尾).
 
     await user.keyboard("{Alt>}h{/Alt}");
     await user.keyboard("kkk");

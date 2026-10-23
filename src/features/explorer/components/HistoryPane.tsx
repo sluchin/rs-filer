@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
+import { scrollPathList } from "../pathList";
 import type { PaneId } from "../types";
 
 /**
@@ -21,6 +22,8 @@ interface HistoryPaneProps {
   onCancel: () => void;
   /** `Tab` で, もう一方のペインをアクティブにするハンドラー. */
   onSwitchPane: () => void;
+  /** 押されたキーが, この一覧を開くキー (既定は `M-h`) かどうか. そのキーで一覧を閉じる (トグル). */
+  isToggleKey: (e: KeyboardEvent) => boolean;
 }
 
 /**
@@ -28,7 +31,9 @@ interface HistoryPaneProps {
  *
  * アクティブな間, ファイル一覧と同様に `j` `k` `↑` `↓` でカーソルを動かし,
  * `Enter` またはダブルクリックで, 隣り合う位置に限らずどこへでも直接移動して
- * 通常のペイン表示に戻ります. `Esc` で何もせず通常のペイン表示に戻ります.
+ * 通常のペイン表示に戻ります. `Esc` または一覧を開くキー (既定は `M-h`) で, 何もせず
+ * 通常のペイン表示に戻ります (トグル). パスは省略せずに表示し, ペインに収まらない長いパスは,
+ * 一覧を横にスクロール (スクロールバー, または `←` `→`) して見ます.
  * `Tab` では, もう一方のペインへ移り, この一覧は (アクティブでないまま) 表示され続けます.
  *
  * @param props - コンポーネントのプロパティ.
@@ -43,8 +48,10 @@ export default function HistoryPane({
   onSelect,
   onCancel,
   onSwitchPane,
+  isToggleKey,
 }: HistoryPaneProps): ReactElement {
   const [rawIndex, setIndex] = useState(historyIndex);
+  const rowsRef = useRef<HTMLUListElement>(null);
   // 履歴が変わってカーソルが範囲外に出ても, 描画時にその場でクランプする.
   const index = Math.min(
     Math.max(rawIndex, 0),
@@ -56,12 +63,22 @@ export default function HistoryPane({
       return;
     }
     const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === "ArrowDown" || e.key === "j") {
+      if (isToggleKey(e)) {
+        // 一覧を開くキーをもう一度押したら, 閉じる (トグル)
+        e.preventDefault();
+        onCancel();
+      } else if (e.key === "ArrowDown" || e.key === "j") {
         e.preventDefault();
         setIndex(Math.min(history.length - 1, index + 1));
       } else if (e.key === "ArrowUp" || e.key === "k") {
         e.preventDefault();
         setIndex(Math.max(0, index - 1));
+      } else if (
+        // 長いパスを見るため, 一覧を横にスクロールする.
+        // キー操作を受け付けるのはマウントしている間だけなので, 一覧の要素は必ずある
+        scrollPathList(rowsRef.current as HTMLUListElement, e.key)
+      ) {
+        e.preventDefault();
       } else if (e.key === "Enter") {
         // 少なくとも現在地の 1 件は必ずあるので, history[index] は常に存在する.
         e.preventDefault();
@@ -77,7 +94,7 @@ export default function HistoryPane({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isActive, history, index, onSelect, onCancel, onSwitchPane]);
+  }, [isActive, history, index, onSelect, onCancel, onSwitchPane, isToggleKey]);
 
   return (
     <div
@@ -91,7 +108,7 @@ export default function HistoryPane({
       <div className="path-bar bookmark-title">履歴</div>
       <div className="file-list">
         {/* このビューを表示できる時点で, 少なくとも現在地の 1 件は必ず history にある. */}
-        <ul className="file-rows">
+        <ul ref={rowsRef} className="file-rows path-rows">
           {history.map((path, i) => (
             <li
               key={`${i}-${path}`}
@@ -103,7 +120,7 @@ export default function HistoryPane({
               onClick={() => setIndex(i)}
               onDoubleClick={() => onSelect(path, i)}
             >
-              <span className="col-name file-name">{path}</span>
+              <span className="col-name file-name full-path">{path}</span>
               {i === historyIndex && <span className="col-attr">現在地</span>}
             </li>
           ))}

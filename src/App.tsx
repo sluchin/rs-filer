@@ -19,6 +19,7 @@ import HelpDialog from "./features/keybindings/components/HelpDialog";
 import { resolveCommandName } from "./features/keybindings/commandNames";
 import { useUserKeymap } from "./features/keybindings/hooks/useUserKeymap";
 import type { Command } from "./features/keybindings/types";
+import { resolveKey } from "./features/keybindings/keymap";
 import { useKeymap } from "./features/keybindings/useKeymap";
 import BackgroundTaskBar from "./features/operations/components/BackgroundTaskBar";
 import TaskProgressModal from "./features/operations/components/TaskProgressModal";
@@ -121,6 +122,18 @@ export default function App(): ReactElement {
     y: number;
   } | null>(null);
   const keymap = useUserKeymap(logError);
+  // 履歴一覧とブックマーク一覧は, 開くキー (キーマップで割り当てたもの) をもう一度押すと閉じる (トグル).
+  // 一覧の表示中は, 全体のキー操作が無効なので, 一覧の側で判定する. 1 つのキーの割り当てだけを見る (`C-x` で始まる, 続きのキーの割り当ては見ない).
+  const isHistoryListKey = useCallback(
+    (e: KeyboardEvent): boolean =>
+      resolveKey(e, null, keymap).command === "historyList",
+    [keymap],
+  );
+  const isBookmarksKey = useCallback(
+    (e: KeyboardEvent): boolean =>
+      resolveKey(e, null, keymap).command === "bookmarks",
+    [keymap],
+  );
   const settings = useSettings();
   const bookmarks = useBookmarks();
   const {
@@ -574,6 +587,7 @@ export default function App(): ReactElement {
         onRemove={bookmarks.removeBookmark}
         onCancel={() => setBookmarkPanes((p) => ({ ...p, [paneId]: false }))}
         onSwitchPane={switchPane}
+        isToggleKey={isBookmarksKey}
       />
     );
   });
@@ -595,6 +609,7 @@ export default function App(): ReactElement {
         }}
         onCancel={() => setHistoryPanes((p) => ({ ...p, [paneId]: false }))}
         onSwitchPane={switchPane}
+        isToggleKey={isHistoryListKey}
       />
     );
   });

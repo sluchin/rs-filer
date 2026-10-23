@@ -250,6 +250,20 @@ body,
   padding: 0 4px;
 }
 
+/* パスの一覧 (履歴一覧, ブックマーク一覧) は, パスを省略せずに表示する. 行の幅をパスに合わせ,
+   一覧 (.file-rows) を横にスクロールする. 短い行も, カーソルの下線が一覧の幅いっぱいに引かれるように,
+   一覧の幅より狭くしない. */
+.path-rows .file-row {
+  width: max-content;
+  min-width: 100%;
+}
+
+.full-path {
+  flex: 1 0 auto;
+  overflow: visible;
+  text-overflow: clip;
+}
+
 .col-size {
   width: 72px;
   min-width: 30px;
