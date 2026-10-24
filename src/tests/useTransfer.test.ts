@@ -301,4 +301,74 @@ describe("useTransfer", () => {
       expect(openPrompt).not.toHaveBeenCalled();
     });
   });
+
+  describe("再読み込み", () => {
+    it("正常系: 終わった時点で, 移動元か送り先を開いているペインだけを, 履歴を変えずに再読み込みすること", async () => {
+      const files = [entry("a.txt"), entry("b.txt")];
+      let finish = (): void => {};
+      vi.mocked(runTransfer).mockReturnValue(
+        new Promise((resolve) => {
+          finish = () => resolve(SUMMARY);
+        }),
+      );
+      const deps = {
+        updatePane: vi.fn(),
+        loadDirectory: vi.fn(() => Promise.resolve()),
+        setError: vi.fn(),
+        notify: vi.fn(),
+        openConfirm: vi.fn(),
+        openPrompt: vi.fn(),
+        openChoice: vi.fn(),
+      };
+      const { result, rerender } = renderHook(
+        ({ left, right }: { left: PaneState; right: PaneState }) =>
+          useTransfer(
+            "left",
+            left,
+            right,
+            deps.updatePane,
+            deps.loadDirectory,
+            deps.setError,
+            deps.notify,
+            deps.openConfirm,
+            deps.openPrompt,
+            deps.openChoice,
+          ),
+        {
+          initialProps: {
+            left: pane("/src", files, ["/src/a.txt"]),
+            right: pane("/dest"),
+          },
+        },
+      );
+
+      let started: Promise<void> = Promise.resolve();
+      act(() => {
+        started = result.current.startCopy(false);
+      });
+      await waitFor(() => expect(runTransfer).toHaveBeenCalled());
+      // 実行中に, 右ペインは別のディレクトリへ, 左ペインは送り先へ移る
+      rerender({
+        left: { ...pane("/dest"), historyIndex: 3 },
+        right: pane("/other"),
+      });
+      await act(async () => {
+        finish();
+        await started;
+      });
+
+      expect(deps.loadDirectory).toHaveBeenCalledTimes(1);
+      expect(deps.loadDirectory).toHaveBeenCalledWith("left", "/dest", {
+        keepCursor: true,
+        historyIndex: 3,
+      });
+      // マークは, 操作した項目の分だけ外す
+      const updater = deps.updatePane.mock.calls[0][1] as (
+        p: PaneState,
+      ) => PaneState;
+      expect(
+        updater(pane("/src", files, ["/src/a.txt", "/src/b.txt"])).marks,
+      ).toEqual(["/src/b.txt"]);
+    });
+  });
 });

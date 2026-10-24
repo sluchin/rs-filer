@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import log from "loglevel";
 import {
   cancelTransfer,
@@ -83,12 +83,24 @@ export function useTransfer(
   );
   const [cancelling, setCancelling] = useState(false);
   const [background, setBackground] = useState(false);
-  const otherPane: PaneId = activePane === "left" ? "right" : "left";
   const source = activePane === "left" ? leftPane : rightPane;
   const dest = activePane === "left" ? rightPane : leftPane;
 
+  /** 最後に描画したときの左右のペインの状態 (操作が終わった時点で, 各ペインが開いているディレクトリを知るため). */
+  const latestPanes = useRef<Record<PaneId, PaneState>>({
+    left: leftPane,
+    right: rightPane,
+  });
+  useLayoutEffect(() => {
+    latestPanes.current = { left: leftPane, right: rightPane };
+  });
+
   /**
-   * 操作を実行し, 終わったらマークを解除して両ペインを再読み込みします. 途中で失敗しても, 処理済みの分を反映するため再読み込みします.
+   * 操作を実行し, 終わったら対象のマークを解除して, 変更のあったディレクトリを開いているペインを再読み込みします.
+   * 途中で失敗しても, 処理済みの分を反映するため再読み込みします.
+   *
+   * 再読み込みするのは, 操作が終わった時点で, 移動元か送り先のディレクトリを開いているペインです (バックグラウンドで
+   * 実行している間に, 別のディレクトリへ移ったペインは, そのままにする).
    */
   const run = useCallback(
     async (request: TransferRequest): Promise<void> => {
@@ -100,8 +112,9 @@ export function useTransfer(
         return;
       }
       const srcPane = activePane;
-      const srcPath = source.currentPath;
-      const destPath = dest.currentPath;
+      const changed = [source.currentPath, request.dest_dir].filter(
+        (p): p is string => p !== null && p !== undefined,
+      );
       setCancelling(false);
       setBackground(false);
       setTask({ kind: request.kind, done: 0, total: 0, current: "" });
@@ -122,10 +135,18 @@ export function useTransfer(
         failure = String(e);
       }
       setTask(null);
-      updatePane(srcPane, (p) => ({ ...p, marks: [] }));
-      await loadDirectory(srcPane, srcPath, { keepCursor: true });
-      if (request.kind !== "delete") {
-        await loadDirectory(otherPane, destPath, { keepCursor: true });
+      updatePane(srcPane, (p) => ({
+        ...p,
+        marks: p.marks.filter((m) => !request.sources.includes(m)),
+      }));
+      for (const pane of ["left", "right"] as const) {
+        const { currentPath, historyIndex } = latestPanes.current[pane];
+        if (changed.some((p) => isSamePath(p, currentPath))) {
+          await loadDirectory(pane, currentPath, {
+            keepCursor: true,
+            historyIndex,
+          });
+        }
       }
       // 再読み込みでエラー表示が消えるため, 失敗した場合は最後に表示し直す.
       if (failure !== null) {
@@ -135,9 +156,7 @@ export function useTransfer(
     [
       running,
       activePane,
-      otherPane,
       source.currentPath,
-      dest.currentPath,
       setError,
       notify,
       updatePane,
