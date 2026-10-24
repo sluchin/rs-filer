@@ -5,6 +5,8 @@ use specta::Type;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 /// キーマップ設定ファイルのファイル名.
 const KEYMAP_FILE: &str = "keymap.json";
@@ -230,7 +232,57 @@ fn read_config(path: &Path) -> Result<AppConfig, String> {
     serde_json::from_str(&text).map_err(|e| format!("Invalid {}: {}", path.display(), e))
 }
 
-/// アプリ設定ファイルを書き込みます. 親ディレクトリが無ければ作成します.
+/// 設定ファイルの読み込み・変更・書き込みを, 1 つずつ行うための排他制御.
+///
+/// 設定ファイルは, 画面の設定・ウィンドウの状態・前回のディレクトリを, それぞれ読み込んで一部を変えて
+/// 書き戻します. コマンドは別々のスレッドで動くため, 同時に動くと, 片方の変更が失われます.
+static CONFIG_LOCK: Mutex<()> = Mutex::new(());
+
+/// 設定ファイルの排他制御を取得します. 他のスレッドが取得中なら, 解放されるまで待ちます.
+///
+/// # Returns
+///
+/// 解放するまで, 他のスレッドを待たせるガード. 他のスレッドがパニックしていても, 取得します
+/// (守っているのはファイルで, メモリ上の値ではないため).
+fn lock_config() -> MutexGuard<'static, ()> {
+    CONFIG_LOCK.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// 一時ファイルの名前を, 重ならないようにするための通し番号.
+static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// ファイルを, 一時ファイルに書いてから名前の変更で置き換えて, 書き込みます.
+///
+/// 書き込みの途中でアプリが落ちても, 元のファイルが壊れたり空になったりしません.
+/// 親ディレクトリが無ければ作成します.
+///
+/// # Arguments
+///
+/// * `path` - 書き込むファイルのパス.
+/// * `contents` - 書き込む内容.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`] (一時ファイルは消す).
+pub(crate) fn write_atomic(path: &Path, contents: &[u8]) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let temp = path.with_file_name(format!(
+        ".{}.{}-{}.tmp",
+        name,
+        std::process::id(),
+        TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
+    let result = fs::write(&temp, contents).and_then(|()| fs::rename(&temp, path));
+    if result.is_err() {
+        let _ = fs::remove_file(&temp);
+    }
+    result.map_err(|e| e.to_string())
+}
+
+/// アプリ設定ファイルを書き込みます (途中で落ちても壊れないように). 親ディレクトリが無ければ作成します.
 ///
 /// # Arguments
 ///
@@ -241,11 +293,8 @@ fn read_config(path: &Path) -> Result<AppConfig, String> {
 ///
 /// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
 fn write_config(path: &Path, config: &AppConfig) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
     let text = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
-    fs::write(path, text).map_err(|e| e.to_string())
+    write_atomic(path, text.as_bytes())
 }
 
 /// 設定ディレクトリからアプリ設定を読み込みます.
@@ -280,6 +329,7 @@ pub fn load_config_from(config_dir: Option<&Path>) -> Result<AppConfig, String> 
 /// 成功した場合は [`Ok(())`], 設定ディレクトリを取得できない場合や書き込みに失敗した場合は
 /// エラー文字列を含む [`Err`].
 pub fn save_config_to(config_dir: Option<&Path>, config: &AppConfig) -> Result<(), String> {
+    let _guard = lock_config();
     let dir = config_dir.ok_or_else(|| "Config directory is not available".to_string())?;
     let path = config_path(dir);
     let mut merged = config.clone();
@@ -307,6 +357,7 @@ pub(crate) fn save_window_state_to(
     config_dir: Option<&Path>,
     state: &WindowState,
 ) -> Result<(), String> {
+    let _guard = lock_config();
     let dir = config_dir.ok_or_else(|| "Config directory is not available".to_string())?;
     let path = config_path(dir);
     let mut config = read_config(&path)?;
@@ -326,6 +377,7 @@ pub(crate) fn save_window_state_to(
 /// 成功した場合は [`Ok(())`]. 設定ディレクトリを取得できない場合, 既存の設定が読み込めない場合
 /// (壊れた設定を上書きしないため), 書き込みに失敗した場合は, エラー文字列を含む [`Err`].
 fn save_last_paths_to(config_dir: Option<&Path>, paths: &LastPaths) -> Result<(), String> {
+    let _guard = lock_config();
     let dir = config_dir.ok_or_else(|| "Config directory is not available".to_string())?;
     let path = config_path(dir);
     let mut config = read_config(&path)?;

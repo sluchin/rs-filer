@@ -3,6 +3,7 @@
 //! 履歴は, 件数が多くなる (既定の上限は 1000 件) ので, `config.json` とは別のファイル
 //! (`<設定ディレクトリ>/rsfiler/history.json`) に保存します.
 
+use super::config::write_atomic;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::fs;
@@ -101,13 +102,9 @@ pub fn load_history_from(config_dir: Option<&Path>, limit: usize) -> Result<Pane
 /// エラー文字列を含む [`Err`].
 pub fn save_history_to(config_dir: Option<&Path>, history: &PaneHistory) -> Result<(), String> {
     let dir = config_dir.ok_or_else(|| "Config directory is not available".to_string())?;
-    let path = history_path(dir);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    // 件数が多いので, 整形せずに書く.
+    // 件数が多いので, 整形せずに書く. 途中で落ちても壊れないように, 一時ファイルから置き換える.
     let text = serde_json::to_string(history).map_err(|e| e.to_string())?;
-    fs::write(&path, text).map_err(|e| e.to_string())
+    write_atomic(&history_path(dir), text.as_bytes())
 }
 
 /// 設定ディレクトリから, 履歴を読み込みます. 件数の上限は, `config.json` の `history_limit` を使います.

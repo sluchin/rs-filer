@@ -331,3 +331,41 @@ fn test_store_window_state_to_and_load_window_state_from_failure() {
     fs::write(&file, "{ broken").unwrap();
     assert_eq!(load_window_state_from(Some(dir.path())), None);
 }
+
+#[test]
+fn test_write_atomic_replaces_file_and_leaves_no_temp_file() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("sub").join("config.json");
+
+    write_atomic(&path, b"old").unwrap();
+    write_atomic(&path, b"new").unwrap();
+
+    assert_eq!(fs::read_to_string(&path).unwrap(), "new");
+    assert_eq!(fs::read_dir(path.parent().unwrap()).unwrap().count(), 1);
+}
+
+#[test]
+fn test_write_atomic_failure_keeps_target_and_removes_temp_file() {
+    let dir = tempdir().unwrap();
+    // 中身のあるディレクトリは, ファイルの名前を変えて置き換えられない.
+    let path = dir.path().join("busy");
+    fs::create_dir(&path).unwrap();
+    fs::write(path.join("child"), "").unwrap();
+
+    assert!(write_atomic(&path, b"x").is_err());
+
+    assert!(path.join("child").exists());
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+}
+
+#[test]
+fn test_lock_config_recovers_from_poisoned_lock() {
+    // 取得中にパニックしたスレッドがあっても, 次の取得は待たずに成功する.
+    let _ = std::thread::spawn(|| {
+        let _guard = lock_config();
+        panic!("poison");
+    })
+    .join();
+
+    drop(lock_config());
+}
