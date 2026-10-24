@@ -137,32 +137,23 @@ export default function App(): ReactElement {
     },
     [setError, logError],
   );
-  const navigation = useNavigation(
+  const paneDeps = {
     activePane,
     leftPane,
     rightPane,
     loadDirectory,
-    reportError,
-  );
-  const operations = useFileOperations(
-    activePane,
-    leftPane,
-    rightPane,
-    loadDirectory,
-    reportError,
-  );
-  const transfer = useTransfer(
-    activePane,
-    leftPane,
-    rightPane,
+    setError: reportError,
+  };
+  const navigation = useNavigation(paneDeps);
+  const operations = useFileOperations(paneDeps);
+  const transfer = useTransfer({
+    ...paneDeps,
     updatePane,
-    loadDirectory,
-    reportError,
     notify,
-    operations.openConfirm,
-    operations.openPrompt,
-    operations.openChoice,
-  );
+    openConfirm: operations.openConfirm,
+    openPrompt: operations.openPrompt,
+    openChoice: operations.openChoice,
+  });
   const marks = useMarks(activePane, updatePane, moveCursor, reportError);
   const activeState = activePane === "left" ? leftPane : rightPane;
   const { handleEnter } = navigation;

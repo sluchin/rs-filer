@@ -46,6 +46,26 @@ export interface LoadOptions {
 }
 
 /**
+ * ペインを操作するフック (`useNavigation` / `useFileOperations` / `useTransfer`) が共通で使う, ペインの状態と操作.
+ */
+export interface PaneDeps {
+  /** アクティブなペイン識別子. */
+  activePane: PaneId;
+  /** 左ペインの状態. */
+  leftPane: PaneState;
+  /** 右ペインの状態. */
+  rightPane: PaneState;
+  /** ペインのディレクトリを読み込む関数. */
+  loadDirectory: (
+    pane: PaneId,
+    path: string,
+    options?: LoadOptions,
+  ) => Promise<void>;
+  /** エラーメッセージを設定する関数. */
+  setError: (message: string | null) => void;
+}
+
+/**
  * 表示の設定として変更できる項目.
  */
 export type ViewPatch = Partial<

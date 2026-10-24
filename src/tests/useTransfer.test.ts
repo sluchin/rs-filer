@@ -62,18 +62,12 @@ function renderTransfer(left: PaneState, right: PaneState) {
     openChoice: vi.fn(),
   };
   const { result } = renderHook(() =>
-    useTransfer(
-      "left",
-      left,
-      right,
-      deps.updatePane,
-      deps.loadDirectory,
-      deps.setError,
-      deps.notify,
-      deps.openConfirm,
-      deps.openPrompt,
-      deps.openChoice,
-    ),
+    useTransfer({
+      activePane: "left",
+      leftPane: left,
+      rightPane: right,
+      ...deps,
+    }),
   );
   return { result, ...deps };
 }
@@ -322,18 +316,12 @@ describe("useTransfer", () => {
       };
       const { result, rerender } = renderHook(
         ({ left, right }: { left: PaneState; right: PaneState }) =>
-          useTransfer(
-            "left",
-            left,
-            right,
-            deps.updatePane,
-            deps.loadDirectory,
-            deps.setError,
-            deps.notify,
-            deps.openConfirm,
-            deps.openPrompt,
-            deps.openChoice,
-          ),
+          useTransfer({
+            activePane: "left",
+            leftPane: left,
+            rightPane: right,
+            ...deps,
+          }),
         {
           initialProps: {
             left: pane("/src", files, ["/src/a.txt"]),

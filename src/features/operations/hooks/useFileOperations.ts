@@ -7,31 +7,23 @@ import {
   openItem,
   renameItem,
 } from "../../../services/tauriApi";
-import type { LoadOptions } from "../../explorer/hooks/useFileList";
-import type { FileEntry, PaneId, PaneState } from "../../explorer/types";
+import type { PaneDeps } from "../../explorer/hooks/useFileList";
+import type { FileEntry } from "../../explorer/types";
 import type { ChoiceOption, DialogState } from "../types";
 
 /**
  * ファイル操作 (作成・名前変更・外部アプリやエディタで開く) と, その入力・確認のダイアログ状態を扱うフック.
  *
- * @param activePane - アクティブなペイン識別子.
- * @param leftPane - 左ペインの状態.
- * @param rightPane - 右ペインの状態.
- * @param loadDirectory - ペインのディレクトリを読み込む関数.
- * @param setError - エラーメッセージを設定する関数.
+ * @param deps - ペインの状態と操作.
  * @returns 表示中のダイアログと, 各操作を開始するハンドラー.
  */
-export function useFileOperations(
-  activePane: PaneId,
-  leftPane: PaneState,
-  rightPane: PaneState,
-  loadDirectory: (
-    pane: PaneId,
-    path: string,
-    options?: LoadOptions,
-  ) => Promise<void>,
-  setError: (message: string | null) => void,
-) {
+export function useFileOperations({
+  activePane,
+  leftPane,
+  rightPane,
+  loadDirectory,
+  setError,
+}: PaneDeps) {
   const [dialog, setDialog] = useState<DialogState | null>(null);
 
   /** ダイアログを閉じます. */

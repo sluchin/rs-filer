@@ -9,7 +9,7 @@ import {
   readClipboardFiles,
   runTransfer,
 } from "../../../services/tauriApi";
-import type { LoadOptions } from "../../explorer/hooks/useFileList";
+import type { PaneDeps } from "../../explorer/hooks/useFileList";
 import type { FileEntry, PaneId, PaneState } from "../../explorer/types";
 import type {
   ChoiceOption,
@@ -44,40 +44,43 @@ export function targetsOf(state: PaneState): FileEntry[] {
 }
 
 /**
- * コピー・移動・削除を, 進捗の表示と中断に対応して実行するフック.
- *
- * @param activePane - アクティブなペイン識別子.
- * @param leftPane - 左ペインの状態.
- * @param rightPane - 右ペインの状態.
- * @param updatePane - ペインの状態を更新する関数.
- * @param loadDirectory - ペインのディレクトリを読み込む関数.
- * @param setError - エラーメッセージを設定する関数.
- * @param notify - 完了などのメッセージを通知する関数.
- * @param openConfirm - 確認ダイアログを開く関数.
- * @param openPrompt - 入力ダイアログを開く関数.
- * @param openChoice - 選択肢ダイアログを開く関数 (同名のファイルを 1 件ずつ確認するのに使う).
- * @returns 実行中の操作の状態と, 各操作を開始・中断するハンドラー.
+ * `useTransfer` が使う, ペインの状態と操作, 通知とダイアログを開く関数.
  */
-export function useTransfer(
-  activePane: PaneId,
-  leftPane: PaneState,
-  rightPane: PaneState,
-  updatePane: (pane: PaneId, updater: (prev: PaneState) => PaneState) => void,
-  loadDirectory: (
-    pane: PaneId,
-    path: string,
-    options?: LoadOptions,
-  ) => Promise<void>,
-  setError: (message: string | null) => void,
-  notify: (message: string) => void,
-  openConfirm: (title: string, message: string, onConfirm: () => void) => void,
+export interface TransferDeps extends PaneDeps {
+  /** ペインの状態を更新する関数. */
+  updatePane: (pane: PaneId, updater: (prev: PaneState) => PaneState) => void;
+  /** 完了などのメッセージを通知する関数. */
+  notify: (message: string) => void;
+  /** 確認ダイアログを開く関数. */
+  openConfirm: (title: string, message: string, onConfirm: () => void) => void;
+  /** 入力ダイアログを開く関数. */
   openPrompt: (
     title: string,
     onSubmit: (value: string) => void,
     initialValue?: string,
-  ) => void,
-  openChoice: (title: string, message: string, choices: ChoiceOption[]) => void,
-) {
+  ) => void;
+  /** 選択肢ダイアログを開く関数 (同名のファイルを 1 件ずつ確認するのに使う). */
+  openChoice: (title: string, message: string, choices: ChoiceOption[]) => void;
+}
+
+/**
+ * コピー・移動・削除を, 進捗の表示と中断に対応して実行するフック.
+ *
+ * @param deps - ペインの状態と操作, 通知とダイアログを開く関数.
+ * @returns 実行中の操作の状態と, 各操作を開始・中断するハンドラー.
+ */
+export function useTransfer({
+  activePane,
+  leftPane,
+  rightPane,
+  updatePane,
+  loadDirectory,
+  setError,
+  notify,
+  openConfirm,
+  openPrompt,
+  openChoice,
+}: TransferDeps) {
   const [running, setTask] = useState<Omit<TaskState, "cancelling"> | null>(
     null,
   );

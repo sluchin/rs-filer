@@ -2,30 +2,22 @@ import { useCallback, useState } from "react";
 import log from "loglevel";
 import { listDrives } from "../../../services/tauriApi";
 import { getBaseName, getParentPath } from "../../../utils/path";
-import type { LoadOptions } from "./useFileList";
-import type { FileEntry, PaneId, PaneState } from "../types";
+import type { PaneDeps } from "./useFileList";
+import type { FileEntry, PaneId } from "../types";
 
 /**
  * ディレクトリ移動 (親へ・入る・再読み込み・履歴・ドライブ切り替え) を扱うフック.
  *
- * @param activePane - アクティブなペイン識別子.
- * @param leftPane - 左ペインの状態.
- * @param rightPane - 右ペインの状態.
- * @param loadDirectory - ペインのディレクトリを読み込む関数.
- * @param setError - エラーメッセージを設定する関数.
+ * @param deps - ペインの状態と操作.
  * @returns 移動用のハンドラーとドライブ選択の状態.
  */
-export function useNavigation(
-  activePane: PaneId,
-  leftPane: PaneState,
-  rightPane: PaneState,
-  loadDirectory: (
-    pane: PaneId,
-    path: string,
-    options?: LoadOptions,
-  ) => Promise<void>,
-  setError: (message: string | null) => void,
-) {
+export function useNavigation({
+  activePane,
+  leftPane,
+  rightPane,
+  loadDirectory,
+  setError,
+}: PaneDeps) {
   /** ドライブ選択に表示するドライブ一覧. null の場合は非表示. */
   const [drives, setDrives] = useState<string[] | null>(null);
 
