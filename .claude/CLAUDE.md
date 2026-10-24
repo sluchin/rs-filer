@@ -15,7 +15,8 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 
 ## プロジェクト構成
 
-- `src/`: フロントエンド (React / TypeScript)。テストは `src/tests/` に置く (`setup.ts` は vitest の setupFiles)。
+- `src/`: フロントエンド (React / TypeScript)。
+- `tests/`: フロントエンドのテスト。`src/` と同じ構成で置く (`src/features/explorer/view.ts` のテストは `tests/features/explorer/view.test.ts`。`setup.ts` は vitest の setupFiles)。
 - `src-tauri/`: バックエンド (Rust)。
   - `src/lib.rs`: Tauri の初期化 (`run`) と IPC コマンドの登録 (`specta_builder`)。
   - `src/commands/`: フロントエンドから呼ぶ IPC コマンド (`#[tauri::command]`)。`fs.rs` (一覧・ホーム・ドライブ・ディスク容量・ツリー表示用の配下の有無 `dirs_have_entries`)、`ops.rs` (作成・名前変更)、`open.rs` (外部アプリ・エディタ・ターミナルで開く)、`exec.rs` (選択したファイルへの外部コマンド実行)、`transfer.rs` (コピー・移動・削除。進捗通知と中断に対応)、`preview.rs` (プレビュー)、`info.rs` (詳細情報・配下の合計)、`config.rs` (キーマップ・アプリ設定ファイルの読み書き)、`history.rs` (ディレクトリの移動履歴の保存と読み込み)、`app.rs` (終了) に分け、`mod.rs` で再エクスポートする。
@@ -74,7 +75,8 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 
 ### フロントエンド (vitest)
 
-- テストは `src/tests/` に置く。ファイル名は、対象のソースのファイル名に `.test` を付ける (`App.tsx` → `App.test.tsx`)。
+- テストは `tests/` に、`src/` と同じ構成で置く。ファイル名は、対象のソースのファイル名に `.test` を付ける (`src/App.tsx` → `tests/App.test.tsx`)。1 つのソースのテストは 1 つのファイルにまとめる。
+- テストから `src/` のモジュールは、`@/` で取り込む (`import App from "@/App"`。`vite.config.ts` の `resolve.alias` と `tsconfig.json` の `paths`)。
 - `@tauri-apps/api/core` の `invoke` は、`vi.mock` でモックする。テストから、実際の Tauri のバックエンドやファイルシステムへ接続しない。
 - `describe` で対象 (コンポーネント・フック・関数) をまとめ、`it` の説明は、日本語で「正常系: ...」「異常系: ...」のように、何を検証するか分かるようにする。
 - 各テストの前に `vi.clearAllMocks()` を呼び、テスト間でモックの状態を持ち越さない。

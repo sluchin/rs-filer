@@ -7,6 +7,10 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [react()],
+  // src を `@/` で参照する (テストから `@/features/...` のように使う)
+  resolve: {
+    alias: { "@": "/src" },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
@@ -32,8 +36,8 @@ export default defineConfig(() => ({
   test: {
     globals: true,
     environment: "jsdom",
-    setupFiles: "./src/tests/setup.ts",
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    setupFiles: "./tests/setup.ts",
+    include: ["tests/**/*.{test,spec}.{ts,tsx}"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
@@ -43,8 +47,6 @@ export default defineConfig(() => ({
       exclude: [
         'src/main.tsx',
         'src/vite-env.d.ts',
-        'src/**/*.test.{ts,tsx}',
-        'src/test/**',
       ],
       // フロントエンドは, 命令・分岐・関数・行のすべてで 100% を保つ (下回ると失敗する)
       thresholds: {

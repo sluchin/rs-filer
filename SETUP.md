@@ -133,5 +133,5 @@ cargo install cargo-tarpaulin
 * エラーハンドリング・デバッグログ (`loglevel` / `console`) を含む。
 
 
-* **`src/test/setup.ts`**
+* **`tests/setup.ts`**
 * Vitest および React Testing Library の初期セットアップ設定ファイル。

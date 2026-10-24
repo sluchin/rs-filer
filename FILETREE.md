@@ -168,6 +168,79 @@ src-tauri/src/
     └── preview_loader.rs               # 文字コード自動判定・画像サムネイル・Hexダンプ生成
 ```
 
+### 🧪 フロントエンドのテスト (`tests/` - Vitest)
+
+`src/` と同じ構成で, `<ソースのファイル名>.test.ts(x)` の名前で置く. `src/` は `@/` で参照する (`import App from "@/App"`).
+
+```text
+tests/
+├── components/
+│   ├── ContextMenu.test.tsx
+│   ├── KeyHintBar.test.tsx
+│   └── StatusBar.test.tsx
+├── features/
+│   ├── bookmarks/
+│   │   ├── components/
+│   │   │   └── BookmarkPane.test.tsx
+│   │   └── hooks/
+│   │       └── useBookmarks.test.ts
+│   ├── explorer/
+│   │   ├── components/
+│   │   │   ├── DualPaneContainer.test.tsx
+│   │   │   ├── FileList.test.tsx
+│   │   │   ├── HistoryPane.test.tsx
+│   │   │   ├── Pane.test.tsx
+│   │   │   └── PathBar.test.tsx
+│   │   ├── hooks/
+│   │   │   ├── useDiskSpace.test.ts
+│   │   │   ├── useFileList.test.ts
+│   │   │   └── useVirtualRows.test.ts
+│   │   ├── copyText.test.ts
+│   │   ├── history.test.ts
+│   │   ├── pathList.test.ts
+│   │   └── view.test.ts
+│   ├── info/
+│   │   ├── components/
+│   │   │   └── InfoPane.test.tsx
+│   │   └── hooks/
+│   │       └── useItemInfo.test.ts
+│   ├── keybindings/
+│   │   ├── hooks/
+│   │   │   ├── useCommandDispatcher.test.ts
+│   │   │   └── useUserKeymap.test.ts
+│   │   ├── commandNames.test.ts
+│   │   └── keymap.test.ts
+│   ├── operations/
+│   │   ├── hooks/
+│   │   │   └── useTransfer.test.ts
+│   │   └── overwriteMessage.test.ts
+│   ├── preview/
+│   │   ├── components/
+│   │   │   └── TextPreview.test.tsx
+│   │   ├── hooks/
+│   │   │   └── usePreview.test.ts
+│   │   └── languages.test.ts
+│   └── tree/
+│       ├── components/
+│       │   └── TreePane.test.tsx
+│       └── hooks/
+│           └── useTree.test.ts
+├── hooks/
+│   ├── useDialogs.test.ts
+│   ├── useHistoryNav.test.ts
+│   ├── useNotice.test.ts
+│   ├── useScrollToEnd.test.tsx
+│   ├── useSettings.test.ts
+│   └── useStableCallback.test.ts
+├── services/
+│   └── logForwarder.test.ts
+├── utils/
+│   ├── formatters.test.ts
+│   └── path.test.ts
+├── App.test.tsx
+└── setup.ts                            # vitest の setupFiles
+```
+
 ### 🧪 バックエンドのテスト (`src-tauri/tests/` - Rust)
 
 ```text
