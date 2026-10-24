@@ -39,6 +39,8 @@ describe("useSettings", () => {
     await waitFor(() =>
       expect(mockedInvoke).toHaveBeenCalledWith("load_config"),
     );
+    // 読み込みの完了を反映させてから, 書き換える
+    await act(async () => {});
     mockedInvoke.mockClear();
 
     act(() => result.current.cycleTheme());
@@ -51,6 +53,40 @@ describe("useSettings", () => {
 
     act(() => result.current.cycleFontSize());
     expect(result.current.config.font_size).toBe("large");
+  });
+
+  it("正常系: 読み込んだだけでは保存せず, 同じ描画の中の書き換えは 1 回の保存にまとめること", async () => {
+    mockedInvoke.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useSettings());
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("load_config"),
+    );
+    // 読み込みの完了を反映させてから, 書き換える
+    await act(async () => {});
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "save_config",
+      expect.anything(),
+    );
+
+    act(() => {
+      result.current.update({ theme: "dark" });
+      result.current.update({ font_size: "large" });
+    });
+
+    const saves = mockedInvoke.mock.calls.filter(
+      ([cmd]) => cmd === "save_config",
+    );
+    expect(saves).toEqual([
+      [
+        "save_config",
+        {
+          config: expect.objectContaining({
+            theme: "dark",
+            font_size: "large",
+          }),
+        },
+      ],
+    ]);
   });
 
   it("異常系: 読み込み・保存に失敗しても既定値のまま動作すること", async () => {

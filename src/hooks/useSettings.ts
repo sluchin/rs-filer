@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import log from "loglevel";
 import { loadConfig, saveConfig } from "../services/tauriApi";
 import {
@@ -50,19 +50,28 @@ export function useSettings() {
     };
   }, []);
 
+  /** `update` で書き換えて, まだ保存していなければ true (読み込んだだけの設定は, 保存しない). */
+  const unsaved = useRef(false);
+
+  // 書き換えた設定を, 描画の後で保存する. 同じ描画の中で何度か書き換えても, 保存は最後の 1 回にまとまる.
+  useEffect(() => {
+    if (!unsaved.current) {
+      return;
+    }
+    unsaved.current = false;
+    saveConfig(config).catch((e) => {
+      log.warn("[React] 設定の保存に失敗:", e);
+    });
+  }, [config]);
+
   /**
-   * 設定を書き換え, 設定ファイルへ保存します.
+   * 設定を書き換えます. 書き換えた設定は, 描画の後で設定ファイルへ保存します.
    *
    * @param patch - 変更する設定.
    */
   const update = useCallback((patch: Partial<AppConfig>): void => {
-    setConfig((prev) => {
-      const updated = { ...prev, ...patch };
-      saveConfig(updated).catch((e) => {
-        log.warn("[React] 設定の保存に失敗:", e);
-      });
-      return updated;
-    });
+    unsaved.current = true;
+    setConfig((prev) => ({ ...prev, ...patch }));
   }, []);
 
   /** テーマを次のものに切り替えます. */
