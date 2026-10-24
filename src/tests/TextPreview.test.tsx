@@ -1,10 +1,27 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import TextPreview, {
   renderHighlighted,
 } from "../features/preview/components/TextPreview";
 
 describe("TextPreview", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it("正常系: ファイル名と内容が変わらなければ, 描き直してもハイライトをやり直さないこと", () => {
+    const parse = vi.spyOn(DOMParser.prototype, "parseFromString");
+    const { rerender } = render(
+      <TextPreview name="test.ts" text="const a = 1;" />,
+    );
+    rerender(<TextPreview name="test.ts" text="const a = 1;" />);
+    expect(parse).toHaveBeenCalledTimes(1);
+
+    rerender(<TextPreview name="test.ts" text="let b = 2;" />);
+    expect(parse).toHaveBeenCalledTimes(2);
+  });
+
   it("正常系: 対応する言語がある場合はシンタックスハイライトされた要素が描画されること", () => {
     const { container } = render(
       <TextPreview name="test.ts" text="const a = 1;" />,

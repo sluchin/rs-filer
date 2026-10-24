@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from "react";
+import { memo, useMemo, type ReactElement, type ReactNode } from "react";
 import { highlight, languageOf } from "../languages";
 
 /**
@@ -62,21 +62,23 @@ export function renderHighlighted(html: string): ReactNode[] {
 /**
  * テキストのプレビュー. 拡張子に対応する言語があれば, シンタックスハイライトします.
  *
+ * ハイライト (最大で数百 KB の文字列の解析) は重いため, ファイル名と内容が変わらない限りやり直さず,
+ * 親の描き直しでも描き直さない (`memo`).
+ *
  * @param props - コンポーネントのプロパティ.
  * @returns テキストのReact要素.
  */
-export default function TextPreview({
-  name,
-  text,
-}: TextPreviewProps): ReactElement {
+function TextPreview({ name, text }: TextPreviewProps): ReactElement {
   const language = languageOf(name);
+  const content = useMemo(
+    () => (language ? renderHighlighted(highlight(text, language)) : text),
+    [language, text],
+  );
   return (
     <pre className="preview-text">
-      {language ? (
-        <code>{renderHighlighted(highlight(text, language))}</code>
-      ) : (
-        <code>{text}</code>
-      )}
+      <code>{content}</code>
     </pre>
   );
 }
+
+export default memo(TextPreview);
