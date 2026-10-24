@@ -606,6 +606,28 @@ pub fn check_nested_conflicts(
     find_nested_conflicts(&sources, &dest_dir)
 }
 
+/// シンボリックリンクをたどらずに, 正規化した絶対パスを返します.
+///
+/// 親ディレクトリだけを正規化して, 名前を付け直します. 対象がシンボリックリンクの場合は, リンク先ではなく
+/// リンクそのもののパスになり, リンク先が無い (壊れた) リンクでも求められます.
+///
+/// # Arguments
+///
+/// * `path` - 対象のパス.
+///
+/// # Returns
+///
+/// 正規化したパス. 親ディレクトリを正規化できない場合はエラー文字列を含む [`Err`].
+fn canonical_entry(path: &Path) -> Result<PathBuf, String> {
+    let path = std::path::absolute(path).map_err(|e| e.to_string())?;
+    match (path.parent(), path.file_name()) {
+        (Some(parent), Some(name)) => fs::canonicalize(parent).map(|p| p.join(name)),
+        // ルートや `..` で終わるパスには名前が無いので, そのまま正規化する.
+        _ => fs::canonicalize(&path),
+    }
+    .map_err(|e| e.to_string())
+}
+
 /// コピー・移動の配置先を検証し, 対象ごとの配置先を返します.
 ///
 /// # Arguments
@@ -647,15 +669,16 @@ fn plan_placements(request: &TransferRequest) -> Result<Vec<(PathBuf, PathBuf)>,
     let mut plan = Vec::new();
     for source in &request.sources {
         let src = PathBuf::from(source);
-        if fs::symlink_metadata(&src).is_err() {
+        // シンボリックリンクは, リンク先ではなくリンクそのものを扱う (リンク先が無くてもよい).
+        let Ok(src_meta) = fs::symlink_metadata(&src) else {
             return Err(format!("Path does not exist: {}", source));
-        }
+        };
         let dst = if let Some(name) = &request.dest_name {
             join_valid_name(dest_dir.to_str().unwrap(), name)?
         } else {
             destination_of(&src, dest_dir, None)?
         };
-        let src_canonical = fs::canonicalize(&src).map_err(|e| e.to_string())?;
+        let src_canonical = canonical_entry(&src)?;
 
         // dest_name がある場合は, 同一ディレクトリ別名の配置を許可する.
         if request.dest_name.is_none() && src_canonical.parent() == Some(dest_canonical.as_path()) {
@@ -665,7 +688,7 @@ fn plan_placements(request: &TransferRequest) -> Result<Vec<(PathBuf, PathBuf)>,
                 src.display()
             ));
         }
-        if src_canonical.is_dir() && dest_canonical.starts_with(&src_canonical) {
+        if src_meta.is_dir() && dest_canonical.starts_with(&src_canonical) {
             // 配置先が対象ディレクトリの内側 (自分自身を含む) にある場合は, 無限ループになるため拒否する.
             return Err(format!(
                 "Cannot place a directory into itself: {}",
@@ -1858,6 +1881,72 @@ mod tests {
         );
 
         assert!(matches!(result, Err(Stop::Failed(m)) if !m.is_empty()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_transfer_dangling_symlink_copy_and_move_success() {
+        // リンク先の無いシンボリックリンクも, リンクそのものをコピー・移動できる.
+        let dir = tempdir().unwrap();
+        let link = dir.path().join("broken");
+        std::os::unix::fs::symlink(dir.path().join("missing"), &link).unwrap();
+        let copy_dest = dir.path().join("copy");
+        let move_dest = dir.path().join("move");
+        fs::create_dir(&copy_dest).unwrap();
+        fs::create_dir(&move_dest).unwrap();
+
+        let (copied, _) = run(&request(TransferKind::Copy, &[&link], Some(&copy_dest)));
+        assert_eq!(copied.unwrap().processed, 1);
+        assert_eq!(
+            fs::read_link(copy_dest.join("broken")).unwrap(),
+            dir.path().join("missing")
+        );
+
+        let (moved, _) = run(&request(TransferKind::Move, &[&link], Some(&move_dest)));
+        assert_eq!(moved.unwrap().processed, 1);
+        assert!(fs::symlink_metadata(&link).is_err());
+        assert!(move_dest.join("broken").is_symlink());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_plan_placements_symlink_checks_link_itself() {
+        // リンクを, リンク先のディレクトリの中へ置ける (リンク先の親と比べない).
+        let dir = tempdir().unwrap();
+        let target = dir.path().join("target");
+        let links = dir.path().join("links");
+        fs::create_dir(&target).unwrap();
+        fs::create_dir(&links).unwrap();
+        let link = links.join("to_target");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        let plan = plan_placements(&request(TransferKind::Copy, &[&link], Some(&target))).unwrap();
+        assert_eq!(plan, vec![(link.clone(), target.join("to_target"))]);
+
+        // リンクと同じディレクトリへの配置は, 拒否する.
+        let same = plan_placements(&request(TransferKind::Copy, &[&link], Some(&links)));
+        assert!(same
+            .unwrap_err()
+            .starts_with("Source and destination are the same"));
+    }
+
+    #[test]
+    fn test_canonical_entry_success_and_failure() {
+        let dir = tempdir().unwrap();
+        let canonical_dir = fs::canonicalize(dir.path()).unwrap();
+        // 名前の無いパス (ルート) は, そのまま正規化する.
+        let root = std::path::absolute("/").unwrap();
+        assert_eq!(
+            canonical_entry(&root).unwrap(),
+            fs::canonicalize(&root).unwrap()
+        );
+        // 親だけを正規化するので, 対象が無くても求められる.
+        assert_eq!(
+            canonical_entry(&dir.path().join("none")).unwrap(),
+            canonical_dir.join("none")
+        );
+        // 親が無い場合は失敗する.
+        assert!(canonical_entry(&dir.path().join("none").join("x")).is_err());
     }
 
     #[cfg(unix)]
