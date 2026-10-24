@@ -6,7 +6,7 @@
 use super::ops::rename_noreplace;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -139,6 +139,8 @@ struct Progress<'a> {
     total: u64,
     /// 最後に通知した時刻. まだ通知していない場合は `None`.
     last_sent: Option<Instant>,
+    /// 測り終えたディレクトリ以下の合計サイズ. 全体量を求めたときの結果を使い回し, 同じディレクトリを測り直さないために使う.
+    sizes: HashMap<PathBuf, u64>,
 }
 
 impl Progress<'_> {
@@ -177,6 +179,22 @@ impl Progress<'_> {
             current: current.to_string(),
         });
     }
+
+    /// ファイルまたはディレクトリ以下の合計サイズを返します. 測り終えたディレクトリは, 測り直さずに覚えている値を返します.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - 対象のパス.
+    ///
+    /// # Returns
+    ///
+    /// 合計サイズ.
+    fn size_of(&mut self, path: &Path) -> u64 {
+        match self.sizes.get(path) {
+            Some(&size) => size,
+            None => tree_size(path, &mut self.sizes),
+        }
+    }
 }
 
 /// ファイルまたはディレクトリ以下の合計サイズ (バイト) を返します. 読めないものは 0 として数えます.
@@ -186,20 +204,28 @@ impl Progress<'_> {
 /// # Arguments
 ///
 /// * `path` - 対象のパス.
+/// * `sizes` - 測ったディレクトリ (配下のものを含む) の合計サイズを記録する先.
 ///
 /// # Returns
 ///
 /// 合計サイズ.
-fn tree_size(path: &Path) -> u64 {
+fn tree_size(path: &Path, sizes: &mut HashMap<PathBuf, u64>) -> u64 {
     let Ok(meta) = fs::symlink_metadata(path) else {
         return 0;
     };
     if meta.file_type().is_symlink() || !meta.is_dir() {
         return meta.len();
     }
-    fs::read_dir(path)
-        .map(|entries| entries.flatten().map(|e| tree_size(&e.path())).sum::<u64>())
-        .unwrap_or(0)
+    let size = fs::read_dir(path)
+        .map(|entries| {
+            entries
+                .flatten()
+                .map(|e| tree_size(&e.path(), sizes))
+                .sum::<u64>()
+        })
+        .unwrap_or(0);
+    sizes.insert(path.to_path_buf(), size);
+    size
 }
 
 /// コピー先の隣に置く, 書き込み途中の一時ファイルのパスを返します.
@@ -409,7 +435,8 @@ fn remove_entry(path: &Path) -> std::io::Result<()> {
 fn copy_tree(src: &Path, dst: &Path, overwrite: bool, progress: &mut Progress) -> Result<(), Stop> {
     if progress.skip.contains(src) {
         // 上書きしないと答えたファイル. 進捗だけ進める.
-        progress.advance(tree_size(src), &file_name_of(src));
+        let size = progress.size_of(src);
+        progress.advance(size, &file_name_of(src));
         return Ok(());
     }
     let meta = fs::symlink_metadata(src)?;
@@ -836,7 +863,8 @@ fn move_one(
 ) -> Result<(), Stop> {
     if progress.skip.contains(src) {
         // 上書きしないと答えたファイル. 移動元に残して, 進捗だけ進める.
-        progress.advance(tree_size(src), &file_name_of(src));
+        let size = progress.size_of(src);
+        progress.advance(size, &file_name_of(src));
         return Ok(());
     }
     if let Ok(meta) = fs::symlink_metadata(dst) {
@@ -855,7 +883,7 @@ fn move_one(
         }
         remove_entry(dst)?;
     }
-    let size = tree_size(src);
+    let size = progress.size_of(src);
     match renamer(src, dst) {
         Ok(()) => {
             // 名前の変更で移せた (同一ディスク内). 進捗はサイズ分をまとめて進める.
@@ -961,6 +989,7 @@ pub fn transfer_with(
                 done: 0,
                 total: request.sources.len() as u64,
                 last_sent: None,
+                sizes: HashMap::new(),
             };
             request.sources.iter().try_for_each(|source| {
                 progress.check()?;
@@ -973,7 +1002,9 @@ pub fn transfer_with(
         kind => {
             // 配置先の検証をすべて済ませてから実行する (途中まで進めて後から失敗させない).
             let plan = plan_placements(request)?;
-            let total = plan.iter().map(|(src, _)| tree_size(src)).sum();
+            // 全体量を求めたときの各ディレクトリのサイズは, 進捗を進めるときに使い回す.
+            let mut sizes = HashMap::new();
+            let total = plan.iter().map(|(src, _)| tree_size(src, &mut sizes)).sum();
             let mut progress = Progress {
                 cancel,
                 skip: &skip,
@@ -981,6 +1012,7 @@ pub fn transfer_with(
                 done: 0,
                 total,
                 last_sent: None,
+                sizes,
             };
             plan.iter().try_for_each(|(src, dst)| {
                 progress.check()?;

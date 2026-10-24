@@ -315,6 +315,7 @@ fn test_move_one_never_overwrites_without_the_overwrite_flag() {
         done: 0,
         total: 0,
         last_sent: None,
+        sizes: HashMap::new(),
     };
 
     let file = move_one(&src, &dst, false, &|a, b| fs::rename(a, b), &mut progress);
@@ -369,6 +370,7 @@ fn test_transfer_move_merge_can_be_cancelled() {
         done: 0,
         total: 0,
         last_sent: None,
+        sizes: HashMap::new(),
     };
 
     let result = merge_directory(
@@ -838,7 +840,40 @@ fn test_transfer_state_begin_and_cancel() {
 #[test]
 fn test_tree_size_missing_is_zero() {
     let dir = tempdir().unwrap();
-    assert_eq!(tree_size(&dir.path().join("none")), 0);
+    assert_eq!(tree_size(&dir.path().join("none"), &mut HashMap::new()), 0);
+}
+
+#[test]
+fn test_tree_size_records_directory_sizes() {
+    let dir = tempdir().unwrap();
+    let sub = dir.path().join("sub");
+    fs::create_dir(&sub).unwrap();
+    fs::write(sub.join("a.txt"), "hello").unwrap();
+    fs::write(dir.path().join("b.txt"), "ab").unwrap();
+
+    let mut sizes = HashMap::new();
+    assert_eq!(tree_size(dir.path(), &mut sizes), 7);
+    // ディレクトリだけを, 配下のものも含めて記録する.
+    assert_eq!(sizes.len(), 2);
+    assert_eq!(sizes[dir.path()], 7);
+    assert_eq!(sizes[&sub], 5);
+}
+
+#[test]
+fn test_progress_size_of_reuses_measured_sizes() {
+    let dir = tempdir().unwrap();
+    let sub = dir.path().join("sub");
+    fs::create_dir(&sub).unwrap();
+    fs::write(sub.join("a.txt"), "hello").unwrap();
+
+    with_progress(|p| {
+        // 測っていないものは測って覚える.
+        assert_eq!(p.size_of(&sub), 5);
+        assert_eq!(p.sizes[&sub], 5);
+        // 覚えている値があれば, 測り直さない.
+        p.sizes.insert(sub.clone(), 100);
+        assert_eq!(p.size_of(&sub), 100);
+    });
 }
 
 #[test]
@@ -853,6 +888,7 @@ fn test_copy_file_io_error_failure() {
         done: 0,
         total: 0,
         last_sent: None,
+        sizes: HashMap::new(),
     };
 
     let result = copy_file(
@@ -942,7 +978,7 @@ fn test_tree_size_with_cyclic_symlink() {
     std::os::unix::fs::symlink(dir.path(), &loop_link).unwrap();
 
     // 循環リンクがあっても無限ループ・スタックオーバーフローせず計算できる
-    let size = tree_size(dir.path());
+    let size = tree_size(dir.path(), &mut HashMap::new());
     assert!(size >= 5);
 }
 
@@ -966,6 +1002,7 @@ fn test_copy_tree_with_cyclic_symlink() {
         done: 0,
         total: 0,
         last_sent: None,
+        sizes: HashMap::new(),
     };
 
     // 循環リンクがあっても無限ループにならず, コピーが成功すること
@@ -996,6 +1033,7 @@ fn test_copy_tree_symlink_overwrites_existing_file() {
         done: 0,
         total: 0,
         last_sent: None,
+        sizes: HashMap::new(),
     };
 
     let result = copy_tree(&src_link, &dst_link, true, &mut progress);
@@ -1024,6 +1062,7 @@ fn test_copy_tree_symlink_onto_directory_failure() {
         done: 0,
         total: 0,
         last_sent: None,
+        sizes: HashMap::new(),
     };
 
     // ディレクトリをリンクで置き換えず, 中身を残すこと
@@ -1059,6 +1098,7 @@ fn test_move_one_directory_symlink_preserves_real_target() {
         done: 0,
         total: 0,
         last_sent: None,
+        sizes: HashMap::new(),
     };
 
     // rename が失敗する (異ディスク移動) ケースをシミュレート
@@ -1167,6 +1207,7 @@ fn test_copy_file_replace_failure_removes_temp_file() {
         done: 0,
         total: 0,
         last_sent: None,
+        sizes: HashMap::new(),
     };
 
     let result = copy_file(&src, &dst, true, &mut progress);
@@ -1190,6 +1231,7 @@ fn test_move_one_refuses_destination_created_after_the_check() {
         done: 0,
         total: 0,
         last_sent: None,
+        sizes: HashMap::new(),
     };
 
     // 名前を変える直前に, 別のプロセスが同名のファイルを作った.
@@ -1220,6 +1262,7 @@ fn with_progress<R>(f: impl FnOnce(&mut Progress) -> R) -> R {
         done: 0,
         total: 0,
         last_sent: None,
+        sizes: HashMap::new(),
     };
     f(&mut progress)
 }
@@ -1308,6 +1351,7 @@ fn test_copy_tree_cancel_keeps_existing_directory() {
         done: 0,
         total: 0,
         last_sent: None,
+        sizes: HashMap::new(),
     };
 
     let result = copy_tree(&src, &dst, true, &mut progress);
