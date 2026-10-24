@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import log from "loglevel";
 import { dirsHaveEntries, readDirectory } from "../../../services/tauriApi";
+import { compareNames } from "../../explorer/view";
 import { getParentPath } from "../../../utils/path";
 import type { TreeNode, TreeRow } from "../types";
 
@@ -29,7 +30,7 @@ async function findEmptyDirs(
 
 /**
  * ディレクトリ直下のサブディレクトリとファイルをツリーのノードにして読み込みます.
- * ディレクトリを先に, ファイルを後に, それぞれ名前順に並べます.
+ * ディレクトリを先に, ファイルを後に, それぞれ一覧と同じ名前順 (大文字小文字を区別しない自然順) に並べます.
  *
  * @param path - 読み込むディレクトリの絶対パス.
  * @param showHidden - 隠しファイル・隠しディレクトリを含めるか.
@@ -45,7 +46,7 @@ async function fetchChildren(
       .filter((e) => showHidden || !e.hidden)
       .sort(
         (a, b) =>
-          Number(b.is_dir) - Number(a.is_dir) || a.name.localeCompare(b.name),
+          Number(b.is_dir) - Number(a.is_dir) || compareNames(a.name, b.name),
       );
     const dirs = sorted.filter((e) => e.is_dir);
     const emptyDirs = await findEmptyDirs(

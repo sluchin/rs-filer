@@ -82,7 +82,7 @@ const nameCollator = new Intl.Collator(undefined, {
  * @param b - 比べる名前.
  * @returns `a` が前なら負, 後なら正, 同じなら 0.
  */
-function compareNames(a: string, b: string): number {
+export function compareNames(a: string, b: string): number {
   return nameCollator.compare(a, b);
 }
 

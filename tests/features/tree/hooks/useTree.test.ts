@@ -100,6 +100,34 @@ describe("useTree", () => {
     expect(result.current.cursorPath).toBe("/h/docs");
   });
 
+  it("正常系: 名前は一覧と同じく, 大文字小文字を区別せず, 数字を数値として並べること", async () => {
+    mockedInvoke.mockImplementation((cmd, args) => {
+      if (cmd === "dirs_have_entries") {
+        return Promise.resolve([]);
+      }
+      const path = (args as { path: string }).path;
+      return Promise.resolve(
+        path === "/h"
+          ? ["f10.txt", "B.txt", "f2.txt", "a.txt"].map((name) => ({
+              name,
+              path: `/h/${name}`,
+              is_dir: false,
+              hidden: false,
+            }))
+          : [],
+      );
+    });
+    const { result } = renderHook(() => useTree("/h", false));
+
+    await waitFor(() => expect(result.current.rows).toHaveLength(4));
+    expect(result.current.rows.map((r) => r.node.name)).toEqual([
+      "a.txt",
+      "B.txt",
+      "f2.txt",
+      "f10.txt",
+    ]);
+  });
+
   it("正常系: 隠しの表示が有効なら隠しディレクトリと隠しファイルも含むこと", async () => {
     const { result } = renderHook(() => useTree("/h", true));
 

@@ -45,8 +45,6 @@ fn test_scan_directory_follows_symlinks() {
     assert_eq!(get("link.txt").size, 5);
     // リンク先が無いリンクも, リンク自身の情報で一覧に出す.
     assert!(!get("dangling").is_dir);
-    // ディレクトリへのリンクは, ディレクトリと一緒に上部へ並ぶ.
-    assert!(files.iter().take(2).all(|f| f.is_dir));
 }
 
 #[test]

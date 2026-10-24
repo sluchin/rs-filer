@@ -46,18 +46,12 @@ fn test_read_directory_integration() {
     let entries = result.unwrap();
     assert_eq!(entries.len(), 4, "4つのエントリが取得できること");
 
-    // ソート順の検証（① ディレクトリ優先 → ② アルファベット順）
-    assert_eq!(entries[0].name, "a_dir");
-    assert!(entries[0].is_dir);
-
-    assert_eq!(entries[1].name, "z_dir");
-    assert!(entries[1].is_dir);
-
-    assert_eq!(entries[2].name, "a_file.txt");
-    assert!(!entries[2].is_dir);
-
-    assert_eq!(entries[3].name, "b_file.txt");
-    assert!(!entries[3].is_dir);
+    // 並べ替えはフロントエンドで行うため, 順序は問わず, 種類だけを検証する.
+    let is_dir = |name: &str| entries.iter().find(|e| e.name == name).unwrap().is_dir;
+    assert!(is_dir("a_dir"));
+    assert!(is_dir("z_dir"));
+    assert!(!is_dir("a_file.txt"));
+    assert!(!is_dir("b_file.txt"));
 
     // 後始末
     let _ = fs::remove_dir_all(&test_dir);
