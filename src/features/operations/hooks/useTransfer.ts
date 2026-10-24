@@ -234,6 +234,90 @@ export function useTransfer({
   );
 
   /**
+   * 1 件の項目を, 新しい名前を尋ねてから, 今のディレクトリへコピーします (名前を付けてコピー).
+   *
+   * @param items - コピーする項目 (絶対パスと名前). 1 件でなければエラーを表示する.
+   */
+  const promptCopyAs = useCallback(
+    (items: { path: string; name: string }[]): void => {
+      if (items.length !== 1) {
+        setError("1 件だけコピーしてください.");
+        return;
+      }
+      const [item] = items;
+      openPrompt(
+        "名前を付けてコピー",
+        (newName: string) => {
+          run({
+            kind: "copy",
+            sources: [item.path],
+            dest_dir: source.currentPath,
+            overwrite: false,
+            permanent: false,
+            dest_name: newName,
+          });
+        },
+        item.name,
+      );
+    },
+    [source.currentPath, setError, openPrompt, run],
+  );
+
+  /**
+   * 対象を指定したディレクトリへコピー・移動します. 同名のものがあれば上書きを確認します.
+   *
+   * @param kind - コピーか移動か.
+   * @param sources - 対象の絶対パス.
+   * @param destDir - 送り先のディレクトリ.
+   * @param alwaysConfirm - true の場合は, 同名のものが無くても実行前に確認する.
+   */
+  const placeInto = useCallback(
+    async (
+      kind: "copy" | "move",
+      sources: string[],
+      destDir: string,
+      alwaysConfirm: boolean,
+    ): Promise<void> => {
+      let conflicts: string[];
+      let stale: string[] = [];
+      try {
+        setError(null);
+        conflicts = await checkConflicts(sources, destDir);
+        if (conflicts.length > 0) {
+          stale = await checkStaleOverwrites(sources, destDir);
+        }
+      } catch (e) {
+        setError(String(e));
+        return;
+      }
+      const request: TransferRequest = {
+        kind,
+        sources,
+        dest_dir: destDir,
+        overwrite: conflicts.length > 0,
+        permanent: false,
+      };
+      const label = LABELS[kind];
+      if (conflicts.length > 0) {
+        openConfirm(
+          `${label}の上書き`,
+          overwriteMessage(label, conflicts, stale),
+          () => runWithNestedConfirm(request, label),
+        );
+      } else if (alwaysConfirm) {
+        openConfirm(
+          label,
+          `${sources.length} 件を「${destDir}」へ${label}しますか? (y/n)`,
+          () => run(request),
+        );
+      } else {
+        await run(request);
+      }
+    },
+    [setError, openConfirm, run, runWithNestedConfirm],
+  );
+
+  /**
    * 対象を対向ペインへコピー・移動します. 同名のものがあれば上書きを確認します.
    *
    * @param kind - コピーか移動か.
@@ -249,25 +333,7 @@ export function useTransfer({
       if (source.currentPath === dest.currentPath) {
         // 同じディレクトリの場合, コピーなら名前をつけてコピー, 移動はエラー.
         if (kind === "copy") {
-          if (files.length !== 1) {
-            setError("1 件だけコピーしてください.");
-            return;
-          }
-          const file = files[0];
-          openPrompt(
-            "名前を付けてコピー",
-            (newName: string) => {
-              run({
-                kind: "copy",
-                sources: [file.path],
-                dest_dir: source.currentPath,
-                overwrite: false,
-                permanent: false,
-                dest_name: newName,
-              });
-            },
-            file.name,
-          );
+          promptCopyAs(files);
         } else {
           setError(
             "対向ペインが同じディレクトリです. 別のディレクトリを開いてください.",
@@ -275,55 +341,14 @@ export function useTransfer({
         }
         return;
       }
-      const sources = files.map((f) => f.path);
-      let conflicts: string[];
-      try {
-        setError(null);
-        conflicts = await checkConflicts(sources, dest.currentPath);
-      } catch (e) {
-        setError(String(e));
-        return;
-      }
-      const request: TransferRequest = {
+      await placeInto(
         kind,
-        sources,
-        dest_dir: dest.currentPath,
-        overwrite: conflicts.length > 0,
-        permanent: false,
-      };
-      const label = LABELS[kind];
-      if (conflicts.length > 0) {
-        let stale: string[];
-        try {
-          stale = await checkStaleOverwrites(sources, dest.currentPath);
-        } catch (e) {
-          setError(String(e));
-          return;
-        }
-        openConfirm(
-          `${label}の上書き`,
-          overwriteMessage(label, conflicts, stale),
-          () => runWithNestedConfirm(request, label),
-        );
-      } else if (alwaysConfirm) {
-        openConfirm(
-          label,
-          `${files.length} 件を「${dest.currentPath}」へ${label}しますか? (y/n)`,
-          () => run(request),
-        );
-      } else {
-        await run(request);
-      }
+        files.map((f) => f.path),
+        dest.currentPath,
+        alwaysConfirm,
+      );
     },
-    [
-      source,
-      dest,
-      setError,
-      openConfirm,
-      openPrompt,
-      run,
-      runWithNestedConfirm,
-    ],
+    [source, dest.currentPath, setError, promptCopyAs, placeInto],
   );
 
   /**
@@ -443,59 +468,14 @@ export function useTransfer({
 
     if (sameDir) {
       // 同一ディレクトリの場合, 別名でコピーを作成.
-      if (clipboardFiles.length !== 1) {
-        setError("同一ディレクトリ内では, 1 件ずつコピーしてください.");
-        return;
-      }
-      const originalPath = clipboardFiles[0];
-      const originalName = getBaseName(originalPath);
-      openPrompt(
-        "名前を付けてコピー",
-        (newName: string) => {
-          const files = [originalPath];
-          run({
-            kind: "copy",
-            sources: files,
-            dest_dir: source.currentPath,
-            overwrite: false,
-            permanent: false,
-            dest_name: newName,
-          });
-        },
-        originalName,
+      promptCopyAs(
+        clipboardFiles.map((p) => ({ path: p, name: getBaseName(p) })),
       );
     } else {
       // 別ディレクトリからのコピーは通常のコピー処理.
-      try {
-        const conflicts = await checkConflicts(
-          clipboardFiles,
-          source.currentPath,
-        );
-        const request: TransferRequest = {
-          kind: "copy",
-          sources: clipboardFiles,
-          dest_dir: source.currentPath,
-          overwrite: conflicts.length > 0,
-          permanent: false,
-        };
-        if (conflicts.length > 0) {
-          const stale = await checkStaleOverwrites(
-            clipboardFiles,
-            source.currentPath,
-          );
-          openConfirm(
-            "コピーの上書き",
-            overwriteMessage(LABELS.copy, conflicts, stale),
-            () => runWithNestedConfirm(request, LABELS.copy),
-          );
-        } else {
-          await run(request);
-        }
-      } catch (e) {
-        setError(String(e));
-      }
+      await placeInto("copy", clipboardFiles, source.currentPath, false);
     }
-  }, [source, setError, openPrompt, openConfirm, run, runWithNestedConfirm]);
+  }, [source.currentPath, setError, promptCopyAs, placeInto]);
 
   /** ファイルを同じディレクトリ内でコピーします. */
   const duplicateFile = useCallback((): void => {
@@ -504,27 +484,8 @@ export function useTransfer({
       setError("対象の項目が選択されていません.");
       return;
     }
-    if (files.length !== 1) {
-      setError("1 件だけコピーしてください.");
-      return;
-    }
-    const file = files[0];
-    const originalName = file.name;
-    openPrompt(
-      "名前を付けてコピー",
-      (newName: string) => {
-        run({
-          kind: "copy",
-          sources: [file.path],
-          dest_dir: source.currentPath,
-          overwrite: false,
-          permanent: false,
-          dest_name: newName,
-        });
-      },
-      originalName,
-    );
-  }, [source, setError, openPrompt, run]);
+    promptCopyAs(files);
+  }, [source, setError, promptCopyAs]);
 
   return {
     task: running && { ...running, cancelling },

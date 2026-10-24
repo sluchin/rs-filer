@@ -192,9 +192,7 @@ describe("useTransfer", () => {
 
       await act(() => result.current.pasteFromClipboard());
 
-      expect(setError).toHaveBeenCalledWith(
-        "同一ディレクトリ内では, 1 件ずつコピーしてください.",
-      );
+      expect(setError).toHaveBeenCalledWith("1 件だけコピーしてください.");
       expect(openPrompt).not.toHaveBeenCalled();
     });
 
