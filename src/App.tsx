@@ -34,6 +34,7 @@ import { useNotice } from "./hooks/useNotice";
 import { useHistoryNav } from "./hooks/useHistoryNav";
 import { useOperationLog } from "./hooks/useOperationLog";
 import { useSettings } from "./hooks/useSettings";
+import { useDialogs } from "./hooks/useDialogs";
 import OperationDialog from "./features/operations/components/OperationDialog";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
 import { installLogForwarding } from "./services/logForwarder";
@@ -75,24 +76,19 @@ export default function App(): ReactElement {
     left: null,
     right: null,
   });
-  const [bookmarkPanes, setBookmarkPanes] = useState<Record<PaneId, boolean>>({
-    left: false,
-    right: false,
-  });
-  const [historyPanes, setHistoryPanes] = useState<Record<PaneId, boolean>>({
-    left: false,
-    right: false,
-  });
-  const [treePanes, setTreePanes] = useState<Record<PaneId, boolean>>({
-    left: false,
-    right: false,
-  });
-  const [logOpen, setLogOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [previewOn, setPreviewOn] = useState(false);
-  const [infoOn, setInfoOn] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [paletteValue, setPaletteValue] = useState("");
+  const dialogs = useDialogs();
+  const {
+    bookmarkPanes,
+    historyPanes,
+    treePanes,
+    previewOn,
+    infoOn,
+    copyMenu,
+    closeBookmarks,
+    closeHistoryList,
+    closeTree,
+    openCopyMenu,
+  } = dialogs;
   const paletteHistory = useHistoryNav();
   const operationLog = useOperationLog();
   const { addLog } = operationLog;
@@ -105,12 +101,6 @@ export default function App(): ReactElement {
     [addLog],
   );
   const { notice, notify } = useNotice(logInfo);
-  // 右クリックのメニュー (フルパスや名前のコピー) の対象と位置. 開いていないときは null.
-  const [copyMenu, setCopyMenu] = useState<{
-    target: CopyTarget;
-    x: number;
-    y: number;
-  } | null>(null);
   const keymap = useUserKeymap(logError);
   // 履歴一覧とブックマーク一覧は, 開くキー (キーマップで割り当てたもの) をもう一度押すと閉じる (トグル).
   // 一覧の表示中は, 全体のキー操作が無効なので, 一覧の側で判定する. 1 つのキーの割り当てだけを見る (`C-x` で始まる, 続きのキーの割り当ては見ない).
@@ -224,28 +214,7 @@ export default function App(): ReactElement {
     marks,
     settings,
     bookmarks,
-    panels: {
-      // プレビューと詳細は, どちらも反対側のペインに出すので, 一方を出すときは, もう一方を消す.
-      togglePreview: () => {
-        setInfoOn(false);
-        setPreviewOn((on) => !on);
-      },
-      toggleInfo: () => {
-        setPreviewOn(false);
-        setInfoOn((on) => !on);
-      },
-      openLog: () => setLogOpen(true),
-      openHistoryList: (pane) =>
-        setHistoryPanes((p) => ({ ...p, [pane]: true })),
-      openBookmarks: (pane) =>
-        setBookmarkPanes((p) => ({ ...p, [pane]: true })),
-      toggleTree: (pane) => setTreePanes((p) => ({ ...p, [pane]: !p[pane] })),
-      openPalette: () => {
-        setPaletteValue("");
-        setPaletteOpen(true);
-      },
-      openHelp: () => setHelpOpen(true),
-    },
+    panels: dialogs,
     pathInputs,
     filterInputs,
     openEntry,
@@ -260,7 +229,7 @@ export default function App(): ReactElement {
     // コマンドパレットは常に有効なコマンド名を渡すので, command は必ず求まる.
     const command = resolveCommandName(name) as Command;
     paletteHistory.record(name);
-    setPaletteOpen(false);
+    dialogs.closePalette();
     runCommand(command);
   };
 
@@ -271,13 +240,7 @@ export default function App(): ReactElement {
     runCommand,
     operations.dialog === null &&
       navigation.drives === null &&
-      !bookmarkPanes[activePane] &&
-      !historyPanes[activePane] &&
-      !treePanes[activePane] &&
-      !logOpen &&
-      !paletteOpen &&
-      !helpOpen &&
-      copyMenu === null &&
+      !dialogs.isBlocking(activePane) &&
       (transfer.task === null || transfer.background),
     keymap,
   );
@@ -299,13 +262,13 @@ export default function App(): ReactElement {
   const handleItemContextMenu = useCallback(
     (pane: PaneId, index: number, file: FileEntry, x: number, y: number) => {
       handleItemClick(pane, index);
-      setCopyMenu({
+      openCopyMenu({
         target: { path: file.path, name: file.name, isDir: file.is_dir },
         x,
         y,
       });
     },
-    [handleItemClick],
+    [handleItemClick, openCopyMenu],
   );
 
   /**
@@ -360,11 +323,11 @@ export default function App(): ReactElement {
         bookmarks={bookmarks.bookmarks}
         onActivate={() => setActivePane(paneId)}
         onSelect={(path) => {
-          setBookmarkPanes((p) => ({ ...p, [paneId]: false }));
+          closeBookmarks(paneId);
           loadDirectory(paneId, path);
         }}
         onRemove={bookmarks.removeBookmark}
-        onCancel={() => setBookmarkPanes((p) => ({ ...p, [paneId]: false }))}
+        onCancel={() => closeBookmarks(paneId)}
         onSwitchPane={switchPane}
         isToggleKey={isBookmarksKey}
       />
@@ -383,10 +346,10 @@ export default function App(): ReactElement {
         history={state.history}
         historyIndex={state.historyIndex}
         onSelect={(path, index) => {
-          setHistoryPanes((p) => ({ ...p, [paneId]: false }));
+          closeHistoryList(paneId);
           loadDirectory(paneId, path, { historyIndex: index });
         }}
-        onCancel={() => setHistoryPanes((p) => ({ ...p, [paneId]: false }))}
+        onCancel={() => closeHistoryList(paneId)}
         onSwitchPane={switchPane}
         isToggleKey={isHistoryListKey}
       />
@@ -410,7 +373,7 @@ export default function App(): ReactElement {
             openPath(path);
             return;
           }
-          setTreePanes((p) => ({ ...p, [paneId]: false }));
+          closeTree(paneId);
           loadDirectory(paneId, path);
         }}
         keysEnabled={operations.dialog === null && copyMenu === null}
@@ -422,10 +385,10 @@ export default function App(): ReactElement {
         onOpenExternal={openPath}
         onCopyMenu={(target, x, y) => {
           setActivePane(paneId);
-          setCopyMenu({ target, x, y });
+          openCopyMenu({ target, x, y });
         }}
         onCopyText={copyText}
-        onCancel={() => setTreePanes((p) => ({ ...p, [paneId]: false }))}
+        onCancel={() => closeTree(paneId)}
         onSwitchPane={switchPane}
       />
     );
@@ -477,18 +440,18 @@ export default function App(): ReactElement {
           onClose={navigation.closeDrives}
         />
       )}
-      {paletteOpen && (
+      {dialogs.paletteOpen && (
         <CommandPalette
-          value={paletteValue}
-          onChange={setPaletteValue}
+          value={dialogs.paletteValue}
+          onChange={dialogs.setPaletteValue}
           onExecute={executeCommandName}
           onHistory={(delta) => {
-            const found = paletteHistory.move(delta, paletteValue);
+            const found = paletteHistory.move(delta, dialogs.paletteValue);
             if (found !== null) {
-              setPaletteValue(found);
+              dialogs.setPaletteValue(found);
             }
           }}
-          onClose={() => setPaletteOpen(false)}
+          onClose={dialogs.closePalette}
         />
       )}
       {copyMenu && (
@@ -499,11 +462,11 @@ export default function App(): ReactElement {
             label,
             onSelect: () => copyText(copyMenu.target, kind),
           }))}
-          onClose={() => setCopyMenu(null)}
+          onClose={dialogs.closeCopyMenu}
         />
       )}
-      {helpOpen && (
-        <HelpDialog keymap={keymap} onClose={() => setHelpOpen(false)} />
+      {dialogs.helpOpen && (
+        <HelpDialog keymap={keymap} onClose={dialogs.closeHelp} />
       )}
       <KeyHintBar mode={treePanes[activePane] ? "tree" : "list"} />
       {transfer.task && transfer.background && (
@@ -530,10 +493,10 @@ export default function App(): ReactElement {
           onBackground={transfer.sendToBackground}
         />
       )}
-      {logOpen && (
+      {dialogs.logOpen && (
         <OperationLogDialog
           entries={operationLog.entries}
-          onClose={() => setLogOpen(false)}
+          onClose={dialogs.closeLog}
         />
       )}
     </div>

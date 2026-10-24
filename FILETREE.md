@@ -116,7 +116,8 @@ src/
 │   ├── useSettings.ts                  # 設定の読み込み・保存 (テーマ・フォントサイズの切り替え)
 │   ├── useHistoryNav.ts                # ミニバッファの入力履歴参照
 │   ├── useNotice.ts                    # 完了通知の一定時間表示
-│   └── useOperationLog.ts              # 操作ログの保持
+│   ├── useOperationLog.ts              # 操作ログの保持
+│   └── useDialogs.ts                   # ダイアログ・パレット・メニューの開閉と, ペインの表示の差し替え (プレビュー・詳細・一覧・ツリー)
 │
 ├── services/                           # Tauriの `invoke` / イベントリスナー ラッパー
 │   └── tauriApi.ts                     # Rust側コマンド呼び出しの型安全ラッパー
