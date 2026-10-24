@@ -97,6 +97,12 @@ describe("useItemInfo (取得中にパスが変わったとき)", () => {
     });
     const old1 = finishOld;
     rerender({ path: "/h/old2" });
+    // 待ち終えて, /h/old2 の取得が始まってから次へ移る.
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("get_item_info", {
+        path: "/h/old2",
+      }),
+    );
     const old2 = finishOld;
     rerender({ path: "/h/new" });
     await waitFor(() => expect(result.current.status).toBe("ready"));

@@ -28,6 +28,27 @@ describe("usePreview", () => {
     expect(mockedInvoke).not.toHaveBeenCalled();
   });
 
+  it("正常系: パスが続けて変わっている間は取得せず, 止まったときのパスだけを取得すること", async () => {
+    mockedInvoke.mockResolvedValue(preview);
+    const { result, rerender } = renderHook(({ path }) => usePreview(path), {
+      initialProps: { path: "/a" },
+    });
+    await waitFor(() =>
+      expect(result.current).toEqual({ status: "ready", preview }),
+    );
+    mockedInvoke.mockClear();
+
+    rerender({ path: "/b" });
+    rerender({ path: "/c" });
+    expect(result.current).toEqual({ status: "loading" });
+
+    await waitFor(() =>
+      expect(result.current).toEqual({ status: "ready", preview }),
+    );
+    expect(mockedInvoke).toHaveBeenCalledTimes(1);
+    expect(mockedInvoke).toHaveBeenCalledWith("read_preview", { path: "/c" });
+  });
+
   it("正常系: 取得中は loading, 取得後は ready になること", async () => {
     mockedInvoke.mockResolvedValue(preview);
     const { result } = renderHook(() => usePreview("/a"));
@@ -61,6 +82,8 @@ describe("usePreview", () => {
       { initialProps: { path: "/a" } },
     );
     rerender({ path: "/b" });
+    // 待ち終えて, /b の取得が始まってから, /a の取得を終える.
+    await waitFor(() => expect(mockedInvoke).toHaveBeenCalledTimes(2));
     resolveFirst(preview);
     await Promise.resolve();
     expect(result.current).toEqual({ status: "loading" });

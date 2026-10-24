@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
+import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import log from "loglevel";
 import { getDirStats, getItemInfo } from "../../../services/tauriApi";
 import type { DirStats, InfoState, ItemInfo, StatsState } from "../types";
+
+/** パスが変わってから, 取得を始めるまで待つ時間 (ミリ秒). */
+const FETCH_DELAY_MS = 100;
 
 /** 取得結果. どのパスに対する結果かを持つ. */
 type Result<T> =
@@ -11,15 +15,20 @@ type Result<T> =
 /**
  * パスごとに非同期で値を取得するフックの共通部分. パスが変わるたびに取得し直し, 古いパスの結果は捨てます.
  *
+ * カーソルを続けて動かしている間は取得せず, パスが `delay` の間変わらなかったら取得します.
+ * それまでは `loading` を返します.
+ *
  * @param path - 取得するパス. 無い場合は null (何もしない).
  * @param fetcher - 取得する関数.
  * @param label - 失敗したときのログの表示名.
+ * @param delay - パスが変わってから, 取得を始めるまで待つ時間 (ミリ秒). 0 の場合は待たない.
  * @returns 取得状況.
  */
 function useByPath<T>(
   path: string | null,
   fetcher: (path: string) => Promise<T>,
   label: string,
+  delay: number,
 ):
   | { status: "idle" }
   | { status: "loading" }
@@ -27,10 +36,13 @@ function useByPath<T>(
   | { status: "ready"; value: T } {
   const [result, setResult] = useState<Result<T> | null>(null);
 
+  const target = useDebouncedValue(path, delay);
+
   useEffect(() => {
-    if (path === null) {
+    if (target === null) {
       return;
     }
+    const path = target;
     let cancelled = false;
     fetcher(path)
       .then((value) => {
@@ -47,7 +59,7 @@ function useByPath<T>(
     return () => {
       cancelled = true;
     };
-  }, [path, fetcher, label]);
+  }, [target, fetcher, label]);
 
   if (path === null) {
     return { status: "idle" };
@@ -67,7 +79,7 @@ function useByPath<T>(
  * @returns 詳細の取得状況.
  */
 export function useItemInfo(path: string | null): InfoState {
-  const state = useByPath<ItemInfo>(path, getItemInfo, "詳細");
+  const state = useByPath<ItemInfo>(path, getItemInfo, "詳細", FETCH_DELAY_MS);
   return state.status === "ready"
     ? { status: "ready", info: state.value }
     : state;
@@ -80,7 +92,8 @@ export function useItemInfo(path: string | null): InfoState {
  * @returns 計算の状況. 数え終わるまでは `loading`.
  */
 export function useDirStats(path: string | null): StatsState {
-  const state = useByPath<DirStats>(path, getDirStats, "配下の合計");
+  // 数えるのは, 詳細を取得し終えた (待ち終えた) ディレクトリなので, ここでは待たない.
+  const state = useByPath<DirStats>(path, getDirStats, "配下の合計", 0);
   return state.status === "ready"
     ? { status: "ready", stats: state.value }
     : state;

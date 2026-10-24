@@ -3261,10 +3261,10 @@ describe("App (詳細情報)", () => {
     expect(mockedInvoke).toHaveBeenCalledWith("get_item_info", {
       path: "/mock/home/a.txt",
     });
-    expect(mockedInvoke).not.toHaveBeenCalledWith(
-      "dir_stats",
-      expect.anything(),
-    );
+    // 前の項目 (Dir) の合計は, 遅れて数え始めることがあるので, ファイルの分だけを確かめる.
+    expect(mockedInvoke).not.toHaveBeenCalledWith("dir_stats", {
+      path: "/mock/home/a.txt",
+    });
   });
 
   it("正常系: `..` の行にカーソルがあるときは, 開いているディレクトリの詳細を出すこと", async () => {

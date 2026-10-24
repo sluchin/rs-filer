@@ -118,6 +118,7 @@ src/
 │   ├── useNotice.ts                    # 完了通知の一定時間表示
 │   ├── useOperationLog.ts              # 操作ログの保持
 │   ├── useDialogs.ts                   # ダイアログ・パレット・メニューの開閉と, ペインの表示の差し替え (プレビュー・詳細・一覧・ツリー)
+│   ├── useDebouncedValue.ts            # 値が止まるまで待つ (カーソルを動かしている間, プレビュー・詳細を取得しない)
 │   └── useStableCallback.ts            # 描き直しても変わらない関数 (memo した子へ渡すハンドラー)
 │
 ├── services/                           # Tauriの `invoke` / イベントリスナー ラッパー
@@ -226,6 +227,7 @@ tests/
 │       └── hooks/
 │           └── useTree.test.ts
 ├── hooks/
+│   ├── useDebouncedValue.test.ts
 │   ├── useDialogs.test.ts
 │   ├── useHistoryNav.test.ts
 │   ├── useNotice.test.ts
