@@ -27,6 +27,28 @@ fn test_read_directory_metadata_success() {
     assert!(get(".hidden").hidden == cfg!(not(windows)));
 }
 
+#[cfg(unix)]
+#[test]
+fn test_scan_directory_follows_symlinks() {
+    let dir = tempdir().unwrap();
+    fs::create_dir(dir.path().join("target_dir")).unwrap();
+    fs::write(dir.path().join("target.txt"), "hello").unwrap();
+    std::os::unix::fs::symlink(dir.path().join("target_dir"), dir.path().join("link_dir")).unwrap();
+    std::os::unix::fs::symlink(dir.path().join("target.txt"), dir.path().join("link.txt")).unwrap();
+    std::os::unix::fs::symlink(dir.path().join("none"), dir.path().join("dangling")).unwrap();
+
+    let files = scan_directory(&dir.path().to_string_lossy()).unwrap();
+    let get = |n: &str| files.iter().find(|f| f.name == n).unwrap();
+
+    assert!(get("link_dir").is_dir);
+    assert!(!get("link.txt").is_dir);
+    assert_eq!(get("link.txt").size, 5);
+    // リンク先が無いリンクも, リンク自身の情報で一覧に出す.
+    assert!(!get("dangling").is_dir);
+    // ディレクトリへのリンクは, ディレクトリと一緒に上部へ並ぶ.
+    assert!(files.iter().take(2).all(|f| f.is_dir));
+}
+
 #[test]
 fn test_dirs_have_entries_empty_files_hidden_and_missing() {
     let dir = tempdir().unwrap();

@@ -89,6 +89,7 @@ pub(crate) fn is_hidden(name: &str, _metadata: &fs::Metadata) -> bool {
 ///
 /// 取得結果はディレクトリが上部, ファイルが下部になるよう並び替えられ,
 /// 同種同士は名前の昇順（アルファベット順）でソートされます.
+/// シンボリックリンクは, リンク先の種類 (ディレクトリかファイルか)・サイズ・更新日時で表します.
 ///
 /// # Arguments
 ///
@@ -104,7 +105,11 @@ fn scan_directory(path: &str) -> Result<Vec<FileEntry>, String> {
 
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
-        let metadata = entry.metadata().ok();
+        // 項目そのもの (シンボリックリンクならリンク自身) の情報. 隠し属性はこちらで判定する.
+        let own = entry.metadata().ok();
+        // シンボリックリンクはリンク先の情報を使う (ディレクトリへのリンクをディレクトリとして扱うため).
+        // リンク先が無い場合は, リンク自身の情報を使う.
+        let metadata = fs::metadata(entry.path()).ok().or_else(|| own.clone());
 
         files.push(FileEntry {
             path: entry.path().to_string_lossy().into_owned(),
@@ -114,7 +119,7 @@ fn scan_directory(path: &str) -> Result<Vec<FileEntry>, String> {
             readonly: metadata
                 .as_ref()
                 .is_some_and(|m| m.permissions().readonly()),
-            hidden: metadata.as_ref().is_some_and(|m| is_hidden(&name, m)),
+            hidden: own.as_ref().is_some_and(|m| is_hidden(&name, m)),
             name,
         });
     }
