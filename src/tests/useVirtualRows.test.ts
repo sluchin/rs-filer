@@ -85,6 +85,38 @@ describe("useVirtualRows", () => {
     expect(result.current.paddingTop).toBe(8 * 20);
   });
 
+  it("正常系: 表示範囲が変わらない微小なスクロールでは State 更新をスキップすること", () => {
+    const { result } = renderHook(() => useVirtualRows(1000, 2));
+    let container!: HTMLDivElement;
+    act(() => {
+      container = makeContainer(100);
+      result.current.containerRef(container);
+      result.current.measureRowRef(makeRow(20));
+    });
+
+    // スクロールして 8 行目まで動かす (scrollTop 200 => floor(200/20) - 2 = 8).
+    act(() => {
+      container.scrollTop = 200;
+      container.dispatchEvent(new Event("scroll"));
+    });
+    expect(result.current.start).toBe(8);
+
+    // 同じ行の範囲内の微小スクロール (scrollTop 205 => floor(205/20) - 2 = 8).
+    // start が変わらないため State 更新は行われず, start は 8 のまま維持されること.
+    act(() => {
+      container.scrollTop = 205;
+      container.dispatchEvent(new Event("scroll"));
+    });
+    expect(result.current.start).toBe(8);
+
+    // 行境界を越えるスクロール (scrollTop 220 => floor(220/20) - 2 = 9).
+    act(() => {
+      container.scrollTop = 220;
+      container.dispatchEvent(new Event("scroll"));
+    });
+    expect(result.current.start).toBe(9);
+  });
+
   it("正常系: scrollToIndex は, 見えていない行だけスクロール位置を動かすこと", () => {
     const { result } = renderHook(() => useVirtualRows(1000));
     let container!: HTMLDivElement;

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 /**
  * 仮想スクロールの計算結果と, それに必要な ref・関数.
@@ -43,17 +43,39 @@ export function useVirtualRows(
   const [viewportHeight, setViewportHeight] = useState(0);
   const [rowHeight, setRowHeight] = useState(0);
 
+  // 最新のパラメータと現在の start を ref で持ち,
+  // スクロール毎に表示範囲 (start) が変わらない場合は state 更新をスキップして不要な再描画を防ぐ.
+  const latestRef = useRef({ rowHeight, overscan, start: 0 });
+
   // コンテナの ref が付いたときに, スクロール位置と表示領域の高さを追い始める.
   const containerRef = useCallback((element: HTMLElement | null) => {
     containerNodeRef.current = element;
     if (!element) {
       return;
     }
-    const handleScroll = (): void => setScrollTop(element.scrollTop);
+    const handleScroll = (): void => {
+      const { rowHeight, overscan, start } = latestRef.current;
+      if (rowHeight <= 0) {
+        setScrollTop(element.scrollTop);
+        return;
+      }
+      // スクロール位置から描画開始インデックスを計算し, 表示範囲が変わる時だけ state を更新する.
+      const newStart = Math.max(
+        0,
+        Math.floor(element.scrollTop / rowHeight) - overscan,
+      );
+      if (newStart !== start) {
+        latestRef.current.start = newStart;
+        setScrollTop(element.scrollTop);
+      }
+    };
     handleScroll();
     element.addEventListener("scroll", handleScroll, { passive: true });
 
-    const measure = (): void => setViewportHeight(element.clientHeight);
+    const measure = (): void => {
+      setViewportHeight(element.clientHeight);
+      setScrollTop(element.scrollTop);
+    };
     measure();
     const observer =
       typeof ResizeObserver === "undefined"
@@ -103,7 +125,21 @@ export function useVirtualRows(
     [rowHeight],
   );
 
-  if (viewportHeight === 0 || rowHeight === 0) {
+  const isMeasured = viewportHeight > 0 && rowHeight > 0;
+  const start = isMeasured
+    ? Math.max(0, Math.floor(scrollTop / rowHeight) - overscan)
+    : 0;
+  const visibleCount = isMeasured ? Math.ceil(viewportHeight / rowHeight) : 0;
+  const end = isMeasured
+    ? Math.min(count, start + visibleCount + overscan * 2)
+    : count;
+
+  // イベントハンドラから最新のパラメータと start を参照できるよう, レンダリング後に ref を更新する.
+  useLayoutEffect(() => {
+    latestRef.current = { rowHeight, overscan, start };
+  }, [rowHeight, overscan, start]);
+
+  if (!isMeasured) {
     // 測れていない間は, すべての行を描画する (これまでどおりの, 仮想化しない表示).
     return {
       containerRef,
@@ -115,10 +151,6 @@ export function useVirtualRows(
       scrollToIndex,
     };
   }
-
-  const start = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
-  const visibleCount = Math.ceil(viewportHeight / rowHeight);
-  const end = Math.min(count, start + visibleCount + overscan * 2);
 
   return {
     containerRef,
