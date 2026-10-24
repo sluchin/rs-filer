@@ -67,32 +67,55 @@ export function extensionOf(name: string): string {
 }
 
 /**
+ * 自然順 (数値対応) かつ大文字小文字を区別しない名前比較用の Collator インスタンス.
+ * localeCompare は呼び出し毎に Collator を生成して高コストになるため, モジュールレベルでキャッシュして再利用する.
+ */
+const nameCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: "base",
+});
+
+/**
  * 名前を, 大文字小文字を区別せず, 数字の並びを数値として比較します.
  */
 function compareNames(a: string, b: string): number {
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+  return nameCollator.compare(a, b);
+}
+
+/**
+ * シュワルツ変換用のソートキー事前計算済みエントリ.
+ */
+interface DecoratedEntry {
+  entry: FileEntry;
+  ext: string;
+  size: number;
+  date: number;
 }
 
 /**
  * 2 つのエントリを比較します. ディレクトリは常にファイルより上に並びます (昇順・降順に関わらず).
  * ディレクトリ同士は, 基準に関わらず名前で比較します.
  */
-function compareEntries(a: FileEntry, b: FileEntry, sort: SortOption): number {
-  if (a.is_dir !== b.is_dir) {
-    return a.is_dir ? -1 : 1;
+function compareDecorated(
+  a: DecoratedEntry,
+  b: DecoratedEntry,
+  sort: SortOption,
+): number {
+  if (a.entry.is_dir !== b.entry.is_dir) {
+    return a.entry.is_dir ? -1 : 1;
   }
   let result = 0;
-  if (!a.is_dir) {
+  if (!a.entry.is_dir) {
     if (sort.key === "ext") {
-      result = extensionOf(a.name).localeCompare(extensionOf(b.name));
+      result = nameCollator.compare(a.ext, b.ext);
     } else if (sort.key === "size") {
-      result = (a.size ?? 0) - (b.size ?? 0);
+      result = a.size - b.size;
     } else if (sort.key === "date") {
-      result = (a.modified ?? 0) - (b.modified ?? 0);
+      result = a.date - b.date;
     }
   }
   if (result === 0) {
-    result = compareNames(a.name, b.name);
+    result = compareNames(a.entry.name, b.entry.name);
   }
   return sort.desc ? -result : result;
 }
@@ -101,6 +124,8 @@ function compareEntries(a: FileEntry, b: FileEntry, sort: SortOption): number {
  * 全エントリから, 表示するエントリの一覧を作ります.
  *
  * 隠しファイルの除外, 名前の絞り込み (大文字小文字を区別しない部分一致), ソートを適用します.
+ * シュワルツ変換により各エントリの比較キー (拡張子・サイズ・更新日時) を事前計算し,
+ * キャッシュした Intl.Collator を用いて高速にソートします.
  *
  * @param all - ディレクトリ内のすべてのエントリ.
  * @param view - 表示の設定.
@@ -108,12 +133,26 @@ function compareEntries(a: FileEntry, b: FileEntry, sort: SortOption): number {
  */
 export function deriveFiles(all: FileEntry[], view: ViewOptions): FileEntry[] {
   const needle = (view.filter ?? "").toLowerCase();
-  return all
-    .filter(
-      (f) =>
-        (view.showHidden || !f.hidden) && f.name.toLowerCase().includes(needle),
-    )
-    .sort((a, b) => compareEntries(a, b, view.sort));
+  const isExt = view.sort.key === "ext";
+
+  const decorated: DecoratedEntry[] = [];
+  for (const f of all) {
+    if (
+      (view.showHidden || !f.hidden) &&
+      f.name.toLowerCase().includes(needle)
+    ) {
+      decorated.push({
+        entry: f,
+        ext: isExt && !f.is_dir ? extensionOf(f.name) : "",
+        size: f.size ?? 0,
+        date: f.modified ?? 0,
+      });
+    }
+  }
+
+  decorated.sort((a, b) => compareDecorated(a, b, view.sort));
+
+  return decorated.map((d) => d.entry);
 }
 
 /**

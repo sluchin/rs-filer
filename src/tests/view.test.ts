@@ -110,6 +110,15 @@ describe("deriveFiles", () => {
       "file10.txt",
     ]);
   });
+
+  it("正常系: 同一拡張子のファイルは名前の自然順でタイブレークされること", () => {
+    const sameExt = [entry("z.txt"), entry("a10.txt"), entry("a2.txt")];
+    expect(
+      names(
+        deriveFiles(sameExt, { ...view, sort: { key: "ext", desc: false } }),
+      ),
+    ).toEqual(["a2.txt", "a10.txt", "z.txt"]);
+  });
 });
 
 describe("compilePattern", () => {
