@@ -170,6 +170,8 @@ impl Progress<'_> {
 
 /// ファイルまたはディレクトリ以下の合計サイズ (バイト) を返します. 読めないものは 0 として数えます.
 ///
+/// シンボリックリンクはリンク先をたどらず, リンク自身のサイズとして数えます (循環リンクによる無限ループを防ぐため).
+///
 /// # Arguments
 ///
 /// * `path` - 対象のパス.
@@ -178,10 +180,10 @@ impl Progress<'_> {
 ///
 /// 合計サイズ.
 fn tree_size(path: &Path) -> u64 {
-    let Ok(meta) = fs::metadata(path) else {
+    let Ok(meta) = fs::symlink_metadata(path) else {
         return 0;
     };
-    if !meta.is_dir() {
+    if meta.file_type().is_symlink() || !meta.is_dir() {
         return meta.len();
     }
     fs::read_dir(path)
@@ -227,7 +229,92 @@ fn copy_file(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop
     Ok(())
 }
 
+/// シンボリックリンクを複製します.
+///
+/// # Arguments
+///
+/// * `src` - コピー元のシンボリックリンク.
+/// * `dst` - コピー先.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok(())`].
+#[cfg(unix)]
+fn copy_symlink(src: &Path, dst: &Path) -> std::io::Result<()> {
+    let target = fs::read_link(src)?;
+    std::os::unix::fs::symlink(&target, dst)
+}
+
+/// シンボリックリンクを複製します.
+///
+/// # Arguments
+///
+/// * `src` - コピー元のシンボリックリンク.
+/// * `dst` - コピー先.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok(())`].
+///
+/// シンボリックリンクを作る権限が無い場合 (開発者モードでも管理者でもない場合), ファイルへのリンクは,
+/// リンク先の内容をコピーします. ディレクトリへのリンクはエラーにします (たどると循環しうるため).
+#[cfg(windows)]
+fn copy_symlink(src: &Path, dst: &Path) -> std::io::Result<()> {
+    use std::os::windows::fs::FileTypeExt;
+    /// シンボリックリンクを作る権限が無い (`ERROR_PRIVILEGE_NOT_HELD`).
+    const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
+    let target = fs::read_link(src)?;
+    let is_dir = fs::symlink_metadata(src)?.file_type().is_symlink_dir();
+    let created = if is_dir {
+        std::os::windows::fs::symlink_dir(&target, dst)
+    } else {
+        std::os::windows::fs::symlink_file(&target, dst)
+    };
+    match created {
+        Err(e) if !is_dir && e.raw_os_error() == Some(ERROR_PRIVILEGE_NOT_HELD) => {
+            fs::copy(src, dst).map(|_| ())
+        }
+        other => other,
+    }
+}
+
+/// ディレクトリでないもの (ファイル・シンボリックリンク) を消します.
+///
+/// # Arguments
+///
+/// * `path` - 対象のパス.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok(())`].
+#[cfg(unix)]
+fn remove_entry(path: &Path) -> std::io::Result<()> {
+    fs::remove_file(path)
+}
+
+/// ディレクトリでないもの (ファイル・シンボリックリンク) を消します.
+/// Windows のディレクトリへのシンボリックリンクは, `remove_dir` で消します.
+///
+/// # Arguments
+///
+/// * `path` - 対象のパス.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok(())`].
+#[cfg(windows)]
+fn remove_entry(path: &Path) -> std::io::Result<()> {
+    use std::os::windows::fs::FileTypeExt;
+    if fs::symlink_metadata(path)?.file_type().is_symlink_dir() {
+        fs::remove_dir(path)
+    } else {
+        fs::remove_file(path)
+    }
+}
+
 /// ファイルまたはディレクトリを再帰的にコピーします.
+///
+/// シンボリックリンクはリンク先をたどらず, リンクとして複製します (循環リンクによる無限ループを防ぐため).
 ///
 /// # Arguments
 ///
@@ -245,7 +332,22 @@ fn copy_tree(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop
         progress.advance(tree_size(src), &file_name_of(src));
         return Ok(());
     }
-    if src.is_dir() {
+    let meta = fs::symlink_metadata(src)?;
+    if meta.file_type().is_symlink() {
+        // 既にあるファイル・リンクは置き換える. ディレクトリは, リンクで置き換えない (中身を失うため)
+        if let Ok(existing) = fs::symlink_metadata(dst) {
+            if existing.is_dir() {
+                return Err(Stop::Failed(format!(
+                    "Destination directory already exists: {}",
+                    dst.display()
+                )));
+            }
+            remove_entry(dst)?;
+        }
+        copy_symlink(src, dst)?;
+        progress.advance(meta.len(), &file_name_of(src));
+        Ok(())
+    } else if meta.is_dir() {
         fs::create_dir_all(dst)?;
         for entry in fs::read_dir(src)? {
             let entry = entry?;
@@ -622,7 +724,7 @@ fn move_one(
             }
             return merge_directory(src, dst, overwrite, renamer, progress);
         }
-        fs::remove_file(dst)?;
+        remove_entry(dst)?;
     }
     let size = tree_size(src);
     if renamer(src, dst).is_ok() {
@@ -632,10 +734,13 @@ fn move_one(
     }
     // 名前の変更に失敗した場合 (別のディスクへの移動など) は, コピーしてから元を消す.
     copy_tree(src, dst, progress)?;
-    if src.is_dir() {
+    let is_dir = fs::symlink_metadata(src)
+        .map(|m| m.is_dir())
+        .unwrap_or(false);
+    if is_dir {
         fs::remove_dir_all(src)?;
     } else {
-        fs::remove_file(src)?;
+        remove_entry(src)?;
     }
     Ok(())
 }
@@ -800,7 +905,7 @@ fn delete_one(
     if metadata.is_dir() {
         fs::remove_dir_all(path)?;
     } else {
-        fs::remove_file(path)?;
+        remove_entry(path)?;
     }
     Ok(())
 }
@@ -1747,5 +1852,159 @@ mod tests {
         );
 
         assert!(matches!(result, Err(Stop::Failed(m)) if !m.is_empty()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_tree_size_with_cyclic_symlink() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("a.txt");
+        fs::write(&file, "hello").unwrap();
+        // 循環シンボリックリンク loop -> .
+        let loop_link = dir.path().join("loop");
+        std::os::unix::fs::symlink(dir.path(), &loop_link).unwrap();
+
+        // 循環リンクがあっても無限ループ・スタックオーバーフローせず計算できる
+        let size = tree_size(dir.path());
+        assert!(size >= 5);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_copy_tree_with_cyclic_symlink() {
+        let dir = tempdir().unwrap();
+        let src_dir = dir.path().join("src");
+        let dst_dir = dir.path().join("dst");
+        fs::create_dir(&src_dir).unwrap();
+        fs::write(src_dir.join("f.txt"), "data").unwrap();
+        // 循環シンボリックリンク
+        std::os::unix::fs::symlink(&src_dir, src_dir.join("loop")).unwrap();
+
+        let cancel = AtomicBool::new(false);
+        let skip = HashSet::new();
+        let mut progress = Progress {
+            cancel: &cancel,
+            skip: &skip,
+            on_progress: &mut |_| {},
+            done: 0,
+            total: 0,
+            last_sent: None,
+        };
+
+        // 循環リンクがあっても無限ループにならず, コピーが成功すること
+        let result = copy_tree(&src_dir, &dst_dir, &mut progress);
+        assert!(result.is_ok());
+        assert!(dst_dir.join("f.txt").is_file());
+        assert!(dst_dir.join("loop").is_symlink());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_copy_tree_symlink_overwrites_existing_file() {
+        let dir = tempdir().unwrap();
+        let target = dir.path().join("target.txt");
+        fs::write(&target, "content").unwrap();
+        let src_link = dir.path().join("src_link");
+        std::os::unix::fs::symlink(&target, &src_link).unwrap();
+
+        let dst_link = dir.path().join("dst_link");
+        fs::write(&dst_link, "old content").unwrap();
+
+        let cancel = AtomicBool::new(false);
+        let skip = HashSet::new();
+        let mut progress = Progress {
+            cancel: &cancel,
+            skip: &skip,
+            on_progress: &mut |_| {},
+            done: 0,
+            total: 0,
+            last_sent: None,
+        };
+
+        let result = copy_tree(&src_link, &dst_link, &mut progress);
+        assert!(result.is_ok());
+        assert!(dst_link.is_symlink());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_copy_tree_symlink_onto_directory_failure() {
+        let dir = tempdir().unwrap();
+        let target = dir.path().join("target.txt");
+        fs::write(&target, "content").unwrap();
+        let src_link = dir.path().join("src_link");
+        std::os::unix::fs::symlink(&target, &src_link).unwrap();
+        let dst_dir = dir.path().join("dst");
+        fs::create_dir(&dst_dir).unwrap();
+        fs::write(dst_dir.join("keep.txt"), "keep").unwrap();
+
+        let cancel = AtomicBool::new(false);
+        let skip = HashSet::new();
+        let mut progress = Progress {
+            cancel: &cancel,
+            skip: &skip,
+            on_progress: &mut |_| {},
+            done: 0,
+            total: 0,
+            last_sent: None,
+        };
+
+        // ディレクトリをリンクで置き換えず, 中身を残すこと
+        let result = copy_tree(&src_link, &dst_dir, &mut progress);
+        assert!(
+            matches!(result, Err(Stop::Failed(m)) if m.starts_with("Destination directory already exists"))
+        );
+        assert_eq!(
+            fs::read_to_string(dst_dir.join("keep.txt")).unwrap(),
+            "keep"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_move_one_directory_symlink_preserves_real_target() {
+        let dir = tempdir().unwrap();
+        let real_dir = dir.path().join("real");
+        fs::create_dir(&real_dir).unwrap();
+        let important_file = real_dir.join("important.txt");
+        fs::write(&important_file, "vital data").unwrap();
+
+        let link_dir = dir.path().join("link");
+        std::os::unix::fs::symlink(&real_dir, &link_dir).unwrap();
+        let dest = dir.path().join("moved_link");
+
+        let cancel = AtomicBool::new(false);
+        let skip = HashSet::new();
+        let mut progress = Progress {
+            cancel: &cancel,
+            skip: &skip,
+            on_progress: &mut |_| {},
+            done: 0,
+            total: 0,
+            last_sent: None,
+        };
+
+        // rename が失敗する (異ディスク移動) ケースをシミュレート
+        let result = move_one(
+            &link_dir,
+            &dest,
+            false,
+            &|_, _| {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::CrossesDevices,
+                    "cross device",
+                ))
+            },
+            &mut progress,
+        );
+
+        assert!(result.is_ok());
+        // 元のシンボリックリンクは移動元から消え, 移動先にシンボリックリンクとして存在する
+        assert!(!link_dir.exists());
+        assert!(dest.is_symlink());
+        // 実体ディレクトリとその中のファイルは絶対に削除されていないこと (データ損失防止)
+        assert!(real_dir.is_dir());
+        assert!(important_file.is_file());
+        assert_eq!(fs::read_to_string(&important_file).unwrap(), "vital data");
     }
 }
