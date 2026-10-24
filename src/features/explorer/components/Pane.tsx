@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { memo, type ReactElement } from "react";
 import type { FileEntry, PaneId, PaneState } from "../types";
 import type {
   ColumnWidths,
@@ -12,7 +12,7 @@ import PathBar from "./PathBar";
 /**
  * Pane コンポーネントのプロパティ.
  */
-interface PaneProps {
+export interface PaneProps {
   /** ペイン識別子. */
   paneId: PaneId;
   /** ペインの状態. */
@@ -56,7 +56,7 @@ interface PaneProps {
  * @param props - コンポーネントのプロパティ.
  * @returns ペインのReact要素.
  */
-export default function Pane({
+function Pane({
   paneId,
   state,
   isActive,
@@ -116,3 +116,8 @@ export default function Pane({
     </div>
   );
 }
+
+/**
+ * 1 つのペイン. プロパティが変わらなければ描き直さない (反対側のペインの操作で, 一覧を描き直さないため).
+ */
+export default memo(Pane);

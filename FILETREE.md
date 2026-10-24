@@ -40,8 +40,8 @@ src/
 ├── features/                           # 機能ごとのモジュール
 │   ├── explorer/                       # ファイル一覧・ペイン関連 (Phase 2〜3)
 │   │   ├── components/
-│   │   │   ├── DualPaneContainer.tsx   # 左右2ペインの比率分割・アクティブ制御
-│   │   │   ├── Pane.tsx                # 1つのペイン (ヘッダー, リスト, ドライブ切替)
+│   │   │   ├── DualPaneContainer.tsx   # 左右2ペインの比率分割・アクティブ制御 (ペインごとのハンドラーを固定)
+│   │   │   ├── Pane.tsx                # 1つのペイン (ヘッダー, リスト, ドライブ切替. memo で描き直しを減らす)
 │   │   │   ├── DriveSelector.tsx       # ドライブ切り替えバー (C:, D: 等)
 │   │   │   ├── PathBar.tsx             # カレントパス表示・直接入力バー (Tab でパス補完)
 │   │   │   ├── FileList.tsx            # ファイル一覧テーブル (仮想スクロール対応)
@@ -117,7 +117,8 @@ src/
 │   ├── useHistoryNav.ts                # ミニバッファの入力履歴参照
 │   ├── useNotice.ts                    # 完了通知の一定時間表示
 │   ├── useOperationLog.ts              # 操作ログの保持
-│   └── useDialogs.ts                   # ダイアログ・パレット・メニューの開閉と, ペインの表示の差し替え (プレビュー・詳細・一覧・ツリー)
+│   ├── useDialogs.ts                   # ダイアログ・パレット・メニューの開閉と, ペインの表示の差し替え (プレビュー・詳細・一覧・ツリー)
+│   └── useStableCallback.ts            # 描き直しても変わらない関数 (memo した子へ渡すハンドラー)
 │
 ├── services/                           # Tauriの `invoke` / イベントリスナー ラッパー
 │   └── tauriApi.ts                     # Rust側コマンド呼び出しの型安全ラッパー

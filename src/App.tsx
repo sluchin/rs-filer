@@ -35,6 +35,7 @@ import { useHistoryNav } from "./hooks/useHistoryNav";
 import { useOperationLog } from "./hooks/useOperationLog";
 import { useSettings } from "./hooks/useSettings";
 import { useDialogs } from "./hooks/useDialogs";
+import { useStableCallback } from "./hooks/useStableCallback";
 import OperationDialog from "./features/operations/components/OperationDialog";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
 import { installLogForwarding } from "./services/logForwarder";
@@ -274,12 +275,38 @@ export default function App(): ReactElement {
   /**
    * 項目ダブルクリック時に, その項目を開く.
    */
-  const handleItemOpen = useCallback(
+  const handleItemOpen = useStableCallback(
     (pane: PaneId, index: number, file: FileEntry): void => {
       handleItemClick(pane, index);
       openEntry(pane, file);
     },
-    [handleItemClick, openEntry],
+  );
+
+  // ペインへ渡すハンドラーは, 変わらない関数にする (片方のペインの操作で, もう片方のペインを描き直さないため).
+  const handleParent = useStableCallback(navigation.handleParentDir);
+  const handleParentClick = useStableCallback((pane: PaneId): void =>
+    handleItemClick(pane, -1),
+  );
+  const handlePathSubmit = useStableCallback(
+    (pane: PaneId, value: string): void => {
+      loadDirectory(pane, value);
+    },
+  );
+  const handleFilterChange = useStableCallback(
+    (pane: PaneId, value: string | null): void =>
+      setView(pane, { filter: value }),
+  );
+  const registerPathInput = useCallback(
+    (pane: PaneId, element: HTMLInputElement | null): void => {
+      pathInputs.current[pane] = element;
+    },
+    [],
+  );
+  const registerFilterInput = useCallback(
+    (pane: PaneId, element: HTMLInputElement | null): void => {
+      filterInputs.current[pane] = element;
+    },
+    [],
   );
 
   const disk = useDiskSpace(activeState.currentPath);
@@ -406,20 +433,16 @@ export default function App(): ReactElement {
           leftPane={leftPane}
           rightPane={rightPane}
           onActivate={setActivePane}
-          onParent={navigation.handleParentDir}
-          onParentClick={(pane) => handleItemClick(pane, -1)}
-          onPathSubmit={(pane, value) => loadDirectory(pane, value)}
-          onFilterChange={(pane, value) => setView(pane, { filter: value })}
+          onParent={handleParent}
+          onParentClick={handleParentClick}
+          onPathSubmit={handlePathSubmit}
+          onFilterChange={handleFilterChange}
           onItemClick={handleItemClick}
           onItemOpen={handleItemOpen}
           onItemContextMenu={handleItemContextMenu}
           overrides={paneOverrides}
-          registerPathInput={(pane, element) => {
-            pathInputs.current[pane] = element;
-          }}
-          registerFilterInput={(pane, element) => {
-            filterInputs.current[pane] = element;
-          }}
+          registerPathInput={registerPathInput}
+          registerFilterInput={registerFilterInput}
           paneColumnWidths={settings.config.pane_column_widths}
           onColumnWidthChange={settings.updatePaneColumnWidth}
         />

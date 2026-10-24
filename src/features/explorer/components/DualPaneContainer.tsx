@@ -1,10 +1,10 @@
-import type { ReactElement } from "react";
+import { useMemo, type ReactElement } from "react";
 import type { FileEntry, PaneId, PaneState } from "../types";
 import type {
   ColumnWidths,
   PaneColumnWidths,
 } from "../../../features/settings/types";
-import Pane from "./Pane";
+import Pane, { type PaneProps } from "./Pane";
 
 /**
  * DualPaneContainer コンポーネントのプロパティ.
@@ -50,8 +50,64 @@ interface DualPaneContainerProps {
   onColumnWidthChange: (paneId: PaneId, widths: ColumnWidths) => void;
 }
 
+/** ペインごとに束ねたハンドラー (`Pane` へ渡す). */
+type PaneHandlers = Pick<
+  PaneProps,
+  | "onActivate"
+  | "onParent"
+  | "onParentClick"
+  | "onPathSubmit"
+  | "onFilterChange"
+  | "onItemClick"
+  | "onItemOpen"
+  | "onItemContextMenu"
+  | "pathInputRef"
+  | "filterInputRef"
+>;
+
+/**
+ * ペインを引数に取るハンドラーを, 指定したペインに束ねます.
+ *
+ * @param paneId - 束ねるペイン.
+ * @param props - コンテナのプロパティ.
+ * @returns そのペインのハンドラー.
+ */
+function bindPane(
+  paneId: PaneId,
+  props: Pick<
+    DualPaneContainerProps,
+    | "onActivate"
+    | "onParent"
+    | "onParentClick"
+    | "onPathSubmit"
+    | "onFilterChange"
+    | "onItemClick"
+    | "onItemOpen"
+    | "onItemContextMenu"
+    | "registerPathInput"
+    | "registerFilterInput"
+  >,
+): PaneHandlers {
+  return {
+    onActivate: () => props.onActivate(paneId),
+    onParent: () => props.onParent(paneId),
+    onParentClick: () => props.onParentClick(paneId),
+    onPathSubmit: (value) => props.onPathSubmit(paneId, value),
+    onFilterChange: (value) => props.onFilterChange(paneId, value),
+    onItemClick: (index, file) => props.onItemClick(paneId, index, file),
+    onItemOpen: (index, file) => props.onItemOpen(paneId, index, file),
+    onItemContextMenu: (index, file, x, y) =>
+      props.onItemContextMenu(paneId, index, file, x, y),
+    pathInputRef: (element) => props.registerPathInput(paneId, element),
+    filterInputRef: (element) => props.registerFilterInput(paneId, element),
+  };
+}
+
 /**
  * 左右 2 つのペインを並べるコンテナ.
+ *
+ * ペインごとのハンドラーは, 渡されたハンドラーが変わらない限り作り直さない. 渡すハンドラーを変わらない
+ * 関数にすれば, 片方のペインの操作で, もう片方のペイン (`memo` している) は描き直さない.
  *
  * @param props - コンポーネントのプロパティ.
  * @returns 2 ペインのReact要素.
@@ -74,24 +130,44 @@ export default function DualPaneContainer({
   paneColumnWidths,
   onColumnWidthChange,
 }: DualPaneContainerProps): ReactElement {
-  const renderPane = (paneId: PaneId, state: PaneState): ReactElement =>
+  const [left, right] = useMemo(() => {
+    const handlers = {
+      onActivate,
+      onParent,
+      onParentClick,
+      onPathSubmit,
+      onFilterChange,
+      onItemClick,
+      onItemOpen,
+      onItemContextMenu,
+      registerPathInput,
+      registerFilterInput,
+    };
+    return [bindPane("left", handlers), bindPane("right", handlers)];
+  }, [
+    onActivate,
+    onParent,
+    onParentClick,
+    onPathSubmit,
+    onFilterChange,
+    onItemClick,
+    onItemOpen,
+    onItemContextMenu,
+    registerPathInput,
+    registerFilterInput,
+  ]);
+
+  const renderPane = (
+    paneId: PaneId,
+    state: PaneState,
+    bound: PaneHandlers,
+  ): ReactElement =>
     overrides[paneId] ?? (
       <Pane
         paneId={paneId}
         state={state}
         isActive={activePane === paneId}
-        onActivate={() => onActivate(paneId)}
-        onParent={() => onParent(paneId)}
-        onParentClick={() => onParentClick(paneId)}
-        onPathSubmit={(value) => onPathSubmit(paneId, value)}
-        onFilterChange={(value) => onFilterChange(paneId, value)}
-        onItemClick={(index, file) => onItemClick(paneId, index, file)}
-        onItemOpen={(index, file) => onItemOpen(paneId, index, file)}
-        onItemContextMenu={(index, file, x, y) =>
-          onItemContextMenu(paneId, index, file, x, y)
-        }
-        pathInputRef={(element) => registerPathInput(paneId, element)}
-        filterInputRef={(element) => registerFilterInput(paneId, element)}
+        {...bound}
         paneColumnWidths={paneColumnWidths}
         onColumnWidthChange={onColumnWidthChange}
       />
@@ -99,8 +175,8 @@ export default function DualPaneContainer({
 
   return (
     <main className="dual-pane">
-      {renderPane("left", leftPane)}
-      {renderPane("right", rightPane)}
+      {renderPane("left", leftPane, left)}
+      {renderPane("right", rightPane, right)}
     </main>
   );
 }
