@@ -197,10 +197,14 @@ export default function FileList({
   onItemClick,
   onItemOpen,
   onItemContextMenu,
-  columnWidths = {},
+  columnWidths: savedWidths = {},
   onColumnWidthChange,
 }: FileListProps): ReactElement {
   const [drag, setDrag] = useState<ColumnDrag | null>(null);
+  // ドラッグ中の列幅. 離すまでは表示だけを変え, 離したときに 1 回だけ `onColumnWidthChange` で知らせる
+  // (動かすたびに設定ファイルへ保存しないように).
+  const [dragWidths, setDragWidths] = useState<ColumnWidths | null>(null);
+  const columnWidths = dragWidths ?? savedWidths;
   // 行の一覧の横スクロールの位置. ヘッダーも同じだけ動かして, 列の位置をそろえる.
   const [scrollLeft, setScrollLeft] = useState(0);
   // マウスが, ヘッダーの境界線の上にあるか. あるときは, つかめることを示すカーソルにする.
@@ -358,18 +362,25 @@ export default function FileList({
   );
 
   // ドラッグ中. 境界線の「左側」の列の幅を、境界線がカーソルについて動くように変える. 右の列は、その分
-  // 右へずれる. ペインより広くなったら、行の一覧に横のスクロールバーが出る.
+  // 右へずれる. ペインより広くなったら、行の一覧に横のスクロールバーが出る. 離したら、幅を知らせる.
   useEffect(() => {
     if (!drag) return;
+    // 最後に動かしたときの列幅. 動かさずに離したときは null のまま (知らせない).
+    let latest: ColumnWidths | null = null;
     const handleMouseMove = (e: MouseEvent) => {
       const width = Math.max(
         minWidthOf(drag.column),
         drag.widths[drag.column] + e.clientX - drag.startX,
       );
-      onColumnWidthChange?.({ ...drag.widths, [drag.column]: width });
+      latest = { ...drag.widths, [drag.column]: width };
+      setDragWidths(latest);
     };
     const handleMouseUp = () => {
+      if (latest !== null) {
+        onColumnWidthChange?.(latest);
+      }
       setDrag(null);
+      setDragWidths(null);
     };
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);

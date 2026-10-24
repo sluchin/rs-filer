@@ -293,19 +293,35 @@ describe("FileList の列の位置", () => {
     expect(changed).toHaveBeenCalledWith({ ...VISIBLE, col_attr: 452 });
   });
 
-  it("正常系: ドラッグの途中で, 動かし始めた位置からの差で幅を決めること (最小の幅で止まっても, 戻せば元に戻る)", () => {
+  it("正常系: ドラッグの途中で, 動かし始めた位置からの差で幅を決めること (最小の幅で止まっても, 戻せば元に戻る). 途中は表示だけ変え, 離したときに 1 回だけ知らせること", () => {
     stubColumnRects();
     const changed = vi.fn();
     const { container } = renderList({ col_size: 100 }, true, changed);
     const header = container.querySelector(".file-header") as HTMLElement;
+    const sizeColumn = header.querySelector(".col-size") as HTMLElement;
 
     fireEvent.mouseDown(header, { clientX: 372 });
     fireEvent.mouseMove(document, { clientX: 272 }); // 100 - 100 = 0 → 最小の 30
+    expect(sizeColumn.style.width).toBe("30px");
     fireEvent.mouseMove(document, { clientX: 362 }); // 100 - 10 = 90
+    expect(sizeColumn.style.width).toBe("90px");
+    expect(changed).not.toHaveBeenCalled();
     fireEvent.mouseUp(document);
 
-    expect(changed).toHaveBeenNthCalledWith(1, { ...VISIBLE, col_size: 30 });
-    expect(changed).toHaveBeenNthCalledWith(2, { ...VISIBLE, col_size: 90 });
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(changed).toHaveBeenCalledWith({ ...VISIBLE, col_size: 90 });
+  });
+
+  it("境界: 動かさずに離したときは, 幅を知らせないこと", () => {
+    stubColumnRects();
+    const changed = vi.fn();
+    const { container } = renderList(undefined, true, changed);
+    const header = container.querySelector(".file-header") as HTMLElement;
+
+    fireEvent.mouseDown(header, { clientX: 300 });
+    fireEvent.mouseUp(document);
+
+    expect(changed).not.toHaveBeenCalled();
   });
 
   it("境界: ドラッグしても, 列の幅は最小値 (30px) より狭くならないこと. 名前の列は, アイコンの分 (21px) を足した 51px", () => {
