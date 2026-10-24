@@ -13,24 +13,19 @@ import { useMarks } from "./features/explorer/hooks/useMarks";
 import { useNavigation } from "./features/explorer/hooks/useNavigation";
 import DriveSelector from "./features/explorer/components/DriveSelector";
 import type { FileEntry, PaneId } from "./features/explorer/types";
-import { nextSort, sortLabel } from "./features/explorer/view";
+import { sortLabel } from "./features/explorer/view";
 import CommandPalette from "./features/keybindings/components/CommandPalette";
 import HelpDialog from "./features/keybindings/components/HelpDialog";
 import { resolveCommandName } from "./features/keybindings/commandNames";
 import { useUserKeymap } from "./features/keybindings/hooks/useUserKeymap";
 import type { Command } from "./features/keybindings/types";
+import { useCommandDispatcher } from "./features/keybindings/hooks/useCommandDispatcher";
 import { resolveKey } from "./features/keybindings/keymap";
 import { useKeymap } from "./features/keybindings/useKeymap";
 import BackgroundTaskBar from "./features/operations/components/BackgroundTaskBar";
 import TaskProgressModal from "./features/operations/components/TaskProgressModal";
 import { useTransfer } from "./features/operations/hooks/useTransfer";
-import {
-  copyTextToClipboard,
-  getHomeDir,
-  openTerminal,
-  quitApp,
-  runExternalCommand,
-} from "./services/tauriApi";
+import { copyTextToClipboard } from "./services/tauriApi";
 import InfoPane from "./features/info/components/InfoPane";
 import { useDirStats, useItemInfo } from "./features/info/hooks/useItemInfo";
 import PreviewPane from "./features/preview/components/PreviewPane";
@@ -39,8 +34,6 @@ import { useNotice } from "./hooks/useNotice";
 import { useHistoryNav } from "./hooks/useHistoryNav";
 import { useOperationLog } from "./hooks/useOperationLog";
 import { useSettings } from "./hooks/useSettings";
-import { DEFAULT_NAME_COLUMN_WIDTH } from "./features/settings/types";
-import { targetsOf } from "./features/operations/hooks/useTransfer";
 import OperationDialog from "./features/operations/components/OperationDialog";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
 import { installLogForwarding } from "./services/logForwarder";
@@ -52,9 +45,6 @@ import {
   type CopyKind,
   type CopyTarget,
 } from "./features/explorer/copyText";
-
-/** ページ送り (`PageUp` / `PageDown`) で動かす行数. */
-const PAGE_SIZE = 10;
 
 // バックエンドのログファイルにも残すため, コンソールへの出力に加えて IPC 経由で転送する.
 installLogForwarding();
@@ -71,7 +61,7 @@ if (import.meta.env.DEV) {
  * 2 ペインによるディレクトリの閲覧・キーボード中心の操作 (カーソル移動, マーク, ソート・絞り込み,
  * 作成・名前変更・削除, 対向ペインへのコピー・移動, プレビュー・詳細, ブックマーク・移動履歴の一覧, ツリー表示,
  * コマンドパレット・ヘルプ, 外部アプリ・ターミナル・外部コマンド, テーマ・フォントサイズ) を
- * ひとまとめに提供します. キー入力の解決は `runCommand` に集約し, 各機能のフックへ振り分けます.
+ * ひとまとめに提供します. キー入力から解決したコマンドは, `useCommandDispatcher` で各機能のフックへ振り分けます.
  *
  * @returns rsfiler のメインUI要素.
  */
@@ -217,257 +207,51 @@ export default function App(): ReactElement {
     [notify, reportError],
   );
 
-  /**
-   * アクティブなペインのカーソル位置の項目のフルパスか名前を, 文字としてコピーする (`..` の行と, 空の一覧では
-   * コピーしない).
-   */
-  const copyCursorText = (kind: CopyKind): void => {
-    const file = activeState.files[activeState.selectedIndex];
-    if (!file) {
-      reportError("対象の項目が選択されていません.");
-      return;
-    }
-    copyText({ path: file.path, name: file.name, isDir: file.is_dir }, kind);
-  };
-
   /** ペインを切り替える. */
   const switchPane = (): void =>
     setActivePane((p) => (p === "left" ? "right" : "left"));
 
   /** キー入力から解決されたコマンドを実行する. */
-  const runCommand = (command: Command): void => {
-    const active = activePane === "left" ? leftPane : rightPane;
-    switch (command) {
-      case "cursorUp":
-        moveCursor(activePane, -1);
-        break;
-      case "cursorDown":
-        moveCursor(activePane, 1);
-        break;
-      case "pageUp":
-        moveCursor(activePane, -PAGE_SIZE);
-        break;
-      case "pageDown":
-        moveCursor(activePane, PAGE_SIZE);
-        break;
-      case "cursorFirst":
-        moveCursor(activePane, -Infinity);
-        break;
-      case "cursorLast":
-        moveCursor(activePane, Infinity);
-        break;
-      case "open":
-        // selectedIndex が -1 のときは, 一覧の先頭にある `..` の行にカーソルがある.
-        if (active.selectedIndex < 0) {
-          navigation.handleParentDir(activePane);
-        } else {
-          openEntry(activePane, active.files[active.selectedIndex]);
-        }
-        break;
-      case "openExternal":
-        operations.openExternal();
-        break;
-      case "openEditor":
-        operations.openEditor();
-        break;
-      case "parent":
-        navigation.handleParentDir(activePane);
-        break;
-      case "goto": {
-        const input = pathInputs.current[activePane];
-        input?.focus();
-        input?.select();
-        break;
-      }
-      case "gotoHome":
-        getHomeDir()
-          .then((home) => loadDirectory(activePane, home))
-          .catch((e) => reportError(String(e)));
-        break;
-      case "drives":
-        navigation.showDrives();
-        break;
-      case "reload":
-        navigation.handleReload();
-        break;
-      case "switchPane":
-        switchPane();
-        break;
-      case "mkdir":
-        operations.startMkdir();
-        break;
-      case "touch":
-        operations.startTouch();
-        break;
-      case "rename":
-        operations.startRename();
-        break;
-      case "copy":
-        transfer.startCopy(false);
-        break;
-      case "copyConfirm":
-        transfer.startCopy(true);
-        break;
-      case "copyToClipboard":
-        transfer.copyToClipboard();
-        break;
-      case "pasteFromClipboard":
-        transfer.pasteFromClipboard();
-        break;
-      case "copyFullPath":
-        copyCursorText("fullPath");
-        break;
-      case "copyName":
-        copyCursorText("name");
-        break;
-      case "duplicate":
-        transfer.duplicateFile();
-        break;
-      case "move":
-        transfer.startMove(false);
-        break;
-      case "moveConfirm":
-        transfer.startMove(true);
-        break;
-      case "delete":
-        transfer.startDelete(false);
-        break;
-      case "deletePermanent":
-        transfer.startDelete(true);
-        break;
-      case "syncPane":
-        navigation.handleSyncPane();
-        break;
-      case "preview":
-        // プレビューと詳細は, どちらも反対側のペインに出すので, 一方を出すときは, もう一方を消す.
+  const runCommand = useCommandDispatcher({
+    activePane,
+    leftPane,
+    rightPane,
+    switchPane,
+    fileList: { moveCursor, loadDirectory, setView },
+    navigation,
+    operations,
+    transfer,
+    marks,
+    settings,
+    bookmarks,
+    panels: {
+      // プレビューと詳細は, どちらも反対側のペインに出すので, 一方を出すときは, もう一方を消す.
+      togglePreview: () => {
         setInfoOn(false);
         setPreviewOn((on) => !on);
-        break;
-      case "info":
+      },
+      toggleInfo: () => {
         setPreviewOn(false);
         setInfoOn((on) => !on);
-        break;
-      case "log":
-        setLogOpen(true);
-        break;
-      case "mark":
-        marks.mark();
-        break;
-      case "unmark":
-        marks.unmark();
-        break;
-      case "markAll":
-        marks.markAll();
-        break;
-      case "unmarkAll":
-        marks.unmarkAll();
-        break;
-      case "invertMarks":
-        marks.invertMarks();
-        break;
-      case "markPattern":
-        operations.openPrompt(
-          "パターンでマーク (例: *.txt または /正規表現/)",
-          marks.markPattern,
-        );
-        break;
-      case "toggleHidden":
-        setView(activePane, { showHidden: !active.showHidden });
-        break;
-      case "cycleSort":
-        setView(activePane, { sort: nextSort(active.sort) });
-        break;
-      case "toggleDetails":
-        setView(activePane, { showDetails: !active.showDetails });
-        break;
-      case "filter":
-        setView(activePane, { filter: active.filter ?? "" });
-        filterInputs.current[activePane]?.focus();
-        break;
-      case "cancel":
-        // 絞り込み中でなければ, キャンセルできるものが無いので何もしない.
-        if (active.filter !== null) {
-          setView(activePane, { filter: null });
-        }
-        break;
-      case "historyBack":
-        navigation.handleHistory(-1);
-        break;
-      case "historyForward":
-        navigation.handleHistory(1);
-        break;
-      case "historyList":
-        setHistoryPanes((p) => ({ ...p, [activePane]: true }));
-        break;
-      case "bookmarks":
-        setBookmarkPanes((p) => ({ ...p, [activePane]: true }));
-        break;
-      case "addBookmark":
-        bookmarks.toggleBookmark(active.currentPath);
-        setBookmarkPanes((p) => ({ ...p, [activePane]: true }));
-        break;
-      case "palette":
+      },
+      openLog: () => setLogOpen(true),
+      openHistoryList: (pane) =>
+        setHistoryPanes((p) => ({ ...p, [pane]: true })),
+      openBookmarks: (pane) =>
+        setBookmarkPanes((p) => ({ ...p, [pane]: true })),
+      toggleTree: (pane) => setTreePanes((p) => ({ ...p, [pane]: !p[pane] })),
+      openPalette: () => {
         setPaletteValue("");
         setPaletteOpen(true);
-        break;
-      case "help":
-        setHelpOpen(true);
-        break;
-      case "openTerminal":
-        openTerminal(active.currentPath).catch((e) => reportError(String(e)));
-        break;
-      case "externalCommand":
-        operations.openPrompt(
-          "外部コマンド実行 (例: xdg-open %f)",
-          (command) => {
-            const paths = targetsOf(active).map((f) => f.path);
-            if (paths.length === 0) {
-              reportError("対象の項目が選択されていません.");
-              return;
-            }
-            runExternalCommand(command, paths).catch((e) =>
-              reportError(String(e)),
-            );
-          },
-        );
-        break;
-      case "cycleTheme":
-        settings.cycleTheme();
-        break;
-      case "cycleFontSize":
-        settings.cycleFontSize();
-        break;
-      case "resizeColumnWider": {
-        const paneWidths = settings.config.pane_column_widths[activePane];
-        const col = "col_name";
-        const current = paneWidths.col_name ?? DEFAULT_NAME_COLUMN_WIDTH;
-        settings.updatePaneColumnWidth(activePane, {
-          ...paneWidths,
-          [col]: Math.max(30, current + 10),
-        });
-        break;
-      }
-      case "resizeColumnNarrower": {
-        const paneWidths = settings.config.pane_column_widths[activePane];
-        const col = "col_name";
-        const current = paneWidths.col_name ?? DEFAULT_NAME_COLUMN_WIDTH;
-        settings.updatePaneColumnWidth(activePane, {
-          ...paneWidths,
-          [col]: Math.max(30, current - 10),
-        });
-        break;
-      }
-      case "resetColumnWidths":
-        settings.updatePaneColumnWidth(activePane, {});
-        break;
-      case "toggleTree":
-        setTreePanes((p) => ({ ...p, [activePane]: !p[activePane] }));
-        break;
-      case "quit":
-        quitApp().catch((e) => log.warn("[React] 終了に失敗:", e));
-        break;
-    }
-  };
+      },
+      openHelp: () => setHelpOpen(true),
+    },
+    pathInputs,
+    filterInputs,
+    openEntry,
+    copyText,
+    reportError,
+  });
 
   /**
    * コマンドパレットで実行されたコマンド名を, コマンドとして実行する.

@@ -23,7 +23,7 @@
 
 ```text
 src/
-├── App.tsx                             # メイン画面 (2ペインおよび各モーダルのレイアウト配置)
+├── App.tsx                             # メイン画面 (各機能のフックの配線と, 2ペインおよび各モーダルのレイアウト配置)
 ├── main.tsx                            # エントリーポイント
 ├── index.css                           # グローバルスタイル (Tailwind CSS / スタイル定義)
 │
@@ -90,7 +90,8 @@ src/
 │   │   ├── types.ts                    # コマンド識別子・キーストローク型定義
 │   │   ├── useKeymap.ts                # キー入力キャッチ・入力途中のキー列の状態管理
 │   │   ├── hooks/
-│   │   │   └── useUserKeymap.ts        # 設定ファイルによるキーマップ上書きの読み込み
+│   │   │   ├── useUserKeymap.ts        # 設定ファイルによるキーマップ上書きの読み込み
+│   │   │   └── useCommandDispatcher.ts # キー・コマンドパレットから解決したコマンドを, 各機能のフックへ振り分ける
 │   │   └── components/
 │   │       ├── CommandPalette.tsx      # M-x / : コマンドパレット (ミニバッファ, 候補一覧は表示しない)
 │   │       └── HelpDialog.tsx          # ? / :help のコマンド一覧 (キー割り当て・説明)
