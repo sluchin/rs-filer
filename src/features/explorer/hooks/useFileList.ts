@@ -99,6 +99,11 @@ export function useFileList(onError: (message: string) => void) {
   const restored = useRef(false);
   /** 履歴の, ペインごとの件数の上限 (設定の `history_limit`). */
   const historyLimit = useRef(DEFAULT_HISTORY_LIMIT);
+  /** ペインごとの最新の読み込みリクエスト ID. 古い非同期応答で上書きされるのを防ぐ. */
+  const latestLoadId = useRef<Record<PaneId, number>>({
+    left: 0,
+    right: 0,
+  });
 
   /**
    * 指定したペインの状態を更新します.
@@ -135,11 +140,21 @@ export function useFileList(onError: (message: string) => void) {
     ): Promise<boolean> => {
       // Windows のパスは `\` 区切りにそろえる (履歴やブックマークで, 区切りが混ざらないように)
       const targetPath = toNativePath(requestedPath);
+      const loadId = ++latestLoadId.current[pane];
       try {
         setError(null);
         log.debug(`[React] ${pane}ペイン 読み込み要求:`, targetPath);
 
         const result = await readDirectory(targetPath);
+
+        // 新しいリクエストが既に開始されている場合は, この結果を破棄する (競合状態の防止)
+        if (latestLoadId.current[pane] !== loadId) {
+          log.debug(
+            `[React] ${pane}ペイン 古いリクエストのため破棄:`,
+            targetPath,
+          );
+          return false;
+        }
 
         updatePane(pane, (prev) => {
           const moved = targetPath !== prev.currentPath;
@@ -177,6 +192,10 @@ export function useFileList(onError: (message: string) => void) {
         log.info(`[React] ${pane}ペイン 取得完了: ${result.length} 件`);
         return true;
       } catch (e) {
+        // 新しいリクエストが進行中の場合は, 古いエラーで上書きしない
+        if (latestLoadId.current[pane] !== loadId) {
+          return false;
+        }
         log.error(`[React] ${pane}ペイン 読み込み失敗:`, e);
         setError(String(e));
         onError(String(e));
