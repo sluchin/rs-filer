@@ -70,7 +70,7 @@ fn load_keymap_from(config_dir: Option<&Path>) -> Result<HashMap<String, Option<
 /// 割り当ての一覧. 設定ファイルが無い場合は空. 失敗した場合はエラー文字列を含む [`Err`].
 // 実際のユーザーの設定ディレクトリを読むため, カバレッジの対象外にする (ロジックは load_keymap_from で検証する).
 #[cfg(not(tarpaulin_include))]
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn load_keymap() -> Result<HashMap<String, Option<String>>, String> {
     load_keymap_from(dirs::config_dir().as_deref()).inspect_err(|e| {
@@ -344,7 +344,7 @@ fn save_last_paths_to(config_dir: Option<&Path>, paths: &LastPaths) -> Result<()
 /// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
 // 実際のユーザーの設定ディレクトリへ書くため, カバレッジの対象外にする (ロジックは save_last_paths_to で検証する).
 #[cfg(not(tarpaulin_include))]
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn save_last_paths(paths: LastPaths) -> Result<(), String> {
     save_last_paths_to(dirs::config_dir().as_deref(), &paths).inspect_err(|e| {
@@ -359,7 +359,7 @@ pub fn save_last_paths(paths: LastPaths) -> Result<(), String> {
 /// 設定. 設定ファイルが無い場合は既定値. 失敗した場合はエラー文字列を含む [`Err`].
 // 実際のユーザーの設定ディレクトリを読むため, カバレッジの対象外にする (ロジックは load_config_from で検証する).
 #[cfg(not(tarpaulin_include))]
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn load_config() -> Result<AppConfig, String> {
     load_config_from(dirs::config_dir().as_deref()).inspect_err(|e| {
@@ -378,7 +378,7 @@ pub fn load_config() -> Result<AppConfig, String> {
 /// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
 // 実際のユーザーの設定ディレクトリへ書くため, カバレッジの対象外にする (ロジックは save_config_to で検証する).
 #[cfg(not(tarpaulin_include))]
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn save_config(config: AppConfig) -> Result<(), String> {
     save_config_to(dirs::config_dir().as_deref(), &config).inspect_err(|e| {

@@ -56,7 +56,7 @@ fn open_with(path: &Path, opener: impl FnOnce(&Path) -> Result<(), String>) -> R
 /// # Returns
 ///
 /// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn open_item(path: String) -> Result<(), String> {
     open_with(Path::new(&path), system_open)
@@ -123,7 +123,7 @@ fn resolve_editor(
 // 実際のユーザーの設定と環境変数を読み, エディタを起動するため, カバレッジの対象外にする
 // (処理は resolve_editor と open_in_editor_with で検証する).
 #[cfg(not(tarpaulin_include))]
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn open_in_editor(path: String) -> Result<(), String> {
     let editor = resolve_editor(dirs::config_dir().as_deref(), &|name| {
@@ -267,7 +267,7 @@ fn spawn_in(program: &str, args: &[String], dir: &Path) -> bool {
 // 実際のユーザーの設定を読み, ターミナルを起動するため, カバレッジの対象外にする
 // (処理は candidates_for, open_terminal_with, spawn_in で検証する).
 #[cfg(not(tarpaulin_include))]
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn open_terminal(path: String) -> Result<(), String> {
     let terminal = load_config_from(dirs::config_dir().as_deref())?.terminal;

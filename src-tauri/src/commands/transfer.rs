@@ -496,7 +496,7 @@ pub fn find_stale_overwrites(
 /// # Returns
 ///
 /// 配置先のほうが新しい対象の名前. 失敗した場合はエラー文字列を含む [`Err`].
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn check_stale_overwrites(
     sources: Vec<String>,
@@ -517,7 +517,7 @@ pub fn check_stale_overwrites(
 /// # Returns
 ///
 /// 同名のエントリが既にある対象の名前. 失敗した場合はエラー文字列を含む [`Err`].
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn check_conflicts(
     sources: Vec<String>,
@@ -614,7 +614,7 @@ pub fn find_nested_conflicts(
 /// # Returns
 ///
 /// 同名のファイルの一覧. 失敗した場合はエラー文字列を含む [`Err`].
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn check_nested_conflicts(
     sources: Vec<String>,
