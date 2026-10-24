@@ -1,62 +1,66 @@
 //! 選択したファイルに対する, 外部コマンドの実行.
+//!
+//! コマンドはシェル (`sh -c` / `cmd /C`) で実行します (パイプやリダイレクトを使えるように). 対象のパスは,
+//! コマンドの文字列に埋め込まず, シェルの位置引数 (`"$@"`) や環境変数 (`%RSFILER_PATH_1%`) で渡します.
+//! ファイル名に `$`, `;`, `%` などが含まれていても, シェルに解釈されません.
 
 use std::path::Path;
 use std::process::Command;
 
-/// シェルに渡す 1 つの引数を, 空白や特殊文字を含んでいても安全なように囲みます.
-///
-/// # Arguments
-///
-/// * `arg` - 対象の文字列.
-///
-/// # Returns
-///
-/// 二重引用符で囲んだ文字列 (Windows).
+/// Windows で, 対象のパスを渡す環境変数の名前の始め (`RSFILER_PATH_1`, `RSFILER_PATH_2`, ...).
 #[cfg(windows)]
-fn quote_shell_arg(arg: &str) -> String {
-    format!("\"{}\"", arg.replace('"', "\"\""))
-}
+const PATH_VAR: &str = "RSFILER_PATH_";
 
-/// シェルに渡す 1 つの引数を, 空白や特殊文字を含んでいても安全なように囲みます.
+/// シェルのコマンドの中で, 対象のパスを参照する文字列を返します.
 ///
 /// # Arguments
 ///
-/// * `arg` - 対象の文字列.
+/// * `_count` - 対象のパスの数.
 ///
 /// # Returns
 ///
-/// 単一引用符で囲んだ文字列 (Windows 以外).
+/// 全ての位置引数 (`"$@"`).
 #[cfg(not(windows))]
-fn quote_shell_arg(arg: &str) -> String {
-    format!("'{}'", arg.replace('\'', "'\\''"))
+fn path_refs(_count: usize) -> String {
+    "\"$@\"".to_string()
 }
 
-/// コマンドの文字列と対象のパスから, 実行するコマンド全体の文字列を組み立てます.
+/// シェルのコマンドの中で, 対象のパスを参照する文字列を返します.
 ///
-/// コマンドに `%f` が含まれる場合は, そのすべてを, 対象パスを空白区切りで並べたものに置き換えます.
-/// 含まれない場合は, コマンドの末尾に対象パスを付け加えます.
+/// # Arguments
+///
+/// * `count` - 対象のパスの数.
+///
+/// # Returns
+///
+/// 環境変数を二重引用符で囲み, 空白区切りで並べたもの (`"%RSFILER_PATH_1%" "%RSFILER_PATH_2%"`).
+/// Windows のファイル名には `"` を使えないので, 囲みから抜け出せない.
+#[cfg(windows)]
+fn path_refs(count: usize) -> String {
+    (1..=count)
+        .map(|i| format!("\"%{PATH_VAR}{i}%\""))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// コマンドの文字列と, 対象のパスを参照する文字列から, 実行するコマンド全体の文字列を組み立てます.
+///
+/// コマンドに `%f` が含まれる場合は, そのすべてを, 対象のパスの参照に置き換えます.
+/// 含まれない場合は, コマンドの末尾に対象のパスの参照を付け加えます.
 ///
 /// # Arguments
 ///
 /// * `command` - 入力されたコマンド (`%f` を含んでもよい).
-/// * `paths` - 対象のパス. 空の場合はコマンドをそのまま返す.
+/// * `refs` - 対象のパスを参照する文字列 ([`path_refs`]).
 ///
 /// # Returns
 ///
 /// シェルで実行する, 組み立て済みのコマンド文字列.
-fn build_command(command: &str, paths: &[String]) -> String {
-    let joined = paths
-        .iter()
-        .map(|p| quote_shell_arg(p))
-        .collect::<Vec<_>>()
-        .join(" ");
-    if paths.is_empty() {
-        // 対象が無ければ, プレースホルダの有無に関わらずコマンドをそのまま使う.
-        command.to_string()
-    } else if command.contains("%f") {
-        command.replace("%f", &joined)
+fn build_command(command: &str, refs: &str) -> String {
+    if command.contains("%f") {
+        command.replace("%f", refs)
     } else {
-        format!("{} {}", command, joined)
+        format!("{} {}", command, refs)
     }
 }
 
@@ -65,19 +69,19 @@ fn build_command(command: &str, paths: &[String]) -> String {
 /// # Arguments
 ///
 /// * `full_command` - 実行するコマンド全体の文字列.
+/// * `paths` - 対象のパス.
 /// * `runner` - 実際に起動する関数. 成功したら `true` を返す.
 ///
 /// # Returns
 ///
-/// 成功した場合は [`Ok(())`], コマンドが空の場合や起動に失敗した場合はエラー文字列を含む [`Err`].
-fn run_with(full_command: &str, runner: &dyn Fn(&str) -> bool) -> Result<(), String> {
-    if full_command.trim().is_empty() {
-        let message = "Command is empty".to_string();
-        log::error!("{}", message);
-        return Err(message);
-    }
-    if runner(full_command) {
-        log::info!("外部コマンド実行: {}", full_command);
+/// 成功した場合は [`Ok(())`], 起動に失敗した場合はエラー文字列を含む [`Err`].
+fn run_with(
+    full_command: &str,
+    paths: &[String],
+    runner: &dyn Fn(&str, &[String]) -> bool,
+) -> Result<(), String> {
+    if runner(full_command, paths) {
+        log::info!("外部コマンド実行: {} {:?}", full_command, paths);
         Ok(())
     } else {
         let message = format!("Failed to start command: {}", full_command);
@@ -86,23 +90,51 @@ fn run_with(full_command: &str, runner: &dyn Fn(&str) -> bool) -> Result<(), Str
     }
 }
 
-/// シェル経由で, 実際にコマンドを起動します.
+/// シェル経由で, 実際にコマンドを起動します. 対象のパスは, シェルの位置引数で渡します.
 ///
 /// # Arguments
 ///
 /// * `full_command` - 実行するコマンド全体の文字列.
+/// * `paths` - 対象のパス.
 ///
 /// # Returns
 ///
 /// 起動できた場合は `true`.
-#[cfg(not(tarpaulin_include))]
-fn spawn_in_shell(full_command: &str) -> bool {
-    if cfg!(windows) {
-        Command::new("cmd").arg("/C").arg(full_command).spawn()
-    } else {
-        Command::new("sh").arg("-c").arg(full_command).spawn()
-    }
-    .is_ok()
+#[cfg(not(any(windows, tarpaulin_include)))]
+fn spawn_in_shell(full_command: &str, paths: &[String]) -> bool {
+    // `sh -c` の後の 1 つ目の引数は `$0` (シェルの名前) になり, 残りが `"$@"` になる
+    Command::new("sh")
+        .arg("-c")
+        .arg(full_command)
+        .arg("sh")
+        .args(paths)
+        .spawn()
+        .is_ok()
+}
+
+/// シェル経由で, 実際にコマンドを起動します. 対象のパスは, 環境変数で渡します.
+///
+/// # Arguments
+///
+/// * `full_command` - 実行するコマンド全体の文字列.
+/// * `paths` - 対象のパス.
+///
+/// # Returns
+///
+/// 起動できた場合は `true`.
+#[cfg(all(windows, not(tarpaulin_include)))]
+fn spawn_in_shell(full_command: &str, paths: &[String]) -> bool {
+    Command::new("cmd")
+        .arg("/C")
+        .arg(full_command)
+        .envs(
+            paths
+                .iter()
+                .enumerate()
+                .map(|(i, path)| (format!("{PATH_VAR}{}", i + 1), path)),
+        )
+        .spawn()
+        .is_ok()
 }
 
 /// 入力されたパスのうち, 実在するものだけを残します (削除済みなどを除くため).
@@ -124,8 +156,8 @@ fn existing_paths(paths: &[String]) -> Vec<String> {
 
 /// 選択したファイルまたはディレクトリに対して, 外部コマンドを実行します.
 ///
-/// コマンドに `%f` を含めると, 対象のパス (複数はシェルの引用符付きで空白区切り) に置き換わります.
-/// 含めない場合は, コマンドの末尾に対象のパスを付け加えます.
+/// コマンドに `%f` を含めると, 対象のパス (複数は空白区切り) に置き換わります.
+/// 含めない場合は, コマンドの末尾に対象のパスを付け加えます. パスはシェルに解釈されません.
 ///
 /// # Arguments
 ///
@@ -134,16 +166,26 @@ fn existing_paths(paths: &[String]) -> Vec<String> {
 ///
 /// # Returns
 ///
-/// 成功した場合は [`Ok(())`], 対象が無い場合や起動に失敗した場合はエラー文字列を含む [`Err`].
+/// 成功した場合は [`Ok(())`], コマンドが空の場合, 対象が無い場合, 起動に失敗した場合は
+/// エラー文字列を含む [`Err`].
 #[tauri::command]
 pub fn run_external_command(command: String, paths: Vec<String>) -> Result<(), String> {
+    if command.trim().is_empty() {
+        let message = "Command is empty".to_string();
+        log::error!("{}", message);
+        return Err(message);
+    }
     let paths = existing_paths(&paths);
     if paths.is_empty() {
         let message = "No existing targets".to_string();
         log::error!("{}", message);
         return Err(message);
     }
-    run_with(&build_command(&command, &paths), &spawn_in_shell)
+    run_with(
+        &build_command(&command, &path_refs(paths.len())),
+        &paths,
+        &spawn_in_shell,
+    )
 }
 
 #[cfg(test)]
@@ -153,56 +195,79 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn test_quote_shell_arg_success() {
-        if cfg!(windows) {
-            assert_eq!(quote_shell_arg(r#"a "b" c"#), r#""a ""b"" c""#);
-        } else {
-            assert_eq!(quote_shell_arg("a 'b' c"), r"'a '\''b'\'' c'");
-        }
-    }
-
-    #[test]
     fn test_build_command_with_placeholder() {
-        let result = build_command("xdg-open %f", &["/a b".to_string(), "/c".to_string()]);
-        let expected = if cfg!(windows) {
-            r#"xdg-open "/a b" "/c""#
-        } else {
-            r"xdg-open '/a b' '/c'"
-        };
-        assert_eq!(result, expected);
+        assert_eq!(build_command("xdg-open %f", "REFS"), "xdg-open REFS");
+        assert_eq!(build_command("diff %f | less", "REFS"), "diff REFS | less");
     }
 
     #[test]
     fn test_build_command_without_placeholder_appends_paths() {
-        let result = build_command("code", &["/a".to_string()]);
-        let expected = if cfg!(windows) {
-            r#"code "/a""#
-        } else {
-            "code '/a'"
-        };
-        assert_eq!(result, expected);
+        assert_eq!(build_command("code", "REFS"), "code REFS");
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn test_path_refs_positional_parameters() {
+        assert_eq!(path_refs(2), "\"$@\"");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_path_refs_environment_variables() {
+        assert_eq!(path_refs(2), "\"%RSFILER_PATH_1%\" \"%RSFILER_PATH_2%\"");
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn test_build_command_paths_are_not_interpreted_by_shell() {
+        // シェルに解釈されうる名前のファイルも, そのままの名前で渡ること
+        let dir = tempdir().unwrap();
+        let names = [
+            "a b",
+            "$(touch injected)",
+            "c;touch injected",
+            "d'e\"f",
+            "*",
+        ];
+        let paths: Vec<String> = names
+            .iter()
+            .map(|n| dir.path().join(n).to_string_lossy().into_owned())
+            .collect();
+        let out = dir.path().join("out");
+        let command = format!("printf '%s\\n' %f > '{}'", out.display());
+
+        let status = Command::new("sh")
+            .current_dir(dir.path())
+            .arg("-c")
+            .arg(build_command(&command, &path_refs(paths.len())))
+            .arg("sh")
+            .args(&paths)
+            .status()
+            .unwrap();
+
+        assert!(status.success());
+        let printed = fs::read_to_string(&out).unwrap();
+        assert_eq!(printed.lines().collect::<Vec<_>>(), paths);
+        assert!(!dir.path().join("injected").exists());
     }
 
     #[test]
-    fn test_build_command_no_paths_returns_as_is() {
-        assert_eq!(build_command("ls", &[]), "ls");
-    }
-
-    #[test]
-    fn test_run_with_success_and_empty_failure() {
-        assert!(run_with("", &|_| panic!("呼ばれないこと")).is_err());
+    fn test_run_with_success() {
         let called = std::cell::RefCell::new(None);
-        run_with("echo hi", &|cmd| {
-            *called.borrow_mut() = Some(cmd.to_string());
+        run_with("echo hi", &["/a".to_string()], &|cmd, paths| {
+            *called.borrow_mut() = Some((cmd.to_string(), paths.to_vec()));
             true
         })
         .unwrap();
-        assert_eq!(called.borrow().as_deref(), Some("echo hi"));
+        assert_eq!(
+            called.into_inner(),
+            Some(("echo hi".to_string(), vec!["/a".to_string()]))
+        );
     }
 
     #[test]
     fn test_run_with_runner_failure() {
-        let result = run_with("bad", &|_| false);
+        let result = run_with("bad", &[], &|_, _| false);
         assert!(result.unwrap_err().contains("Failed to start command"));
     }
 
@@ -229,14 +294,23 @@ mod tests {
         let file = dir.path().join("f.txt");
         fs::write(&file, "x").unwrap();
         let exe = std::env::current_exe().unwrap();
-        let command = format!(
-            "{} --exact __rsfiler_no_such_test__",
-            quote_shell_arg(exe.to_str().unwrap())
-        );
+        let command = format!("\"{}\" --exact __rsfiler_no_such_test__", exe.display());
 
         let result = run_external_command(command, vec![file.to_string_lossy().into_owned()]);
 
         assert!(result.is_ok(), "{:?}", result.err());
+    }
+
+    #[test]
+    fn test_run_external_command_empty_command_failure() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("f.txt");
+        fs::write(&file, "x").unwrap();
+        assert_eq!(
+            run_external_command(" ".to_string(), vec![file.to_string_lossy().into_owned()])
+                .unwrap_err(),
+            "Command is empty"
+        );
     }
 
     #[test]
