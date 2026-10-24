@@ -56,6 +56,7 @@ fn open_with(path: &Path, opener: impl FnOnce(&Path) -> Result<(), String>) -> R
 ///
 /// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command]
+#[specta::specta]
 pub fn open_item(path: String) -> Result<(), String> {
     open_with(Path::new(&path), system_open)
 }
@@ -98,6 +99,7 @@ fn open_in_editor_with(path: &Path, editor: Option<&str>) -> Result<(), String> 
 /// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
+#[specta::specta]
 pub fn open_in_editor(path: String) -> Result<(), String> {
     let config_editor = load_config_from(dirs::config_dir().as_deref())?.editor;
     let editor = config_editor
@@ -209,6 +211,7 @@ fn open_terminal_with(
 /// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
+#[specta::specta]
 pub fn open_terminal(path: String) -> Result<(), String> {
     let terminal = load_config_from(dirs::config_dir().as_deref())?.terminal;
     open_terminal_with(

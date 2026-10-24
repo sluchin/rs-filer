@@ -169,6 +169,7 @@ fn existing_paths(paths: &[String]) -> Vec<String> {
 /// 成功した場合は [`Ok(())`], コマンドが空の場合, 対象が無い場合, 起動に失敗した場合は
 /// エラー文字列を含む [`Err`].
 #[tauri::command]
+#[specta::specta]
 pub fn run_external_command(command: String, paths: Vec<String>) -> Result<(), String> {
     if command.trim().is_empty() {
         let message = "Command is empty".to_string();

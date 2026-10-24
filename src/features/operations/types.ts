@@ -45,89 +45,18 @@ export interface ChoiceOption {
   run: () => void;
 }
 
-/**
- * 同名のディレクトリを統合するとき, 中にある同名のファイル 1 件.
- */
-export interface NestedConflict {
-  /** コピー・移動元のファイルの絶対パス (依頼の `skip` に渡す値). */
-  source: string;
-  /** 確認で表示する名前 (対象のディレクトリ名から始まる相対パス. 例: `d/sub/a.txt`). */
-  label: string;
-  /** 配置先のファイルのほうが更新日時が新しい (古いもので上書きすることになる). */
-  stale?: boolean;
-}
+import type {
+  NestedConflict,
+  TransferKind,
+  TransferProgress,
+  TransferRequest_Deserialize,
+  TransferSummary,
+} from "../../bindings";
 
-/**
- * コピー・移動・削除の種類.
- */
-export type TransferKind = "copy" | "move" | "delete";
+/** 転送 (コピー・移動・削除) の要求 (バックエンドへ送る形). */
+export type TransferRequest = TransferRequest_Deserialize;
 
-/**
- * バックエンドへ渡す, コピー・移動・削除の依頼.
- */
-export interface TransferRequest {
-  /**
-   * 操作の種類.
-   */
-  kind: TransferKind;
-  /**
-   * 対象のパス.
-   */
-  sources: string[];
-  /**
-   * コピー・移動先のディレクトリ. 削除では null.
-   */
-  dest_dir: string | null;
-  /**
-   * true の場合, 同名のファイルを上書きする.
-   */
-  overwrite: boolean;
-  /**
-   * true の場合, 削除でゴミ箱を使わず完全に削除する.
-   */
-  permanent: boolean;
-  /**
-   * コピー時に指定した名前でコピーする (Copy のみ. 単一ファイルに限定).
-   */
-  dest_name?: string;
-  /**
-   * コピー・移動しないファイルのパス (同名のディレクトリを統合するとき, 上書きしないと答えたもの).
-   * 移動では, 移動元に残る.
-   */
-  skip?: string[];
-}
-
-/**
- * コピー・移動・削除の進捗.
- */
-export interface TransferProgress {
-  /**
-   * 処理済みの量. コピー・移動ではバイト数, 削除では件数.
-   */
-  done: number;
-  /**
-   * 全体の量. 単位は done と同じ.
-   */
-  total: number;
-  /**
-   * 処理中の項目の名前.
-   */
-  current: string;
-}
-
-/**
- * コピー・移動・削除の結果.
- */
-export interface TransferSummary {
-  /**
-   * 最後まで処理した対象の数.
-   */
-  processed: number;
-  /**
-   * 中断された場合は true.
-   */
-  cancelled: boolean;
-}
+export type { NestedConflict, TransferKind, TransferProgress, TransferSummary };
 
 /**
  * 実行中の操作の状態.

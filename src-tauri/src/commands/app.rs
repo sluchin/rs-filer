@@ -7,6 +7,7 @@
 /// * `app` - アプリケーションのハンドル.
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
+#[specta::specta]
 pub fn quit_app(app: tauri::AppHandle) {
     if let Some(window) = crate::window_state::main_window(&app) {
         crate::window_state::save(&window);

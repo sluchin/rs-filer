@@ -118,7 +118,7 @@ cargo install cargo-tarpaulin
 
 
 * **`src-tauri/src/lib.rs`**
-* `commands` モジュールを読み込み、Tauri アプリの `invoke_handler` にコマンドを登録。
+* `commands` モジュールのコマンドを `specta_builder` (tauri-specta) で集め、Tauri アプリの `invoke_handler` に登録。フロントエンドの型 (`src/bindings.ts`) は `npm run bindings:generate` で作る。
 
 
 * **`src-tauri/src/main.rs`**

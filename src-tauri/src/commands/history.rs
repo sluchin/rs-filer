@@ -4,6 +4,7 @@
 //! (`<設定ディレクトリ>/rsfiler/history.json`) に保存します.
 
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -14,7 +15,7 @@ const HISTORY_FILE: &str = "history.json";
 pub const DEFAULT_HISTORY_LIMIT: usize = 1_000;
 
 /// 左右のペインの, ディレクトリの移動履歴 (最後に移動した日時の古い順. 同じディレクトリは 1 つだけ).
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+#[derive(Serialize, Deserialize, Type, Clone, PartialEq, Debug, Default)]
 #[serde(default)]
 pub struct PaneHistory {
     /// 左ペインの履歴.
@@ -118,6 +119,7 @@ pub fn save_history_to(config_dir: Option<&Path>, history: &PaneHistory) -> Resu
 // 実際のユーザーの設定ディレクトリを読むため, カバレッジの対象外にする (ロジックは load_history_from で検証する).
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
+#[specta::specta]
 pub async fn load_history() -> Result<PaneHistory, String> {
     let config_dir = dirs::config_dir();
     let limit = super::config::load_config_from(config_dir.as_deref())
@@ -142,6 +144,7 @@ pub async fn load_history() -> Result<PaneHistory, String> {
 // 実際のユーザーの設定ディレクトリへ書くため, カバレッジの対象外にする (ロジックは save_history_to で検証する).
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
+#[specta::specta]
 pub async fn save_history(history: PaneHistory) -> Result<(), String> {
     save_history_to(dirs::config_dir().as_deref(), &history).inspect_err(|e| {
         log::error!("移動履歴の書き込み失敗: {}", e);

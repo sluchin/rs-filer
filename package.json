@@ -10,6 +10,7 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "bindings:generate": "cd src-tauri && UPDATE_BINDINGS=1 cargo test --lib tests::test_specta_builder_bindings_up_to_date",
     "prelint": "vite build",
     "lint": "eslint src",
     "lint:rust": "cd src-tauri && cargo clippy",

@@ -2,6 +2,7 @@
 
 use crate::commands::fs::{is_hidden, unix_secs};
 use serde::Serialize;
+use specta::Type;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -15,7 +16,7 @@ const STATS_TIME_LIMIT_SECS: u64 = 10;
 const STATS_MAX_ENTRIES: u64 = 5_000_000;
 
 /// 項目の種類.
-#[derive(Serialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Type, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ItemKind {
     /// ファイル.
@@ -29,7 +30,7 @@ pub enum ItemKind {
 }
 
 /// 1 つの項目の詳細.
-#[derive(Serialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Type, Debug, PartialEq, Eq)]
 pub struct ItemInfo {
     /// 名前.
     pub name: String,
@@ -62,7 +63,7 @@ pub struct ItemInfo {
 }
 
 /// ディレクトリの配下 (再帰) の合計.
-#[derive(Serialize, Debug, PartialEq, Eq, Default)]
+#[derive(Serialize, Type, Debug, PartialEq, Eq, Default)]
 pub struct DirStats {
     /// ファイルの数 (ディレクトリ以外のものすべて. シンボリックリンクは, たどらずに, 1 件と数える).
     pub files: u64,
@@ -333,6 +334,7 @@ fn tally_entry(stats: &mut DirStats, pending: &mut Vec<PathBuf>, entry: io::Resu
 ///
 /// 詳細. 失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command]
+#[specta::specta]
 pub async fn get_item_info(path: String) -> Result<ItemInfo, String> {
     let result = tauri::async_runtime::spawn_blocking(move || read_item_info(&path))
         .await
@@ -358,6 +360,7 @@ pub async fn get_item_info(path: String) -> Result<ItemInfo, String> {
 /// 合計. 失敗した場合はエラー文字列を含む [`Err`].
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
+#[specta::specta]
 pub async fn dir_stats(
     state: tauri::State<'_, StatsState>,
     path: String,

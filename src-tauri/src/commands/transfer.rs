@@ -4,6 +4,7 @@
 //! 中断は [`TransferState`] の中断フラグで受け付け, 大きなファイルはチャンクごとにフラグを確認します.
 
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::collections::HashSet;
 use std::fs;
 use std::io::Read;
@@ -19,7 +20,7 @@ const PROGRESS_INTERVAL: Duration = Duration::from_millis(50);
 const CHUNK_SIZE: usize = 8 * 1024 * 1024;
 
 /// 実行する操作の種類.
-#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Deserialize, Type, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TransferKind {
     /// コピー.
@@ -31,7 +32,7 @@ pub enum TransferKind {
 }
 
 /// コピー・移動・削除の依頼.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Type, Debug)]
 pub struct TransferRequest {
     /// 操作の種類.
     pub kind: TransferKind,
@@ -55,7 +56,7 @@ pub struct TransferRequest {
 }
 
 /// 同名のディレクトリを統合するときに, 中にある, 同名のファイル 1 件.
-#[derive(Serialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Type, Debug, PartialEq, Eq)]
 pub struct NestedConflict {
     /// コピー・移動元のファイルの絶対パス (`TransferRequest::skip` に渡す値).
     pub source: String,
@@ -66,7 +67,7 @@ pub struct NestedConflict {
 }
 
 /// 進捗の通知.
-#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Type, Clone, Debug, PartialEq, Eq)]
 pub struct TransferProgress {
     /// 処理済みの量. コピー・移動ではバイト数, 削除では件数.
     pub done: u64,
@@ -77,7 +78,7 @@ pub struct TransferProgress {
 }
 
 /// 操作の結果.
-#[derive(Serialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Type, Debug, PartialEq, Eq)]
 pub struct TransferSummary {
     /// 最後まで処理した対象の数.
     pub processed: usize,
@@ -479,6 +480,7 @@ pub fn find_stale_overwrites(
 ///
 /// 配置先のほうが新しい対象の名前. 失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command]
+#[specta::specta]
 pub fn check_stale_overwrites(
     sources: Vec<String>,
     dest_dir: String,
@@ -499,6 +501,7 @@ pub fn check_stale_overwrites(
 ///
 /// 同名のエントリが既にある対象の名前. 失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command]
+#[specta::specta]
 pub fn check_conflicts(
     sources: Vec<String>,
     dest_dir: String,
@@ -595,6 +598,7 @@ pub fn find_nested_conflicts(
 ///
 /// 同名のファイルの一覧. 失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command]
+#[specta::specta]
 pub fn check_nested_conflicts(
     sources: Vec<String>,
     dest_dir: String,
@@ -962,6 +966,7 @@ pub fn transfer(
 /// 結果. 失敗した場合はエラー文字列を含む [`Err`].
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
+#[specta::specta]
 pub async fn run_transfer(
     state: tauri::State<'_, TransferState>,
     request: TransferRequest,
@@ -984,6 +989,7 @@ pub async fn run_transfer(
 /// * `state` - 中断フラグを持つ状態.
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
+#[specta::specta]
 pub fn cancel_transfer(state: tauri::State<'_, TransferState>) {
     log::info!("中断要求");
     state.cancel();

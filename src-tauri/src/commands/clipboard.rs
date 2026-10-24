@@ -130,6 +130,7 @@ impl FileClipboard for FakeClipboard {
 ///
 /// 成功した場合は [`Ok`]. 失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command]
+#[specta::specta]
 #[cfg(not(tarpaulin_include))]
 pub fn copy_files_to_clipboard(paths: Vec<String>) -> Result<(), String> {
     OsClipboard.set_files(paths)
@@ -141,6 +142,7 @@ pub fn copy_files_to_clipboard(paths: Vec<String>) -> Result<(), String> {
 ///
 /// ファイルパスのリスト. クリップボードが空またはファイルを含まない場合はエラー.
 #[tauri::command]
+#[specta::specta]
 #[cfg(not(tarpaulin_include))]
 pub fn read_clipboard_files() -> Result<Vec<String>, String> {
     OsClipboard.get_files()
@@ -174,6 +176,7 @@ pub fn check_text(text: &str) -> Result<(), String> {
 ///
 /// 成功した場合は [`Ok`]. 失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command]
+#[specta::specta]
 #[cfg(not(tarpaulin_include))]
 pub fn copy_text_to_clipboard(text: String) -> Result<(), String> {
     check_text(&text)?;

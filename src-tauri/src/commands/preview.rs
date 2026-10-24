@@ -5,6 +5,7 @@ use base64::Engine;
 use chardetng::{EncodingDetector, Iso2022JpDetection, Utf8Detection};
 use encoding_rs::Encoding;
 use serde::Serialize;
+use specta::Type;
 use std::fs;
 use std::io::Read;
 use std::path::Path;
@@ -19,7 +20,7 @@ const HEX_DUMP_BYTES: usize = 1024;
 const BINARY_SNIFF_BYTES: usize = 8000;
 
 /// プレビューの種類.
-#[derive(Serialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Type, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum PreviewKind {
     /// テキスト.
@@ -31,7 +32,7 @@ pub enum PreviewKind {
 }
 
 /// プレビューの内容.
-#[derive(Serialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Type, Debug, PartialEq, Eq)]
 pub struct Preview {
     /// プレビューの種類.
     pub kind: PreviewKind,
@@ -213,6 +214,7 @@ pub fn build_preview(path: &Path) -> Result<Preview, String> {
 ///
 /// プレビュー. 失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command(async)]
+#[specta::specta]
 pub fn read_preview(path: String) -> Result<Preview, String> {
     let result = build_preview(Path::new(&path));
     if let Err(e) = &result {

@@ -1,4 +1,5 @@
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel } from "@tauri-apps/api/core";
+import { commands } from "../bindings";
 import type { DiskSpace, FileEntry } from "../features/explorer/types";
 import type { DirStats, ItemInfo } from "../features/info/types";
 import type {
@@ -13,6 +14,10 @@ import type {
   LastPaths,
   PaneHistory,
 } from "../features/settings/types";
+import type { LogLevel } from "../bindings";
+
+export { commands };
+export type { LogLevel } from "../bindings";
 
 /**
  * 指定ディレクトリ内のファイル・ディレクトリ一覧を取得します.
@@ -21,7 +26,7 @@ import type {
  * @returns エントリの配列.
  */
 export function readDirectory(path: string): Promise<FileEntry[]> {
-  return invoke<FileEntry[]>("read_directory", { path });
+  return commands.readDirectory(path);
 }
 
 /**
@@ -36,7 +41,7 @@ export function dirsHaveEntries(
   paths: string[],
   showHidden: boolean,
 ): Promise<boolean[]> {
-  return invoke<boolean[]>("dirs_have_entries", { paths, showHidden });
+  return commands.dirsHaveEntries(paths, showHidden);
 }
 
 /**
@@ -46,7 +51,7 @@ export function dirsHaveEntries(
  * @returns 詳細.
  */
 export function getItemInfo(path: string): Promise<ItemInfo> {
-  return invoke<ItemInfo>("get_item_info", { path });
+  return commands.getItemInfo(path);
 }
 
 /**
@@ -57,7 +62,7 @@ export function getItemInfo(path: string): Promise<ItemInfo> {
  * @returns 合計.
  */
 export function getDirStats(path: string): Promise<DirStats> {
-  return invoke<DirStats>("dir_stats", { path });
+  return commands.dirStats(path);
 }
 
 /**
@@ -66,7 +71,7 @@ export function getDirStats(path: string): Promise<DirStats> {
  * @returns ホームディレクトリのパス.
  */
 export function getHomeDir(): Promise<string> {
-  return invoke<string>("get_home_dir");
+  return commands.getHomeDir();
 }
 
 /**
@@ -75,8 +80,11 @@ export function getHomeDir(): Promise<string> {
  * @param parent - 作成先の親ディレクトリのパス.
  * @param name - 作成するディレクトリ名.
  */
-export function createDirectory(parent: string, name: string): Promise<void> {
-  return invoke<void>("create_directory", { parent, name });
+export async function createDirectory(
+  parent: string,
+  name: string,
+): Promise<void> {
+  await commands.createDirectory(parent, name);
 }
 
 /**
@@ -85,8 +93,8 @@ export function createDirectory(parent: string, name: string): Promise<void> {
  * @param parent - 作成先の親ディレクトリのパス.
  * @param name - 作成するファイル名.
  */
-export function createFile(parent: string, name: string): Promise<void> {
-  return invoke<void>("create_file", { parent, name });
+export async function createFile(parent: string, name: string): Promise<void> {
+  await commands.createFile(parent, name);
 }
 
 /**
@@ -95,62 +103,65 @@ export function createFile(parent: string, name: string): Promise<void> {
  * @param path - 対象のパス.
  * @param newName - 新しい名前.
  */
-export function renameItem(path: string, newName: string): Promise<void> {
-  return invoke<void>("rename_item", { path, newName });
+export async function renameItem(path: string, newName: string): Promise<void> {
+  await commands.renameItem(path, newName);
 }
 
 /**
- * 関連付けられた外部アプリケーションでパスを開きます.
+ * 関連付けられた外部アプリケーションでファイルまたはディレクトリを開きます.
  *
  * @param path - 開く対象のパス.
  */
-export function openItem(path: string): Promise<void> {
-  return invoke<void>("open_item", { path });
+export async function openItem(path: string): Promise<void> {
+  await commands.openItem(path);
 }
 
 /**
- * エディタでパスを開きます. `config.json` の `editor`, 無ければ環境変数 `VISUAL` / `EDITOR`,
- * どちらも無ければ既定のアプリケーションを使います.
+ * 指定したエディタでファイルを開きます. エディタが未指定の場合は OS の既定のアプリケーションを使います.
  *
- * @param path - 開く対象のパス.
+ * @param path - 開くファイルのパス.
  */
-export function openInEditor(path: string): Promise<void> {
-  return invoke<void>("open_in_editor", { path });
+export async function openInEditor(path: string): Promise<void> {
+  await commands.openInEditor(path);
 }
 
 /**
- * 利用可能なドライブのルートパスの一覧を取得します.
+ * 利用可能なドライブのルートパスの一覧を取得します (Windows ではドライブレター, それ以外はルートのみ).
  *
  * @returns ルートパスの配列.
  */
 export function listDrives(): Promise<string[]> {
-  return invoke<string[]>("list_drives");
+  return commands.listDrives();
 }
 
 /**
- * 指定パスが載っているディスクの空き容量と全体の容量を取得します.
+ * 指定したパスが載っているディスクの空き容量と全体の容量を取得します.
  *
- * @param path - 調べるパス.
- * @returns 空き容量と全体の容量.
+ * @param path - 調べるパス (ディスク上の任意のパス).
+ * @returns ディスク容量の情報.
  */
 export function getDiskSpace(path: string): Promise<DiskSpace> {
-  return invoke<DiskSpace>("get_disk_space", { path });
+  return commands.getDiskSpace(path);
 }
 
 /**
- * コピー・移動先に, 同名のエントリが既にあるかを調べます.
+ * 配置先に同名のエントリがあるかを調べます (上書きの確認).
  *
  * @param sources - 対象のパス.
  * @param destDir - 配置先のディレクトリ.
  * @param destName - コピー時の新しい名前 (オプション).
- * @returns 同名のエントリが既にある対象の名前.
+ * @returns 同名のエントリがある対象の名前. 無ければ空.
  */
 export function checkConflicts(
   sources: string[],
   destDir: string,
   destName?: string,
 ): Promise<string[]> {
-  return invoke<string[]>("check_conflicts", { sources, destDir, destName });
+  return commands.checkConflicts(
+    sources,
+    destDir,
+    destName as unknown as string | null,
+  );
 }
 
 /**
@@ -166,11 +177,11 @@ export function checkStaleOverwrites(
   destDir: string,
   destName?: string,
 ): Promise<string[]> {
-  return invoke<string[]>("check_stale_overwrites", {
+  return commands.checkStaleOverwrites(
     sources,
     destDir,
-    destName,
-  });
+    destName as unknown as string | null,
+  );
 }
 
 /**
@@ -184,10 +195,7 @@ export function checkNestedConflicts(
   sources: string[],
   destDir: string,
 ): Promise<NestedConflict[]> {
-  return invoke<NestedConflict[]>("check_nested_conflicts", {
-    sources,
-    destDir,
-  });
+  return commands.checkNestedConflicts(sources, destDir);
 }
 
 /**
@@ -203,17 +211,14 @@ export function runTransfer(
 ): Promise<TransferSummary> {
   const channel = new Channel<TransferProgress>();
   channel.onmessage = onProgress;
-  return invoke<TransferSummary>("run_transfer", {
-    request,
-    onProgress: channel,
-  });
+  return commands.runTransfer(request, channel);
 }
 
 /**
  * 実行中のコピー・移動・削除を中断します.
  */
 export function cancelTransfer(): Promise<void> {
-  return invoke<void>("cancel_transfer");
+  return commands.cancelTransfer();
 }
 
 /**
@@ -221,8 +226,8 @@ export function cancelTransfer(): Promise<void> {
  *
  * @param paths - コピーするファイルパスの配列.
  */
-export function copyFilesToClipboard(paths: string[]): Promise<void> {
-  return invoke<void>("copy_files_to_clipboard", { paths });
+export async function copyFilesToClipboard(paths: string[]): Promise<void> {
+  await commands.copyFilesToClipboard(paths);
 }
 
 /**
@@ -230,8 +235,8 @@ export function copyFilesToClipboard(paths: string[]): Promise<void> {
  *
  * @param text - コピーする文字列.
  */
-export function copyTextToClipboard(text: string): Promise<void> {
-  return invoke<void>("copy_text_to_clipboard", { text });
+export async function copyTextToClipboard(text: string): Promise<void> {
+  await commands.copyTextToClipboard(text);
 }
 
 /**
@@ -240,7 +245,7 @@ export function copyTextToClipboard(text: string): Promise<void> {
  * @returns ファイルパスの配列.
  */
 export function readClipboardFiles(): Promise<string[]> {
-  return invoke<string[]>("read_clipboard_files");
+  return commands.readClipboardFiles();
 }
 
 /**
@@ -250,7 +255,8 @@ export function readClipboardFiles(): Promise<string[]> {
  * @returns プレビュー.
  */
 export function readPreview(path: string): Promise<Preview> {
-  return invoke<Preview>("read_preview", { path });
+  // バックエンドは, 種類ごとに必要な項目を必ず入れて返す (`Preview` は, その絞り込み)
+  return commands.readPreview(path) as Promise<Preview>;
 }
 
 /**
@@ -260,7 +266,7 @@ export function readPreview(path: string): Promise<Preview> {
  * @returns 候補のパス (ディレクトリのみ. 末尾に `/`).
  */
 export function completePath(input: string): Promise<string[]> {
-  return invoke<string[]>("complete_path", { input });
+  return commands.completePath(input);
 }
 
 /**
@@ -269,14 +275,14 @@ export function completePath(input: string): Promise<string[]> {
  * @returns キーの並びからコマンド名への対応. 値が null のキーは割り当てを解除する.
  */
 export function loadKeymap(): Promise<Record<string, string | null>> {
-  return invoke<Record<string, string | null>>("load_keymap");
+  return commands.loadKeymap();
 }
 
 /**
  * アプリケーションを終了します.
  */
 export function quitApp(): Promise<void> {
-  return invoke<void>("quit_app");
+  return commands.quitApp();
 }
 
 /**
@@ -284,8 +290,8 @@ export function quitApp(): Promise<void> {
  *
  * @param path - ターミナルの作業ディレクトリにするパス.
  */
-export function openTerminal(path: string): Promise<void> {
-  return invoke<void>("open_terminal", { path });
+export async function openTerminal(path: string): Promise<void> {
+  await commands.openTerminal(path);
 }
 
 /**
@@ -294,11 +300,11 @@ export function openTerminal(path: string): Promise<void> {
  * @param command - 実行するコマンド (`%f` を対象のパスに置き換える).
  * @param paths - 対象のパス.
  */
-export function runExternalCommand(
+export async function runExternalCommand(
   command: string,
   paths: string[],
 ): Promise<void> {
-  return invoke<void>("run_external_command", { command, paths });
+  await commands.runExternalCommand(command, paths);
 }
 
 /**
@@ -307,7 +313,7 @@ export function runExternalCommand(
  * @returns 設定. 設定ファイルが無い場合は既定値.
  */
 export function loadConfig(): Promise<AppConfig> {
-  return invoke<AppConfig>("load_config");
+  return commands.loadConfig();
 }
 
 /**
@@ -315,8 +321,8 @@ export function loadConfig(): Promise<AppConfig> {
  *
  * @param config - 書き込む設定.
  */
-export function saveConfig(config: AppConfig): Promise<void> {
-  return invoke<void>("save_config", { config });
+export async function saveConfig(config: AppConfig): Promise<void> {
+  await commands.saveConfig(config);
 }
 
 /**
@@ -324,8 +330,8 @@ export function saveConfig(config: AppConfig): Promise<void> {
  *
  * @param paths - 書き込む左右のペインのディレクトリ.
  */
-export function saveLastPaths(paths: LastPaths): Promise<void> {
-  return invoke<void>("save_last_paths", { paths });
+export async function saveLastPaths(paths: LastPaths): Promise<void> {
+  await commands.saveLastPaths(paths);
 }
 
 /**
@@ -335,7 +341,7 @@ export function saveLastPaths(paths: LastPaths): Promise<void> {
  * @returns 左右のペインの履歴 (古い順). 保存されていない場合は空.
  */
 export function loadHistory(): Promise<PaneHistory> {
-  return invoke<PaneHistory>("load_history");
+  return commands.loadHistory();
 }
 
 /**
@@ -343,12 +349,9 @@ export function loadHistory(): Promise<PaneHistory> {
  *
  * @param history - 書き込む左右のペインの履歴 (古い順).
  */
-export function saveHistory(history: PaneHistory): Promise<void> {
-  return invoke<void>("save_history", { history });
+export async function saveHistory(history: PaneHistory): Promise<void> {
+  await commands.saveHistory(history);
 }
-
-/** バックエンドへ転送する, ログの重大度. */
-export type LogLevel = "debug" | "info" | "warn" | "error";
 
 /**
  * フロントエンドのログメッセージを, バックエンドのログ (標準エラー出力とログファイル) へ転送します.
@@ -360,5 +363,5 @@ export function logFrontendMessage(
   level: LogLevel,
   message: string,
 ): Promise<void> {
-  return invoke<void>("log_frontend_message", { level, message });
+  return commands.logFrontendMessage(level, message);
 }

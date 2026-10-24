@@ -120,6 +120,8 @@ src/
 ├── services/                           # Tauriの `invoke` / イベントリスナー ラッパー
 │   └── tauriApi.ts                     # Rust側コマンド呼び出しの型安全ラッパー
 │
+├── bindings.ts                         # tauri-specta が Rust のコマンドから作る型と呼び出し (手で編集しない)
+│
 ├── store/                              # 状態管理 (Zustand)
 │   ├── useAppStore.ts                  # ペイン状態 (左右パス, フォーカス), クリップボード
 │   └── useTaskStore.ts                 # 実行中の非同期タスク管理
@@ -136,7 +138,7 @@ src/
 ```text
 src-tauri/src/
 ├── main.rs                             # エントリーポイント (`tauri::Builder` 起動)
-├── lib.rs                              # モジュール登録と Tauri `.invoke_handler()` 設定
+├── lib.rs                              # モジュール登録と Tauri `.invoke_handler()` 設定 (`specta_builder`)
 ├── error.rs                            # アプリケーション共通のエラー定義 (thiserror, Result型ラッパー)
 ├── state.rs                            # アプリケーション状態保持 (タスクキャンセルトークン, 設定等)
 │

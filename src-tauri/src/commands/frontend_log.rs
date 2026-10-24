@@ -1,9 +1,10 @@
 //! フロントエンドから転送されたログメッセージを, バックエンドのログとして記録するコマンド.
 
 use serde::Deserialize;
+use specta::Type;
 
 /// フロントエンドから送られる, ログの重大度.
-#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Deserialize, Type, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     /// 詳細なデバッグ情報.
@@ -37,6 +38,7 @@ impl From<LogLevel> for log::Level {
 /// * `level` - ログの重大度.
 /// * `message` - ログの内容.
 #[tauri::command]
+#[specta::specta]
 pub fn log_frontend_message(level: LogLevel, message: String) {
     log::log!(target: "frontend", level.into(), "{}", message);
 }

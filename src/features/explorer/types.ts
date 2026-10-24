@@ -1,50 +1,9 @@
-/**
- * ファイルまたはディレクトリのエントリ情報を表すインターフェース.
- */
-export interface FileEntry {
-  /**
-   * ファイルまたはディレクトリの名前.
-   */
-  name: string;
-  /**
-   * ファイルシステム上の絶対パス.
-   */
-  path: string;
-  /**
-   * ディレクトリである場合は true, ファイルの場合は false.
-   */
-  is_dir: boolean;
-  /**
-   * ファイルサイズ (バイト). ディレクトリでは意味を持たない.
-   */
-  size: number;
-  /**
-   * 最終更新日時 (UNIX 時刻の秒). 取得できない場合は null.
-   */
-  modified: number | null;
-  /**
-   * 読み取り専用の場合は true.
-   */
-  readonly: boolean;
-  /**
-   * 隠しファイルの場合は true.
-   */
-  hidden: boolean;
-}
+import type { DiskSpace, FileEntry_Serialize } from "../../bindings";
 
-/**
- * ディスクの空き容量と全体の容量.
- */
-export interface DiskSpace {
-  /**
-   * 利用可能な空き容量 (バイト).
-   */
-  free: number;
-  /**
-   * 全体の容量 (バイト).
-   */
-  total: number;
-}
+/** ファイルシステム上の 1 つのエントリ (バックエンドから受け取る形). */
+export type FileEntry = FileEntry_Serialize;
+
+export type { DiskSpace };
 
 /**
  * 操作対象ペインを識別するための識別子型.

@@ -1,12 +1,13 @@
 //! ディレクトリ一覧・ホームディレクトリ・ドライブ・ディスク容量など, ファイルシステムの情報を取得するコマンド.
 
 use serde::Serialize;
+use specta::Type;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 /// ファイルシステム上の 1 つのエントリ（ファイルまたはディレクトリ）を表す構造体.
-#[derive(Serialize)]
+#[derive(Serialize, Type)]
 pub struct FileEntry {
     /// ファイルまたはディレクトリの名前.
     pub name: String,
@@ -130,6 +131,7 @@ fn scan_directory(path: &str) -> Result<Vec<FileEntry>, String> {
 /// 成功した場合は [`FileEntry`] のベクトルを包んだ [`Ok`] を返し,
 /// ディレクトリが存在しないかアクセス権限がない場合はエラー文字列を含む [`Err`] を返します.
 #[tauri::command]
+#[specta::specta]
 pub async fn read_directory(path: String) -> Result<Vec<FileEntry>, String> {
     log::debug!("ディレクトリ読み取り開始: {}", path);
     let target = path.clone();
@@ -185,6 +187,7 @@ fn dir_has_entries(path: &str, show_hidden: bool) -> bool {
 /// `paths` と同じ順序の, エントリの有無の配列 (あれば `true`).
 /// 走査のスレッドが異常終了した場合はエラー文字列を含む [`Err`] を返します.
 #[tauri::command]
+#[specta::specta]
 pub async fn dirs_have_entries(paths: Vec<String>, show_hidden: bool) -> Result<Vec<bool>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         paths
@@ -203,6 +206,7 @@ pub async fn dirs_have_entries(paths: Vec<String>, show_hidden: bool) -> Result<
 /// ホームディレクトリのパス文字列を包んだ [`Ok`],
 /// パスを取得できなかった場合はエラー文字列を含む [`Err`] を返します.
 #[tauri::command]
+#[specta::specta]
 pub fn get_home_dir() -> Result<String, String> {
     home_dir_string(dirs::home_dir())
 }
@@ -233,12 +237,13 @@ fn home_dir_string(home: Option<PathBuf>) -> Result<String, String> {
 ///
 /// ルートパスの一覧.
 #[tauri::command]
+#[specta::specta]
 pub fn list_drives() -> Vec<String> {
     drives_from(candidate_roots(), |p| Path::new(p).exists())
 }
 
 /// ディスクの空き容量と全体の容量を表す構造体.
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Serialize, Type, Debug, PartialEq)]
 pub struct DiskSpace {
     /// 利用可能な空き容量 (バイト).
     pub free: u64,
@@ -256,6 +261,7 @@ pub struct DiskSpace {
 ///
 /// 成功した場合は [`DiskSpace`], 取得に失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command]
+#[specta::specta]
 pub fn get_disk_space(path: String) -> Result<DiskSpace, String> {
     let free = disk_space_of(&path, |p| fs4::available_space(p))?;
     let total = disk_space_of(&path, |p| fs4::total_space(p))?;
@@ -339,6 +345,7 @@ fn complete_path_with(input: &str, home: Option<&Path>) -> Vec<String> {
 ///
 /// 候補のパス (ディレクトリのみ. 末尾に `/`). 詳細は `complete_path_with` を参照.
 #[tauri::command]
+#[specta::specta]
 pub fn complete_path(input: String) -> Vec<String> {
     complete_path_with(&input, dirs::home_dir().as_deref())
 }

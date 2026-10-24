@@ -37,6 +37,7 @@ pub(crate) fn join_valid_name(parent: &str, name: &str) -> Result<PathBuf, Strin
 ///
 /// 成功した場合は [`Ok(())`], 名前が不正な場合や同名のエントリが存在する場合はエラー文字列を含む [`Err`].
 #[tauri::command]
+#[specta::specta]
 pub fn create_directory(parent: String, name: String) -> Result<(), String> {
     let path = join_valid_name(&parent, &name)?;
     fs::create_dir(&path).map_err(|e| {
@@ -60,6 +61,7 @@ pub fn create_directory(parent: String, name: String) -> Result<(), String> {
 ///
 /// 成功した場合は [`Ok(())`], 名前が不正な場合や同名のエントリが存在する場合はエラー文字列を含む [`Err`].
 #[tauri::command]
+#[specta::specta]
 pub fn create_file(parent: String, name: String) -> Result<(), String> {
     let path = join_valid_name(&parent, &name)?;
     fs::OpenOptions::new()
@@ -240,6 +242,7 @@ fn atomic_rename(src: &Path, dest: &Path) -> std::io::Result<()> {
 /// 成功した場合は [`Ok(())`], 対象が存在しない場合・名前が不正な場合・変更先が存在する場合は
 /// エラー文字列を含む [`Err`].
 #[tauri::command]
+#[specta::specta]
 pub fn rename_item(path: String, new_name: String) -> Result<(), String> {
     let src = Path::new(&path);
     if fs::symlink_metadata(src).is_err() {

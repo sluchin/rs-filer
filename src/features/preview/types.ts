@@ -1,5 +1,8 @@
+export type { PreviewKind } from "../../bindings";
+
 /**
  * バックエンドが返すプレビューの内容. 種類ごとに, 使う項目だけを持つ.
+ * `src/bindings.ts` の `Preview` (Rust の構造体) を, 種類ごとに絞り込んだ型.
  */
 export type Preview = {
   /**

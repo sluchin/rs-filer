@@ -1,6 +1,7 @@
 //! 設定ファイル (キーマップ・アプリ設定) の読み込み・書き込みを行うコマンド.
 
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -70,6 +71,7 @@ fn load_keymap_from(config_dir: Option<&Path>) -> Result<HashMap<String, Option<
 // 実際のユーザーの設定ディレクトリを読むため, カバレッジの対象外にする (ロジックは load_keymap_from で検証する).
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
+#[specta::specta]
 pub fn load_keymap() -> Result<HashMap<String, Option<String>>, String> {
     load_keymap_from(dirs::config_dir().as_deref()).inspect_err(|e| {
         log::error!("キーマップ設定読み込み失敗: {}", e);
@@ -77,7 +79,7 @@ pub fn load_keymap() -> Result<HashMap<String, Option<String>>, String> {
 }
 
 /// テーマ (配色).
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Serialize, Deserialize, Type, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum Theme {
     /// xyzzy クラシック風の配色 (既定).
@@ -87,7 +89,7 @@ pub enum Theme {
 }
 
 /// フォントサイズ.
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Serialize, Deserialize, Type, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum FontSize {
     /// 小.
@@ -99,7 +101,7 @@ pub enum FontSize {
 }
 
 /// ファイル一覧の列幅設定.
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+#[derive(Serialize, Deserialize, Type, Clone, PartialEq, Debug, Default)]
 pub struct ColumnWidths {
     /// ファイル名の列の幅 (px).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -116,7 +118,7 @@ pub struct ColumnWidths {
 }
 
 /// ペイン毎の列幅設定.
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+#[derive(Serialize, Deserialize, Type, Clone, PartialEq, Debug, Default)]
 pub struct PaneColumnWidths {
     /// 左ペインの列幅.
     #[serde(default)]
@@ -127,7 +129,7 @@ pub struct PaneColumnWidths {
 }
 
 /// ウィンドウの状態 (終了時に保存して, 起動時に復元する).
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Type, Clone, PartialEq, Debug)]
 pub struct WindowState {
     /// ウィンドウの内側の幅 (論理ピクセル). 最大化していないときの値.
     pub width: u32,
@@ -145,7 +147,7 @@ pub struct WindowState {
 }
 
 /// 前回終了時の, 左右のペインのディレクトリ (起動時に復元する).
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+#[derive(Serialize, Deserialize, Type, Clone, PartialEq, Debug, Default)]
 pub struct LastPaths {
     /// 左ペインのディレクトリ.
     pub left: String,
@@ -154,7 +156,7 @@ pub struct LastPaths {
 }
 
 /// アプリケーションの設定.
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Type, Clone, PartialEq, Debug)]
 #[serde(default)]
 pub struct AppConfig {
     /// テーマ.
@@ -343,6 +345,7 @@ fn save_last_paths_to(config_dir: Option<&Path>, paths: &LastPaths) -> Result<()
 // 実際のユーザーの設定ディレクトリへ書くため, カバレッジの対象外にする (ロジックは save_last_paths_to で検証する).
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
+#[specta::specta]
 pub fn save_last_paths(paths: LastPaths) -> Result<(), String> {
     save_last_paths_to(dirs::config_dir().as_deref(), &paths).inspect_err(|e| {
         log::error!("前回のディレクトリ書き込み失敗: {}", e);
@@ -357,6 +360,7 @@ pub fn save_last_paths(paths: LastPaths) -> Result<(), String> {
 // 実際のユーザーの設定ディレクトリを読むため, カバレッジの対象外にする (ロジックは load_config_from で検証する).
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
+#[specta::specta]
 pub fn load_config() -> Result<AppConfig, String> {
     load_config_from(dirs::config_dir().as_deref()).inspect_err(|e| {
         log::error!("アプリ設定読み込み失敗: {}", e);
@@ -375,6 +379,7 @@ pub fn load_config() -> Result<AppConfig, String> {
 // 実際のユーザーの設定ディレクトリへ書くため, カバレッジの対象外にする (ロジックは save_config_to で検証する).
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
+#[specta::specta]
 pub fn save_config(config: AppConfig) -> Result<(), String> {
     save_config_to(dirs::config_dir().as_deref(), &config).inspect_err(|e| {
         log::error!("アプリ設定書き込み失敗: {}", e);

@@ -10,45 +10,18 @@ pub mod logging;
 /// ウィンドウの大きさ・位置・最大化の状態を保存して復元するモジュール.
 pub mod window_state;
 
-/// Tauri アプリケーションをビルドして実行します.
+/// フロントエンドと通信する IPC コマンドの Specta ビルダーを構築します.
 ///
-/// 以下の処理を順に実行します:
-/// 0. (Linux の Wayland のみ) XWayland (X11) で動かすための環境変数の設定
-/// 1. ログ出力 (標準エラー出力とログファイル) の初期化
-/// 2. デフォルトの Tauri ビルダーの初期化
-/// 3. フロントエンドから呼び出し可能な IPC ハンドラーの登録 (`commands` モジュールの各コマンド)
-/// 4. 起動時のウィンドウの状態の復元と, 終了時の保存 (`window_state` モジュール)
-/// 5. コンテキストの生成とアプリケーションループのスタート
+/// # Returns
 ///
-/// # Panics
-///
-/// Tauri アプリケーションの初期化で修復不能なエラーが発生した場合,
-/// `"error while building tauri application"` メッセージとともにパニックします.
-#[cfg(not(tarpaulin_include))]
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    // Wayland では, ウィンドウの位置を扱えない. 位置を記憶できるよう, XWayland (X11) で動かす.
-    // GTK の初期化の前 (スレッドを作る前) に設定する.
-    #[cfg(target_os = "linux")]
-    window_state::prefer_x11();
-    logging::init_logging();
-    tauri::Builder::default()
-        .manage(commands::TransferState::default())
-        .manage(commands::StatsState::default())
-        .setup(|app| {
-            if let Some(window) = window_state::main_window(app) {
-                window_state::restore(&window);
-            }
-            Ok(())
-        })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                if let Some(window) = window_state::main_window(window) {
-                    window_state::save(&window);
-                }
-            }
-        })
-        .invoke_handler(tauri::generate_handler![
+/// 登録済みの全 IPC コマンドを含む [`tauri_specta::Builder`].
+pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
+    tauri_specta::Builder::<tauri::Wry>::new()
+        // 失敗したコマンドは, エラー (文字列) で Promise を reject する (これまでの `invoke` と同じ)
+        .error_handling(tauri_specta::ErrorHandlingMode::Throw)
+        // サイズ (u64) などは, TypeScript の `number` にする (2^53 を超える値は丸められる)
+        .dangerously_cast_bigints_to_number()
+        .commands(tauri_specta::collect_commands![
             commands::fs::read_directory,
             commands::fs::dirs_have_entries,
             commands::info::get_item_info,
@@ -82,6 +55,48 @@ pub fn run() {
             commands::history::load_history,
             commands::history::save_history
         ])
+}
+
+/// Tauri アプリケーションをビルドして実行します.
+///
+/// 以下の処理を順に実行します:
+/// 0. (Linux の Wayland のみ) XWayland (X11) で動かすための環境変数の設定
+/// 1. ログ出力 (標準エラー出力とログファイル) の初期化
+/// 2. デフォルトの Tauri ビルダーの初期化
+/// 3. フロントエンドから呼び出し可能な IPC ハンドラーの登録 ([`specta_builder`] で集めた, `commands` モジュールの各コマンド)
+/// 4. 起動時のウィンドウの状態の復元と, 終了時の保存 (`window_state` モジュール)
+/// 5. コンテキストの生成とアプリケーションループのスタート
+///
+/// # Panics
+///
+/// Tauri アプリケーションの初期化で修復不能なエラーが発生した場合,
+/// `"error while building tauri application"` メッセージとともにパニックします.
+#[cfg(not(tarpaulin_include))]
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    // Wayland では, ウィンドウの位置を扱えない. 位置を記憶できるよう, XWayland (X11) で動かす.
+    // GTK の初期化の前 (スレッドを作る前) に設定する.
+    #[cfg(target_os = "linux")]
+    window_state::prefer_x11();
+    logging::init_logging();
+    let specta = specta_builder();
+    tauri::Builder::default()
+        .manage(commands::TransferState::default())
+        .manage(commands::StatsState::default())
+        .setup(|app| {
+            if let Some(window) = window_state::main_window(app) {
+                window_state::restore(&window);
+            }
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                if let Some(window) = window_state::main_window(window) {
+                    window_state::save(&window);
+                }
+            }
+        })
+        .invoke_handler(specta.invoke_handler())
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
@@ -92,4 +107,29 @@ pub fn run() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// フロントエンドの型 (`src/bindings.ts`) が, コマンドから作ったものと同じであることを確かめます.
+    /// 環境変数 `UPDATE_BINDINGS` があれば, 作り直して書き込みます (`npm run bindings:generate`).
+    #[test]
+    fn test_specta_builder_bindings_up_to_date() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("bindings.ts");
+        specta_builder()
+            .export(specta_typescript::Typescript::default(), &out)
+            .unwrap();
+        let generated = std::fs::read_to_string(&out).unwrap();
+        let committed = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/bindings.ts");
+        if std::env::var_os("UPDATE_BINDINGS").is_some() {
+            std::fs::write(&committed, &generated).unwrap();
+        }
+        assert!(
+            std::fs::read_to_string(&committed).unwrap() == generated,
+            "src/bindings.ts が, コマンドと合っていない. `npm run bindings:generate` で作り直す."
+        );
+    }
 }

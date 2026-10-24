@@ -32,6 +32,9 @@ encoding_rs = "0.8.42"
 chardetng = "1.0.0"
 base64 = "0.23.1"
 arboard = "3.4.0"
+specta = { version = "=2.0.0-rc.26", features = ["derive"] }
+specta-typescript = "0.0.13"
+tauri-specta = { version = "=2.0.0-rc.26", features = ["typescript"] }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
