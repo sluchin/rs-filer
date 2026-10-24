@@ -1,10 +1,12 @@
 //! ウィンドウの大きさ・位置・最大化の状態を, 終了時に保存して, 起動時に復元するモジュール.
 //!
 //! 保存先は, アプリ設定ファイル (`config.json`) の `window` です (`commands::config`).
-//! 保存と復元の判断 (値が正しいか, 画面の内側か) は, Tauri に依存しない関数にして, `cargo test` で
-//! 検証します. ウィンドウを実際に読み書きする部分 (`save` と `restore`) だけが, Tauri に依存します.
+//! 保存と復元の処理は, ウィンドウの操作を `WindowOps` に, 環境変数の読み書きを関数に分けて, `cargo test` で
+//! 検証します. 実際の `WebviewWindow` に `WindowOps` を実装する部分と, 実際の設定ディレクトリ・環境変数を
+//! 渡す入口 (`save`・`restore`・`prefer_x11`) だけが, Tauri と実行環境に依存します.
 
-use crate::commands::config::{load_window_state, store_window_state, WindowState};
+use crate::commands::config::{load_window_state_from, store_window_state_to, WindowState};
+use std::path::Path;
 use tauri::{Manager, WebviewWindow};
 
 /// 復元するウィンドウの内側の幅・高さの最小値 (論理ピクセル). これより小さい保存値は, 不正として扱う.
@@ -70,21 +72,60 @@ pub fn is_position_supported(wayland_display: Option<&str>, gdk_backend: Option<
     !is_set(wayland_display) || gdk_backend.is_some_and(|b| b.starts_with("x11"))
 }
 
+/// 環境変数を読みます.
+///
+/// # Arguments
+///
+/// * `name` - 環境変数の名前.
+///
+/// # Returns
+///
+/// 値. 設定されていない場合や, UTF-8 でない場合は `None`.
+fn env_var(name: &str) -> Option<String> {
+    std::env::var(name).ok()
+}
+
+/// 環境変数から, ウィンドウの位置を取得・設定できる環境かを判定します.
+///
+/// # Arguments
+///
+/// * `env` - 環境変数を読む関数.
+///
+/// # Returns
+///
+/// 位置を扱える場合は `true`.
+fn position_supported_by(env: &dyn Fn(&str) -> Option<String>) -> bool {
+    is_position_supported(
+        env("WAYLAND_DISPLAY").as_deref(),
+        env("GDK_BACKEND").as_deref(),
+    )
+}
+
+/// Wayland の環境で, アプリを XWayland (X11) で動かすよう, 環境変数を設定します.
+///
+/// # Arguments
+///
+/// * `env` - 環境変数を読む関数.
+/// * `set_env` - 環境変数を設定する関数 (名前, 値).
+#[cfg(target_os = "linux")]
+fn prefer_x11_with(env: &dyn Fn(&str) -> Option<String>, set_env: &mut dyn FnMut(&str, &str)) {
+    if should_use_x11(
+        env("WAYLAND_DISPLAY").as_deref(),
+        env("DISPLAY").as_deref(),
+        env("GDK_BACKEND").as_deref(),
+    ) {
+        set_env("GDK_BACKEND", "x11");
+    }
+}
+
 /// Linux の Wayland の環境では, アプリを XWayland (X11) で動かすよう, 環境変数を設定します.
 ///
 /// GTK を初期化する前 (他のスレッドを作る前) に, 一度だけ呼びます.
-// 実際の環境変数を読み書きするため, カバレッジの対象外にする (判断は should_use_x11 で検証する).
+// 実際のプロセスの環境変数を書き換えるため, カバレッジの対象外にする (処理は prefer_x11_with で検証する).
 #[cfg(target_os = "linux")]
 #[cfg(not(tarpaulin_include))]
 pub fn prefer_x11() {
-    let get = |name: &str| std::env::var(name).ok();
-    if should_use_x11(
-        get("WAYLAND_DISPLAY").as_deref(),
-        get("DISPLAY").as_deref(),
-        get("GDK_BACKEND").as_deref(),
-    ) {
-        std::env::set_var("GDK_BACKEND", "x11");
-    }
+    prefer_x11_with(&env_var, &mut |name, value| std::env::set_var(name, value));
 }
 
 /// 画面 (モニター) の領域. 物理ピクセル.
@@ -236,81 +277,175 @@ pub fn capture(
     })
 }
 
-/// ウィンドウの今の状態を, 設定ファイルに保存します.
+/// 保存と復元で使う, ウィンドウの操作. テストでは, 実際のウィンドウの代わりを渡す.
+pub trait WindowOps {
+    /// 画面の拡大率 (物理ピクセル / 論理ピクセル) を返します.
+    fn scale_factor(&self) -> Result<f64, String>;
+
+    /// 内側の大きさ (物理ピクセル) を返します.
+    fn inner_size(&self) -> Result<(u32, u32), String>;
+
+    /// 外側の左上の位置 (物理ピクセル) を返します.
+    fn outer_position(&self) -> Result<(i32, i32), String>;
+
+    /// 最大化しているかを返します.
+    fn is_maximized(&self) -> Result<bool, String>;
+
+    /// 最小化しているかを返します.
+    fn is_minimized(&self) -> Result<bool, String>;
+
+    /// 接続されている画面の領域を返します. 取得できない場合は空.
+    fn monitor_areas(&self) -> Vec<Area>;
+
+    /// 内側の大きさ (論理ピクセル) を設定します.
+    fn set_size(&self, width: u32, height: u32) -> Result<(), String>;
+
+    /// 外側の左上の位置 (物理ピクセル) を設定します.
+    fn set_position(&self, x: i32, y: i32) -> Result<(), String>;
+
+    /// 最大化します.
+    fn maximize(&self) -> Result<(), String>;
+}
+
+// Tauri の実際のウィンドウを呼ぶだけのもので, cargo test ではウィンドウを作れないため,
+// カバレッジの対象外にする (保存と復元の処理は save_with / restore_with で検証する).
+#[cfg(not(tarpaulin_include))]
+impl WindowOps for WebviewWindow {
+    fn scale_factor(&self) -> Result<f64, String> {
+        WebviewWindow::scale_factor(self).map_err(|e| e.to_string())
+    }
+
+    fn inner_size(&self) -> Result<(u32, u32), String> {
+        WebviewWindow::inner_size(self)
+            .map(|s| (s.width, s.height))
+            .map_err(|e| e.to_string())
+    }
+
+    fn outer_position(&self) -> Result<(i32, i32), String> {
+        WebviewWindow::outer_position(self)
+            .map(|p| (p.x, p.y))
+            .map_err(|e| e.to_string())
+    }
+
+    fn is_maximized(&self) -> Result<bool, String> {
+        WebviewWindow::is_maximized(self).map_err(|e| e.to_string())
+    }
+
+    fn is_minimized(&self) -> Result<bool, String> {
+        WebviewWindow::is_minimized(self).map_err(|e| e.to_string())
+    }
+
+    fn monitor_areas(&self) -> Vec<Area> {
+        self.available_monitors()
+            .unwrap_or_default()
+            .iter()
+            .map(|m| Area {
+                x: m.position().x,
+                y: m.position().y,
+                width: m.size().width,
+                height: m.size().height,
+            })
+            .collect()
+    }
+
+    fn set_size(&self, width: u32, height: u32) -> Result<(), String> {
+        WebviewWindow::set_size(self, tauri::LogicalSize::new(width, height))
+            .map_err(|e| e.to_string())
+    }
+
+    fn set_position(&self, x: i32, y: i32) -> Result<(), String> {
+        WebviewWindow::set_position(self, tauri::PhysicalPosition::new(x, y))
+            .map_err(|e| e.to_string())
+    }
+
+    fn maximize(&self) -> Result<(), String> {
+        WebviewWindow::maximize(self).map_err(|e| e.to_string())
+    }
+}
+
+/// ウィンドウの今の状態から, 保存する状態を決めます.
+///
+/// # Arguments
+///
+/// * `window` - 保存するウィンドウ.
+/// * `previous` - 保存されている状態. 無い場合は `None`.
+/// * `position_supported` - 位置を扱える環境の場合は `true`.
+///
+/// # Returns
+///
+/// 保存する状態 (保存するものが無い場合は `None`). ウィンドウの状態の取得に失敗した場合は,
+/// エラー文字列を含む [`Err`].
+fn capture_window(
+    window: &dyn WindowOps,
+    previous: Option<&WindowState>,
+    position_supported: bool,
+) -> Result<Option<WindowState>, String> {
+    let scale = window.scale_factor()?;
+    let (width, height) = window.inner_size()?;
+    let size = (
+        (f64::from(width) / scale).round() as u32,
+        (f64::from(height) / scale).round() as u32,
+    );
+    let position = window.outer_position()?;
+    // Wayland のままでは, 位置は常に 0,0 で意味が無いので, 保存しない.
+    let position = position_supported.then_some(position);
+    Ok(capture(
+        previous,
+        size,
+        position,
+        window.is_maximized()?,
+        window.is_minimized()?,
+    ))
+}
+
+/// ウィンドウの今の状態を, 設定ディレクトリの設定ファイルに保存します.
 ///
 /// 取得に失敗した項目があれば, 警告をログに出して, 何も保存しません.
 ///
 /// # Arguments
 ///
 /// * `window` - 保存するウィンドウ.
-// ウィンドウと実際のユーザーの設定ディレクトリを使うため, カバレッジの対象外にする (判断は capture で検証する).
-#[cfg(not(tarpaulin_include))]
-pub fn save(window: &WebviewWindow) {
-    let state = (|| -> Result<Option<WindowState>, tauri::Error> {
-        let scale = window.scale_factor()?;
-        let physical = window.inner_size()?;
-        let size = (
-            (f64::from(physical.width) / scale).round() as u32,
-            (f64::from(physical.height) / scale).round() as u32,
-        );
-        let position = window.outer_position()?;
-        // Wayland のままでは, 位置は常に 0,0 で意味が無いので, 保存しない.
-        let position = is_position_supported(
-            std::env::var("WAYLAND_DISPLAY").ok().as_deref(),
-            std::env::var("GDK_BACKEND").ok().as_deref(),
-        )
-        .then_some((position.x, position.y));
-        Ok(capture(
-            load_window_state().as_ref(),
-            size,
-            position,
-            window.is_maximized()?,
-            window.is_minimized()?,
-        ))
-    })();
-    match state {
-        Ok(Some(state)) => store_window_state(&state),
+/// * `config_dir` - OS の設定ディレクトリ. 取得できなかった場合は `None`.
+/// * `env` - 環境変数を読む関数.
+fn save_with(
+    window: &dyn WindowOps,
+    config_dir: Option<&Path>,
+    env: &dyn Fn(&str) -> Option<String>,
+) {
+    let previous = load_window_state_from(config_dir);
+    match capture_window(window, previous.as_ref(), position_supported_by(env)) {
+        Ok(Some(state)) => store_window_state_to(config_dir, &state),
         Ok(None) => log::info!("保存するウィンドウの状態がありません"),
         Err(e) => log::warn!("ウィンドウの状態の取得失敗: {}", e),
     }
 }
 
-/// 保存されているウィンドウの状態を復元します (起動時に呼ぶ).
+/// 設定ディレクトリに保存されているウィンドウの状態を復元します.
 ///
-/// 保存値が無い場合, 大きさが不正な場合, 位置が画面の外の場合は, その項目を設定しません.
+/// 保存値が無い場合, 大きさが不正な場合, 位置が画面の外の場合, 位置を扱えない環境の場合は,
+/// その項目を設定しません. 設定に失敗した項目は, 警告をログに出して, 残りの項目を続けます.
 ///
 /// # Arguments
 ///
 /// * `window` - 復元するウィンドウ.
-// ウィンドウと実際のユーザーの設定ディレクトリを使うため, カバレッジの対象外にする (判断は restore_plan で検証する).
-#[cfg(not(tarpaulin_include))]
-pub fn restore(window: &WebviewWindow) {
-    let Some(state) = load_window_state() else {
+/// * `config_dir` - OS の設定ディレクトリ. 取得できなかった場合は `None`.
+/// * `env` - 環境変数を読む関数.
+fn restore_with(
+    window: &dyn WindowOps,
+    config_dir: Option<&Path>,
+    env: &dyn Fn(&str) -> Option<String>,
+) {
+    let Some(state) = load_window_state_from(config_dir) else {
         return;
     };
-    let areas: Vec<Area> = window
-        .available_monitors()
-        .unwrap_or_default()
-        .iter()
-        .map(|m| Area {
-            x: m.position().x,
-            y: m.position().y,
-            width: m.size().width,
-            height: m.size().height,
-        })
-        .collect();
-    let plan = restore_plan(&state, &areas);
+    let plan = restore_plan(&state, &window.monitor_areas());
     if let Some((width, height)) = plan.size {
-        if let Err(e) = window.set_size(tauri::LogicalSize::new(width, height)) {
+        if let Err(e) = window.set_size(width, height) {
             log::warn!("ウィンドウの大きさの設定失敗: {}", e);
         }
     }
-    let position_supported = is_position_supported(
-        std::env::var("WAYLAND_DISPLAY").ok().as_deref(),
-        std::env::var("GDK_BACKEND").ok().as_deref(),
-    );
-    if let (true, Some((x, y))) = (position_supported, plan.position) {
-        if let Err(e) = window.set_position(tauri::PhysicalPosition::new(x, y)) {
+    if let (true, Some((x, y))) = (position_supported_by(env), plan.position) {
+        if let Err(e) = window.set_position(x, y) {
             log::warn!("ウィンドウの位置の設定失敗: {}", e);
         }
     }
@@ -322,6 +457,28 @@ pub fn restore(window: &WebviewWindow) {
     log::info!("ウィンドウの状態を復元: {:?}", plan);
 }
 
+/// ウィンドウの今の状態を, ユーザーの設定ファイルに保存します.
+///
+/// # Arguments
+///
+/// * `window` - 保存するウィンドウ.
+// 実際のユーザーの設定ディレクトリへ書くため, カバレッジの対象外にする (処理は save_with で検証する).
+#[cfg(not(tarpaulin_include))]
+pub fn save(window: &WebviewWindow) {
+    save_with(window, dirs::config_dir().as_deref(), &env_var);
+}
+
+/// ユーザーの設定ファイルに保存されているウィンドウの状態を復元します (起動時に呼ぶ).
+///
+/// # Arguments
+///
+/// * `window` - 復元するウィンドウ.
+// 実際のユーザーの設定ディレクトリを読むため, カバレッジの対象外にする (処理は restore_with で検証する).
+#[cfg(not(tarpaulin_include))]
+pub fn restore(window: &WebviewWindow) {
+    restore_with(window, dirs::config_dir().as_deref(), &env_var);
+}
+
 /// ウィンドウのラベルから, 保存または復元するウィンドウを取り出します.
 ///
 /// # Arguments
@@ -331,6 +488,7 @@ pub fn restore(window: &WebviewWindow) {
 /// # Returns
 ///
 /// メインのウィンドウ. 無い場合は `None`.
+// Tauri のアプリケーションのハンドルが要るため, カバレッジの対象外にする.
 #[cfg(not(tarpaulin_include))]
 pub fn main_window<M: Manager<tauri::Wry>>(app: &M) -> Option<WebviewWindow> {
     app.get_webview_window("main")
@@ -561,5 +719,216 @@ mod tests {
         // Wayland のまま動いていれば, 扱えない.
         assert!(!is_position_supported(Some("wayland-0"), None));
         assert!(!is_position_supported(Some("wayland-0"), Some("wayland")));
+    }
+
+    #[test]
+    fn test_env_var_success() {
+        assert!(env_var("PATH").is_some());
+        assert_eq!(env_var("RSFILER_NO_SUCH_VARIABLE"), None);
+    }
+
+    /// 環境変数の代わり. `vars` にある名前だけを返す.
+    fn fake_env(vars: &'static [(&'static str, &'static str)]) -> impl Fn(&str) -> Option<String> {
+        move |name| {
+            vars.iter()
+                .find(|(n, _)| *n == name)
+                .map(|(_, v)| v.to_string())
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_prefer_x11_with_conditions() {
+        let mut set = Vec::new();
+        prefer_x11_with(
+            &fake_env(&[("WAYLAND_DISPLAY", "wayland-0"), ("DISPLAY", ":0")]),
+            &mut |name, value| set.push((name.to_string(), value.to_string())),
+        );
+        assert_eq!(set, vec![("GDK_BACKEND".to_string(), "x11".to_string())]);
+
+        // 利用者が GDK_BACKEND を指定していれば, 変えない.
+        prefer_x11_with(
+            &fake_env(&[
+                ("WAYLAND_DISPLAY", "wayland-0"),
+                ("DISPLAY", ":0"),
+                ("GDK_BACKEND", "wayland"),
+            ]),
+            &mut |_, _| panic!("呼ばれないこと"),
+        );
+    }
+
+    /// テスト用のウィンドウ. `fail` が `true` の場合は, すべての操作に失敗する.
+    struct MockWindow {
+        scale: f64,
+        size: (u32, u32),
+        position: (i32, i32),
+        maximized: bool,
+        areas: Vec<Area>,
+        fail: bool,
+        calls: std::cell::RefCell<Vec<String>>,
+    }
+
+    impl MockWindow {
+        fn new() -> Self {
+            Self {
+                scale: 2.0,
+                size: (2400, 1600),
+                position: (100, 200),
+                maximized: false,
+                areas: screen(),
+                fail: false,
+                calls: std::cell::RefCell::new(Vec::new()),
+            }
+        }
+
+        fn result<T>(&self, value: T) -> Result<T, String> {
+            if self.fail {
+                Err("window error".to_string())
+            } else {
+                Ok(value)
+            }
+        }
+
+        fn record(&self, call: String) -> Result<(), String> {
+            self.calls.borrow_mut().push(call);
+            self.result(())
+        }
+    }
+
+    impl WindowOps for MockWindow {
+        fn scale_factor(&self) -> Result<f64, String> {
+            self.result(self.scale)
+        }
+
+        fn inner_size(&self) -> Result<(u32, u32), String> {
+            self.result(self.size)
+        }
+
+        fn outer_position(&self) -> Result<(i32, i32), String> {
+            self.result(self.position)
+        }
+
+        fn is_maximized(&self) -> Result<bool, String> {
+            self.result(self.maximized)
+        }
+
+        fn is_minimized(&self) -> Result<bool, String> {
+            self.result(false)
+        }
+
+        fn monitor_areas(&self) -> Vec<Area> {
+            self.areas.clone()
+        }
+
+        fn set_size(&self, width: u32, height: u32) -> Result<(), String> {
+            self.record(format!("size {width}x{height}"))
+        }
+
+        fn set_position(&self, x: i32, y: i32) -> Result<(), String> {
+            self.record(format!("position {x},{y}"))
+        }
+
+        fn maximize(&self) -> Result<(), String> {
+            self.record("maximize".to_string())
+        }
+    }
+
+    const X11: &[(&str, &str)] = &[("DISPLAY", ":0")];
+    const WAYLAND: &[(&str, &str)] = &[("WAYLAND_DISPLAY", "wayland-0")];
+
+    #[test]
+    fn test_save_with_success() {
+        let dir = tempfile::tempdir().unwrap();
+        save_with(&MockWindow::new(), Some(dir.path()), &fake_env(X11));
+        // 物理ピクセルを拡大率で割って, 論理ピクセルで保存する.
+        assert_eq!(
+            load_window_state_from(Some(dir.path())),
+            Some(state(1200, 800, Some(100), Some(200), false))
+        );
+    }
+
+    #[test]
+    fn test_save_with_wayland_keeps_previous_position() {
+        let dir = tempfile::tempdir().unwrap();
+        store_window_state_to(
+            Some(dir.path()),
+            &state(800, 600, Some(10), Some(20), false),
+        );
+        save_with(&MockWindow::new(), Some(dir.path()), &fake_env(WAYLAND));
+        assert_eq!(
+            load_window_state_from(Some(dir.path())),
+            Some(state(1200, 800, Some(10), Some(20), false))
+        );
+    }
+
+    #[test]
+    fn test_save_with_nothing_to_save_and_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        // 大きさが不正で, 以前の状態も無い場合は, 保存しない.
+        let tiny = MockWindow {
+            size: (10, 10),
+            ..MockWindow::new()
+        };
+        save_with(&tiny, Some(dir.path()), &fake_env(X11));
+        assert_eq!(load_window_state_from(Some(dir.path())), None);
+
+        // ウィンドウの状態を取得できない場合も, 保存しない.
+        let failing = MockWindow {
+            fail: true,
+            ..MockWindow::new()
+        };
+        save_with(&failing, Some(dir.path()), &fake_env(X11));
+        assert_eq!(load_window_state_from(Some(dir.path())), None);
+    }
+
+    #[test]
+    fn test_restore_with_success() {
+        let dir = tempfile::tempdir().unwrap();
+        store_window_state_to(
+            Some(dir.path()),
+            &state(1000, 700, Some(30), Some(40), true),
+        );
+        let window = MockWindow::new();
+        restore_with(&window, Some(dir.path()), &fake_env(X11));
+        assert_eq!(
+            *window.calls.borrow(),
+            vec!["size 1000x700", "position 30,40", "maximize"]
+        );
+    }
+
+    #[test]
+    fn test_restore_with_skips_unavailable_items() {
+        // 保存値が無ければ, 何もしない.
+        let dir = tempfile::tempdir().unwrap();
+        let window = MockWindow::new();
+        restore_with(&window, Some(dir.path()), &fake_env(X11));
+        assert!(window.calls.borrow().is_empty());
+
+        // Wayland のままなら, 位置は設定しない. 最大化していなければ, 最大化しない.
+        store_window_state_to(
+            Some(dir.path()),
+            &state(1000, 700, Some(30), Some(40), false),
+        );
+        restore_with(&window, Some(dir.path()), &fake_env(WAYLAND));
+        assert_eq!(*window.calls.borrow(), vec!["size 1000x700"]);
+    }
+
+    #[test]
+    fn test_restore_with_failure_continues() {
+        let dir = tempfile::tempdir().unwrap();
+        store_window_state_to(
+            Some(dir.path()),
+            &state(1000, 700, Some(30), Some(40), true),
+        );
+        let window = MockWindow {
+            fail: true,
+            ..MockWindow::new()
+        };
+        restore_with(&window, Some(dir.path()), &fake_env(X11));
+        // 失敗しても, 残りの項目を続ける.
+        assert_eq!(
+            *window.calls.borrow(),
+            vec!["size 1000x700", "position 30,40", "maximize"]
+        );
     }
 }

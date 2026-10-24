@@ -54,29 +54,35 @@ pub(crate) fn unix_secs(time: std::time::SystemTime) -> Option<i64> {
     }
 }
 
-/// メタデータの隠し属性を判定します.
+/// メタデータの隠し属性を判定します. Windows.
 ///
 /// # Arguments
 ///
-/// * `name` - エントリの名前.
+/// * `_name` - エントリの名前 (Windows では使わない).
 /// * `metadata` - 対象のメタデータ.
 ///
 /// # Returns
 ///
-/// 隠しファイルの場合は `true`.
-#[cfg(not(tarpaulin_include))]
-pub(crate) fn is_hidden(name: &str, metadata: &fs::Metadata) -> bool {
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        let _ = name;
-        metadata.file_attributes() & 0x2 != 0
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = metadata;
-        name.starts_with('.')
-    }
+/// 隠し属性 (`FILE_ATTRIBUTE_HIDDEN`) が付いている場合は `true`.
+#[cfg(windows)]
+pub(crate) fn is_hidden(_name: &str, metadata: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    metadata.file_attributes() & 0x2 != 0
+}
+
+/// メタデータの隠し属性を判定します. Windows 以外.
+///
+/// # Arguments
+///
+/// * `name` - エントリの名前.
+/// * `_metadata` - 対象のメタデータ (Windows 以外では使わない).
+///
+/// # Returns
+///
+/// 名前が `.` で始まる場合は `true`.
+#[cfg(not(windows))]
+pub(crate) fn is_hidden(name: &str, _metadata: &fs::Metadata) -> bool {
+    name.starts_with('.')
 }
 
 /// 指定されたパスのディレクトリ内にあるファイル・ディレクトリの一覧を取得します.

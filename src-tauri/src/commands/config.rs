@@ -388,29 +388,30 @@ pub fn save_config(config: AppConfig) -> Result<(), String> {
     Ok(())
 }
 
-/// ユーザーの設定から, 前回終了時のウィンドウの状態を読み込みます.
+/// 設定ディレクトリから, 前回終了時のウィンドウの状態を読み込みます.
+///
+/// # Arguments
+///
+/// * `config_dir` - OS の設定ディレクトリ. 取得できなかった場合は `None`.
 ///
 /// # Returns
 ///
 /// 保存されていれば `Some`. 設定が無い場合や読み込めない場合は `None` (既定のウィンドウで開く).
-// 実際のユーザーの設定ディレクトリを読むため, カバレッジの対象外にする (ロジックは load_config_from で検証する).
-#[cfg(not(tarpaulin_include))]
-pub fn load_window_state() -> Option<WindowState> {
-    load_config_from(dirs::config_dir().as_deref())
+pub fn load_window_state_from(config_dir: Option<&Path>) -> Option<WindowState> {
+    load_config_from(config_dir)
         .inspect_err(|e| log::warn!("ウィンドウの状態の読み込み失敗: {}", e))
         .ok()
         .and_then(|config| config.window)
 }
 
-/// ユーザーの設定へ, ウィンドウの状態を書き込みます.
+/// 設定ディレクトリへ, ウィンドウの状態を書き込みます. 失敗した場合は, 警告をログに出します.
 ///
 /// # Arguments
 ///
+/// * `config_dir` - OS の設定ディレクトリ. 取得できなかった場合は `None`.
 /// * `state` - 書き込むウィンドウの状態.
-// 実際のユーザーの設定ディレクトリへ書くため, カバレッジの対象外にする (ロジックは save_window_state_to で検証する).
-#[cfg(not(tarpaulin_include))]
-pub fn store_window_state(state: &WindowState) {
-    match save_window_state_to(dirs::config_dir().as_deref(), state) {
+pub fn store_window_state_to(config_dir: Option<&Path>, state: &WindowState) {
+    match save_window_state_to(config_dir, state) {
         Ok(()) => log::info!("ウィンドウの状態書き込み完了"),
         Err(e) => log::warn!("ウィンドウの状態書き込み失敗: {}", e),
     }
@@ -720,5 +721,31 @@ mod tests {
         fs::write(&file, "{ broken").unwrap();
         assert!(save_window_state_to(Some(dir.path()), &state).is_err());
         assert_eq!(fs::read_to_string(&file).unwrap(), "{ broken");
+    }
+
+    #[test]
+    fn test_store_window_state_to_and_load_window_state_from_success() {
+        let dir = tempdir().unwrap();
+        assert_eq!(load_window_state_from(Some(dir.path())), None);
+
+        store_window_state_to(Some(dir.path()), &sample_window(true));
+
+        assert_eq!(
+            load_window_state_from(Some(dir.path())),
+            Some(sample_window(true))
+        );
+    }
+
+    #[test]
+    fn test_store_window_state_to_and_load_window_state_from_failure() {
+        // 書き込めない場合は, ログに出すだけで, パニックしない.
+        store_window_state_to(None, &sample_window(false));
+
+        // 壊れた設定ファイルは, 状態が無いものとして扱う.
+        let dir = tempdir().unwrap();
+        let file = config_path(dir.path());
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, "{ broken").unwrap();
+        assert_eq!(load_window_state_from(Some(dir.path())), None);
     }
 }

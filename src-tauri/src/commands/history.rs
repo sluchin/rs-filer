@@ -110,24 +110,37 @@ pub fn save_history_to(config_dir: Option<&Path>, history: &PaneHistory) -> Resu
     fs::write(&path, text).map_err(|e| e.to_string())
 }
 
+/// 設定ディレクトリから, 履歴を読み込みます. 件数の上限は, `config.json` の `history_limit` を使います.
+///
+/// # Arguments
+///
+/// * `config_dir` - OS の設定ディレクトリ. 取得できなかった場合は `None`.
+///
+/// # Returns
+///
+/// 履歴. 保存されていない場合は空. 失敗した場合はエラー文字列を含む [`Err`].
+/// `config.json` を読み込めない場合は, 上限を既定値 (`DEFAULT_HISTORY_LIMIT`) にして読み込みます.
+fn load_history_with_limit(config_dir: Option<&Path>) -> Result<PaneHistory, String> {
+    let limit = super::config::load_config_from(config_dir)
+        .map(|config| config.history_limit)
+        .unwrap_or(DEFAULT_HISTORY_LIMIT);
+    load_history_from(config_dir, limit).inspect_err(|e| {
+        log::error!("移動履歴の読み込み失敗: {}", e);
+    })
+}
+
 /// ユーザーの設定から, 履歴を読み込みます. 今は無いディレクトリは除き, `config.json` の
 /// `history_limit` の件数までにします.
 ///
 /// # Returns
 ///
 /// 履歴. 保存されていない場合は空. 失敗した場合はエラー文字列を含む [`Err`].
-// 実際のユーザーの設定ディレクトリを読むため, カバレッジの対象外にする (ロジックは load_history_from で検証する).
+// 実際のユーザーの設定ディレクトリを読むため, カバレッジの対象外にする (処理は load_history_with_limit で検証する).
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
 #[specta::specta]
 pub async fn load_history() -> Result<PaneHistory, String> {
-    let config_dir = dirs::config_dir();
-    let limit = super::config::load_config_from(config_dir.as_deref())
-        .map(|config| config.history_limit)
-        .unwrap_or(DEFAULT_HISTORY_LIMIT);
-    load_history_from(config_dir.as_deref(), limit).inspect_err(|e| {
-        log::error!("移動履歴の読み込み失敗: {}", e);
-    })
+    load_history_with_limit(dirs::config_dir().as_deref())
 }
 
 /// ユーザーの設定へ, 履歴を書き込みます.
@@ -149,4 +162,66 @@ pub async fn save_history(history: PaneHistory) -> Result<(), String> {
     save_history_to(dirs::config_dir().as_deref(), &history).inspect_err(|e| {
         log::error!("移動履歴の書き込み失敗: {}", e);
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn dirs_in(root: &Path, count: usize) -> Vec<String> {
+        (0..count)
+            .map(|i| {
+                let dir = root.join(format!("d{i}"));
+                fs::create_dir_all(&dir).unwrap();
+                dir.to_string_lossy().into_owned()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_load_history_with_limit_uses_config_limit() {
+        let dir = tempdir().unwrap();
+        let paths = dirs_in(dir.path(), 3);
+        let history = PaneHistory {
+            left: paths.clone(),
+            right: Vec::new(),
+        };
+        save_history_to(Some(dir.path()), &history).unwrap();
+        // history_limit は, save_config_to では書き換えない項目なので, ファイルへ直接書く.
+        let config_file = dir.path().join("rsfiler").join("config.json");
+        fs::write(&config_file, r#"{ "history_limit": 2 }"#).unwrap();
+
+        let loaded = load_history_with_limit(Some(dir.path())).unwrap();
+
+        assert_eq!(loaded.left, paths[1..].to_vec());
+    }
+
+    #[test]
+    fn test_load_history_with_limit_broken_config_uses_default() {
+        let dir = tempdir().unwrap();
+        let paths = dirs_in(dir.path(), 3);
+        let history = PaneHistory {
+            left: paths.clone(),
+            right: Vec::new(),
+        };
+        save_history_to(Some(dir.path()), &history).unwrap();
+        let config_file = dir.path().join("rsfiler").join("config.json");
+        fs::write(&config_file, "{ broken").unwrap();
+
+        assert_eq!(
+            load_history_with_limit(Some(dir.path())).unwrap().left,
+            paths
+        );
+    }
+
+    #[test]
+    fn test_load_history_with_limit_broken_history_failure() {
+        let dir = tempdir().unwrap();
+        let file = history_path(dir.path());
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, "{ broken").unwrap();
+
+        assert!(load_history_with_limit(Some(dir.path())).is_err());
+    }
 }

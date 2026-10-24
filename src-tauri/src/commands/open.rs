@@ -13,6 +13,7 @@ use std::process::Command;
 /// # Returns
 ///
 /// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
+// OS の関連付けで, 実際にアプリケーションを起動するため, カバレッジの対象外にする.
 #[cfg(not(tarpaulin_include))]
 fn system_open(path: &Path) -> Result<(), String> {
     open::that(path).map_err(|e| e.to_string())
@@ -85,6 +86,28 @@ fn open_in_editor_with(path: &Path, editor: Option<&str>) -> Result<(), String> 
     }
 }
 
+/// 使うエディタを決めます.
+///
+/// 設定 (`config.json`) の `editor`, 環境変数 `VISUAL`, 環境変数 `EDITOR` の順に探します.
+///
+/// # Arguments
+///
+/// * `config_dir` - OS の設定ディレクトリ. 取得できなかった場合は `None`.
+/// * `env` - 環境変数を読む関数.
+///
+/// # Returns
+///
+/// エディタのコマンド名. いずれも未設定の場合は `None`. 設定を読み込めない場合はエラー文字列を含む [`Err`].
+fn resolve_editor(
+    config_dir: Option<&Path>,
+    env: &dyn Fn(&str) -> Option<String>,
+) -> Result<Option<String>, String> {
+    let config_editor = load_config_from(config_dir)?.editor;
+    Ok(config_editor
+        .or_else(|| env("VISUAL"))
+        .or_else(|| env("EDITOR")))
+}
+
 /// エディタでファイルを開きます.
 ///
 /// エディタは, 設定 (`config.json`) の `editor`, 環境変数 `VISUAL`, 環境変数 `EDITOR` の順に探します.
@@ -97,14 +120,15 @@ fn open_in_editor_with(path: &Path, editor: Option<&str>) -> Result<(), String> 
 /// # Returns
 ///
 /// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
+// 実際のユーザーの設定と環境変数を読み, エディタを起動するため, カバレッジの対象外にする
+// (処理は resolve_editor と open_in_editor_with で検証する).
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
 #[specta::specta]
 pub fn open_in_editor(path: String) -> Result<(), String> {
-    let config_editor = load_config_from(dirs::config_dir().as_deref())?.editor;
-    let editor = config_editor
-        .or_else(|| std::env::var("VISUAL").ok())
-        .or_else(|| std::env::var("EDITOR").ok());
+    let editor = resolve_editor(dirs::config_dir().as_deref(), &|name| {
+        std::env::var(name).ok()
+    })?;
     open_in_editor_with(Path::new(&path), editor.as_deref())
 }
 
@@ -197,6 +221,25 @@ fn open_terminal_with(
     }
 }
 
+/// プログラムを, 指定した作業ディレクトリで起動します (終了は待ちません).
+///
+/// # Arguments
+///
+/// * `program` - 起動するプログラム.
+/// * `args` - 追加の引数.
+/// * `dir` - 作業ディレクトリ.
+///
+/// # Returns
+///
+/// 起動できた場合は `true`.
+fn spawn_in(program: &str, args: &[String], dir: &Path) -> bool {
+    Command::new(program)
+        .args(args)
+        .current_dir(dir)
+        .spawn()
+        .is_ok()
+}
+
 /// カレントディレクトリでターミナルを開きます.
 ///
 /// 設定 (`config.json`) の `terminal` があればそれを, 無ければ OS ごとの既定のターミナルを
@@ -209,6 +252,8 @@ fn open_terminal_with(
 /// # Returns
 ///
 /// 成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
+// 実際のユーザーの設定を読み, ターミナルを起動するため, カバレッジの対象外にする
+// (処理は candidates_for, open_terminal_with, spawn_in で検証する).
 #[cfg(not(tarpaulin_include))]
 #[tauri::command]
 #[specta::specta]
@@ -217,18 +262,13 @@ pub fn open_terminal(path: String) -> Result<(), String> {
     open_terminal_with(
         Path::new(&path),
         &candidates_for(terminal.as_deref()),
-        &|program, args, dir| {
-            Command::new(program)
-                .args(args)
-                .current_dir(dir)
-                .spawn()
-                .is_ok()
-        },
+        &spawn_in,
     )
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::config::{save_config_to, AppConfig};
     use super::*;
     use std::fs;
     use tempfile::tempdir;
@@ -329,5 +369,61 @@ mod tests {
             panic!("呼ばれないこと")
         });
         assert!(not_dir.unwrap_err().starts_with("Not a directory"));
+    }
+
+    #[test]
+    fn test_resolve_editor_order() {
+        let env = |name: &str| match name {
+            "VISUAL" => Some("visual-editor".to_string()),
+            "EDITOR" => Some("editor".to_string()),
+            _ => None,
+        };
+        // 設定が無ければ, VISUAL, EDITOR の順.
+        let dir = tempdir().unwrap();
+        assert_eq!(
+            resolve_editor(Some(dir.path()), &env).unwrap().as_deref(),
+            Some("visual-editor")
+        );
+        let only_editor = |name: &str| (name == "EDITOR").then(|| "editor".to_string());
+        assert_eq!(
+            resolve_editor(Some(dir.path()), &only_editor)
+                .unwrap()
+                .as_deref(),
+            Some("editor")
+        );
+        assert_eq!(resolve_editor(None, &|_| None).unwrap(), None);
+
+        // 設定があれば, 環境変数より優先する.
+        let config = AppConfig {
+            editor: Some("configured".to_string()),
+            ..Default::default()
+        };
+        save_config_to(Some(dir.path()), &config).unwrap();
+        assert_eq!(
+            resolve_editor(Some(dir.path()), &env).unwrap().as_deref(),
+            Some("configured")
+        );
+    }
+
+    #[test]
+    fn test_resolve_editor_broken_config_failure() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("rsfiler").join("config.json");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, "{ broken").unwrap();
+        assert!(resolve_editor(Some(dir.path()), &|_| None).is_err());
+    }
+
+    #[test]
+    fn test_spawn_in_success_and_failure() {
+        let dir = tempdir().unwrap();
+        // テスト実行ファイル自身を起動する (引数はテスト名フィルタとして扱われ, すぐ終了する).
+        let exe = std::env::current_exe().unwrap();
+        assert!(spawn_in(
+            exe.to_str().unwrap(),
+            &["rsfiler_no_such_test".to_string()],
+            dir.path()
+        ));
+        assert!(!spawn_in("rsfiler-no-such-terminal", &[], dir.path()));
     }
 }
