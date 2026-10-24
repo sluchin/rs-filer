@@ -3,6 +3,7 @@
 //! 処理は別スレッドで実行し, 進捗は Tauri の [`Channel`](tauri::ipc::Channel) でフロントエンドへ送ります.
 //! 中断は [`TransferState`] の中断フラグで受け付け, 大きなファイルはチャンクごとにフラグを確認します.
 
+use super::ops::rename_noreplace;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashSet;
@@ -201,7 +202,28 @@ fn tree_size(path: &Path) -> u64 {
         .unwrap_or(0)
 }
 
-/// 1 つのファイルを, 進捗と中断を確認しながらコピーします. 中断された場合は, 書きかけのファイルを消します.
+/// コピー先の隣に置く, 書き込み途中の一時ファイルのパスを返します.
+///
+/// # Arguments
+///
+/// * `dst` - コピー先のファイル.
+///
+/// # Returns
+///
+/// コピー先と同じディレクトリの, 隠しファイルの名前 (`.<名前>.rsfiler-<プロセス ID>.tmp`) のパス.
+fn temp_path_of(dst: &Path) -> PathBuf {
+    dst.with_file_name(format!(
+        ".{}.rsfiler-{}.tmp",
+        file_name_of(dst),
+        std::process::id()
+    ))
+}
+
+/// 1 つのファイルを, 進捗と中断を確認しながらコピーします.
+///
+/// 一時ファイルに書き込み, 書き終えてから名前の変更でコピー先に置き換えます. 途中で中断・失敗しても,
+/// 既にあるコピー先は元のまま残り, 一時ファイルは消します. コピー先がハードリンクでも, リンク先の中身は
+/// 書き換えません. 更新日時と権限も, コピー元に合わせます.
 ///
 /// # Arguments
 ///
@@ -213,16 +235,33 @@ fn tree_size(path: &Path) -> u64 {
 ///
 /// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
 fn copy_file(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop> {
+    let temp = temp_path_of(dst);
+    let result =
+        write_copy(src, &temp, progress).and_then(|()| fs::rename(&temp, dst).map_err(Stop::from));
+    if result.is_err() {
+        let _ = fs::remove_file(&temp);
+    }
+    result
+}
+
+/// コピー元の中身を, 進捗と中断を確認しながら書き込み, 更新日時と権限をコピー元に合わせます.
+///
+/// # Arguments
+///
+/// * `src` - コピー元のファイル.
+/// * `dst` - 書き込むファイル (一時ファイル).
+/// * `progress` - 進捗の窓口.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
+fn write_copy(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop> {
     let name = file_name_of(src);
     let mut reader = fs::File::open(src)?;
+    let meta = reader.metadata()?;
     let mut writer = fs::File::create(dst)?;
     loop {
-        if progress.check().is_err() {
-            // 書き込み中のハンドルを閉じてから消す (開いたままだと Windows などで削除できない).
-            drop(writer);
-            let _ = fs::remove_file(dst);
-            return Err(Stop::Cancelled);
-        }
+        progress.check()?;
         // OS が対応していれば, カーネル内でコピーされる (Linux の copy_file_range など).
         let n = std::io::copy(&mut (&mut reader).take(CHUNK_SIZE as u64), &mut writer)?;
         if n == 0 {
@@ -231,11 +270,13 @@ fn copy_file(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop
         }
         progress.advance(n, &name);
     }
-    drop(writer);
-    // 権限だけコピーする. 失敗しても (読み取り専用の配置先など) コピー自体は成功として扱う.
-    if let Ok(meta) = fs::metadata(src) {
-        let _ = fs::set_permissions(dst, meta.permissions());
+    // 更新日時と権限は, 失敗しても (対応していないファイルシステムなど) コピー自体は成功として扱う.
+    if let Ok(modified) = meta.modified() {
+        let _ = writer.set_modified(modified);
     }
+    // 書き込み中のハンドルを閉じてから, 権限を変える (読み取り専用にすると, 書けなくなるため).
+    drop(writer);
+    let _ = fs::set_permissions(dst, meta.permissions());
     Ok(())
 }
 
@@ -771,10 +812,17 @@ fn move_one(
         remove_entry(dst)?;
     }
     let size = tree_size(src);
-    if renamer(src, dst).is_ok() {
-        // 名前の変更で移せた (同一ディスク内). 進捗はサイズ分をまとめて進める.
-        progress.advance(size, &file_name_of(src));
-        return Ok(());
+    match renamer(src, dst) {
+        Ok(()) => {
+            // 名前の変更で移せた (同一ディスク内). 進捗はサイズ分をまとめて進める.
+            progress.advance(size, &file_name_of(src));
+            return Ok(());
+        }
+        // 確認の後に, 同名のものが作られた. 上書きしない.
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(Stop::Failed(format!("Already exists: {}", dst.display())));
+        }
+        Err(_) => {}
     }
     // 名前の変更に失敗した場合 (別のディスクへの移動など) は, コピーしてから元を消す.
     copy_tree(src, dst, progress)?;
@@ -987,7 +1035,8 @@ pub fn transfer(
     transfer_with(
         request,
         cancel,
-        &|a, b| fs::rename(a, b),
+        // 確認の後に作られた同名のものを, 上書きしないようにする.
+        &rename_noreplace,
         &move_to_trash,
         on_progress,
     )

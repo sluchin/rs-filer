@@ -1083,3 +1083,127 @@ fn test_move_one_directory_symlink_preserves_real_target() {
     assert!(important_file.is_file());
     assert_eq!(fs::read_to_string(&important_file).unwrap(), "vital data");
 }
+
+#[test]
+fn test_copy_file_keeps_mtime_and_replaces_through_a_temp_file() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("a.txt");
+    fs::write(&src, "new").unwrap();
+    set_mtime(&src, -3600);
+    let dest = dir.path().join("dest");
+    fs::create_dir(&dest).unwrap();
+    fs::write(dest.join("a.txt"), "old").unwrap();
+    let mut req = request(TransferKind::Copy, &[&src], Some(&dest));
+    req.overwrite = true;
+
+    run(&req).0.unwrap();
+
+    assert_eq!(fs::read_to_string(dest.join("a.txt")).unwrap(), "new");
+    assert_eq!(
+        fs::metadata(dest.join("a.txt"))
+            .unwrap()
+            .modified()
+            .unwrap(),
+        fs::metadata(&src).unwrap().modified().unwrap()
+    );
+    // 一時ファイルは残らない.
+    assert_eq!(fs::read_dir(&dest).unwrap().count(), 1);
+}
+
+#[test]
+fn test_copy_file_overwrite_does_not_change_hard_linked_file() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("a.txt");
+    fs::write(&src, "new").unwrap();
+    let dest = dir.path().join("dest");
+    fs::create_dir(&dest).unwrap();
+    let other = dir.path().join("other.txt");
+    fs::write(&other, "keep").unwrap();
+    fs::hard_link(&other, dest.join("a.txt")).unwrap();
+    let mut req = request(TransferKind::Copy, &[&src], Some(&dest));
+    req.overwrite = true;
+
+    run(&req).0.unwrap();
+
+    assert_eq!(fs::read_to_string(dest.join("a.txt")).unwrap(), "new");
+    assert_eq!(fs::read_to_string(&other).unwrap(), "keep");
+}
+
+#[test]
+fn test_copy_file_cancel_keeps_existing_destination() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("big.bin");
+    fs::write(&src, vec![7u8; CHUNK_SIZE * 2 + 10]).unwrap();
+    let dest = dir.path().join("dest");
+    fs::create_dir(&dest).unwrap();
+    fs::write(dest.join("big.bin"), "old").unwrap();
+    let cancel = AtomicBool::new(false);
+    let mut req = request(TransferKind::Copy, &[&src], Some(&dest));
+    req.overwrite = true;
+
+    let result = transfer(&req, &cancel, &mut |_| cancel.store(true, Ordering::SeqCst));
+
+    assert!(result.unwrap().cancelled);
+    assert_eq!(fs::read_to_string(dest.join("big.bin")).unwrap(), "old");
+    assert_eq!(fs::read_dir(&dest).unwrap().count(), 1);
+}
+
+#[test]
+fn test_copy_file_replace_failure_removes_temp_file() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("a.txt");
+    fs::write(&src, "x").unwrap();
+    // 中身のあるディレクトリには, ファイルの名前を変えて置き換えられない.
+    let dst = dir.path().join("busy");
+    fs::create_dir(&dst).unwrap();
+    fs::write(dst.join("child"), "").unwrap();
+    let cancel = AtomicBool::new(false);
+    let skip = HashSet::new();
+    let mut progress = Progress {
+        cancel: &cancel,
+        skip: &skip,
+        on_progress: &mut |_| {},
+        done: 0,
+        total: 0,
+        last_sent: None,
+    };
+
+    let result = copy_file(&src, &dst, &mut progress);
+
+    assert!(matches!(result, Err(Stop::Failed(_))));
+    assert!(!temp_path_of(&dst).exists());
+}
+
+#[test]
+fn test_move_one_refuses_destination_created_after_the_check() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("a.txt");
+    fs::write(&src, "x").unwrap();
+    let dst = dir.path().join("b.txt");
+    let cancel = AtomicBool::new(false);
+    let skip = HashSet::new();
+    let mut progress = Progress {
+        cancel: &cancel,
+        skip: &skip,
+        on_progress: &mut |_| {},
+        done: 0,
+        total: 0,
+        last_sent: None,
+    };
+
+    // 名前を変える直前に, 別のプロセスが同名のファイルを作った.
+    let result = move_one(
+        &src,
+        &dst,
+        false,
+        &|_, b| {
+            fs::write(b, "other")?;
+            rename_noreplace(&src, b)
+        },
+        &mut progress,
+    );
+
+    assert!(matches!(result, Err(Stop::Failed(m)) if m.starts_with("Already exists")));
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "other");
+    assert!(src.exists());
+}
