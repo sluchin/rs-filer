@@ -163,3 +163,30 @@ src-tauri/src/
     ├── watcher.rs                      # notifyクレートを使用したファイル変更検知・イベント送信
     ├── search_engine.rs                # 並列ファイル検索・正規表現/インクリメンタルフィルタ
     └── preview_loader.rs               # 文字コード自動判定・画像サムネイル・Hexダンプ生成
+```
+
+### 🧪 バックエンドのテスト (`src-tauri/tests/` - Rust)
+
+```text
+src-tauri/tests/
+├── commands_test.rs                    # 結合テスト (公開 API だけを使う。直下の `*_test.rs`)
+├── clipboard_test.rs
+├── history_test.rs
+├── logging_test.rs
+└── unit/                               # 単体テスト (`src/` と同じ構成で `<ソースのファイル名>_test.rs`。対象のソースに `#[path]` で子モジュールとして組み込む)
+    ├── lib_test.rs
+    ├── logging_test.rs
+    ├── window_state_test.rs
+    └── commands/
+        ├── clipboard_test.rs
+        ├── config_test.rs
+        ├── exec_test.rs
+        ├── frontend_log_test.rs
+        ├── fs_test.rs
+        ├── history_test.rs
+        ├── info_test.rs
+        ├── open_test.rs
+        ├── ops_test.rs
+        ├── preview_test.rs
+        └── transfer_test.rs
+```

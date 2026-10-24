@@ -20,7 +20,7 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
   - `src/lib.rs`: Tauri の初期化 (`run`) と IPC コマンドの登録 (`specta_builder`)。
   - `src/commands/`: フロントエンドから呼ぶ IPC コマンド (`#[tauri::command]`)。`fs.rs` (一覧・ホーム・ドライブ・ディスク容量・ツリー表示用の配下の有無 `dirs_have_entries`)、`ops.rs` (作成・名前変更)、`open.rs` (外部アプリ・エディタ・ターミナルで開く)、`exec.rs` (選択したファイルへの外部コマンド実行)、`transfer.rs` (コピー・移動・削除。進捗通知と中断に対応)、`preview.rs` (プレビュー)、`info.rs` (詳細情報・配下の合計)、`config.rs` (キーマップ・アプリ設定ファイルの読み書き)、`history.rs` (ディレクトリの移動履歴の保存と読み込み)、`app.rs` (終了) に分け、`mod.rs` で再エクスポートする。
   - `src/main.rs`: エントリポイント。
-  - `tests/`: 結合テスト (`commands_test.rs`)。
+  - `tests/`: テスト。直下の `*_test.rs` は結合テスト (`commands_test.rs` など)、`unit/` は単体テスト (`src/` と同じ構成で、ファイル名は `<ソースのファイル名>_test.rs`。`src/commands/transfer.rs` のテストは `unit/commands/transfer_test.rs`)。
   - `capabilities/default.json`: Tauri v2 の権限設定。
 - `FILETREE.md`: 目標とするファイル構成 (`components/`、`features/` など、まだ存在しないものを含む)。
 - `TODO.md`: フェーズごとのロードマップ。
@@ -64,7 +64,9 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 
 ### Rust
 
-- 単体テストは、対象のソースと同じファイルの `#[cfg(test)] mod tests` に置く。`src-tauri/tests/` の結合テストは、公開 API (`rsfiler::commands::*`) だけを使う。
+- テストのソースは、すべて `src-tauri/tests/` に置く (`src/` には置かない)。
+  - 単体テストは、`src-tauri/tests/unit/` に、`src/` と同じ構成で、`<ソースのファイル名>_test.rs` の名前で置く。非公開の関数も検証できるよう、対象のソースの末尾で `#[cfg(test)] #[path = "../../tests/unit/commands/transfer_test.rs"] mod tests;` のように子モジュールとして組み込み、テストの中では `use super::*;` を使う。テスト用の偽物 (`FakeClipboard` など) も、テストのファイルに置く。
+  - 結合テストは、`src-tauri/tests/` の直下に `*_test.rs` で置き、公開 API (`rsfiler::commands::*`) だけを使う。`unit/` の下は, cargo が結合テストとして別に組まない (`main.rs` を置かない)。
 - テスト関数名は `test_<対象の関数名>_<内容>` とする (`test_read_directory_integration`)。
 - ファイルシステムを使うテストは、`tempfile` の一時ディレクトリを使い、実際のホームディレクトリなどを変更・削除しない。
 - 同じ挙動を検証する、重複したテストは作らない。
