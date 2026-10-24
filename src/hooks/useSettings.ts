@@ -27,10 +27,12 @@ function next<T>(cycle: T[], current: T): T {
  *
  * 起動時に一度だけ設定ファイルを読み込みます. 読み込みが終わるまでは既定値を使います.
  *
- * @returns 現在の設定と, テーマ・フォントサイズを切り替える関数.
+ * @returns 現在の設定, 設定ファイルを読み込めたか (`loaded`), テーマ・フォントサイズを切り替える関数.
  */
 export function useSettings() {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
+  /** 設定ファイルを読み込めたら true. 読み込めなかった場合は false のまま (既定値で動く). */
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,6 +42,7 @@ export function useSettings() {
           // バックエンドは常に完全な AppConfig を返すが, 念のため既定値の上に重ねる
           // (Rust 側の #[serde(default)] と同じ考え方).
           setConfig({ ...DEFAULT_CONFIG, ...loaded });
+          setLoaded(true);
         }
       })
       .catch((e) => {
@@ -99,5 +102,12 @@ export function useSettings() {
     [config.pane_column_widths, update],
   );
 
-  return { config, cycleTheme, cycleFontSize, update, updatePaneColumnWidth };
+  return {
+    config,
+    loaded,
+    cycleTheme,
+    cycleFontSize,
+    update,
+    updatePaneColumnWidth,
+  };
 }

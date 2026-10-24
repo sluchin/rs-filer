@@ -81,6 +81,7 @@ fn test_read_write_config_round_trip() {
         window: Some(sample_window(false)),
         last_paths: None,
         history_limit: 500,
+        bookmarks: Some(vec!["/home/a".to_string()]),
     };
 
     write_config(&path, &config).unwrap();

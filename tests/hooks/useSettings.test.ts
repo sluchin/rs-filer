@@ -29,8 +29,10 @@ describe("useSettings", () => {
     const { result } = renderHook(() => useSettings());
 
     expect(result.current.config.theme).toBe("classic");
+    expect(result.current.loaded).toBe(false);
     await waitFor(() => expect(result.current.config.theme).toBe("dark"));
     expect(result.current.config.font_size).toBe("large");
+    expect(result.current.loaded).toBe(true);
   });
 
   it("正常系: cycleTheme / cycleFontSize で切り替わり, 保存されること", async () => {
@@ -102,6 +104,8 @@ describe("useSettings", () => {
 
     act(() => result.current.cycleTheme());
     expect(result.current.config.theme).toBe("dark");
+    // 読み込めなかったことが分かる (ブックマークの取り込みなどで, 既定値を保存しないため)
+    expect(result.current.loaded).toBe(false);
   });
 
   it("境界: 完了前にアンマウントされた場合は, 反映しようとしないこと", async () => {

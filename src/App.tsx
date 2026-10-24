@@ -116,7 +116,7 @@ export default function App(): ReactElement {
     [keymap],
   );
   const settings = useSettings();
-  const bookmarks = useBookmarks();
+  const bookmarks = useBookmarks(settings);
   const {
     leftPane,
     rightPane,

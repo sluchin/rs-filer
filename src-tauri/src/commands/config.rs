@@ -183,6 +183,10 @@ pub struct AppConfig {
     /// ディレクトリの移動履歴の, ペインごとの件数の上限 (既定は 1000). 超えたら, 古い方から捨てる.
     /// 利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
     pub history_limit: usize,
+    /// ブックマークしたディレクトリ. 一度も保存していない場合は `None` (以前の版が localStorage に
+    /// 保存したものを, フロントエンドが取り込むため, 空の一覧と区別する).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bookmarks: Option<Vec<String>>,
 }
 
 impl Default for AppConfig {
@@ -196,6 +200,7 @@ impl Default for AppConfig {
             window: None,
             last_paths: None,
             history_limit: super::history::DEFAULT_HISTORY_LIMIT,
+            bookmarks: None,
         }
     }
 }

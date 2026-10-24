@@ -438,6 +438,11 @@ export type AppConfig_Deserialize = {
 	 *  利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
 	 */
 	history_limit?: number,
+	/**
+	 *  ブックマークしたディレクトリ. 一度も保存していない場合は `None` (以前の版が localStorage に
+	 *  保存したものを, フロントエンドが取り込むため, 空の一覧と区別する).
+	 */
+	bookmarks?: string[] | null,
 };
 
 /**  アプリケーションの設定. */
@@ -467,6 +472,11 @@ export type AppConfig_Serialize = {
 	 *  利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
 	 */
 	history_limit: number,
+	/**
+	 *  ブックマークしたディレクトリ. 一度も保存していない場合は `None` (以前の版が localStorage に
+	 *  保存したものを, フロントエンドが取り込むため, 空の一覧と区別する).
+	 */
+	bookmarks?: string[],
 };
 
 /**  ファイル一覧の列幅設定. */
