@@ -1,4 +1,4 @@
-import { Channel } from "@tauri-apps/api/core";
+import { Channel, convertFileSrc } from "@tauri-apps/api/core";
 import { commands } from "../bindings";
 import type { DiskSpace, FileEntry } from "../features/explorer/types";
 import type { DirStats, ItemInfo } from "../features/info/types";
@@ -260,12 +260,19 @@ export function readClipboardFiles(): Promise<string[]> {
 /**
  * ファイルのプレビューを取得します.
  *
+ * 画像には, asset プロトコルの URL (`src`) を付けます. 画像の中身は, IPC を通さずに, 画面がその URL から直接読みます.
+ *
  * @param path - 対象のファイルのパス.
  * @returns プレビュー.
  */
-export function readPreview(path: string): Promise<Preview> {
+export async function readPreview(path: string): Promise<Preview> {
+  const preview = await commands.readPreview(path);
   // バックエンドは, 種類ごとに必要な項目を必ず入れて返す (`Preview` は, その絞り込み)
-  return commands.readPreview(path) as Promise<Preview>;
+  return (
+    preview.kind === "image"
+      ? { ...preview, src: convertFileSrc(path) }
+      : preview
+  ) as Preview;
 }
 
 /**

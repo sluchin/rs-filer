@@ -83,36 +83,57 @@ fn test_build_preview_binary_hex_dump() {
 }
 
 #[test]
-fn test_build_preview_image_data_url() {
+fn test_build_preview_image_kind_and_size_only() {
     let dir = tempdir().unwrap();
     let file = dir.path().join("a.PNG");
     fs::write(&file, [1u8, 2, 3]).unwrap();
 
     let preview = build_preview(&file).unwrap();
 
-    assert_eq!(preview.kind, PreviewKind::Image);
+    // 中身は読まず, 種類とサイズだけを返す (画面は asset プロトコルで読む).
     assert_eq!(
-        preview.data_url.as_deref(),
-        Some("data:image/png;base64,AQID")
+        preview,
+        Preview {
+            kind: PreviewKind::Image,
+            size: 3,
+            encoding: None,
+            text: None,
+            truncated: false,
+        }
     );
-    assert!(preview.text.is_none());
 }
 
 #[test]
-fn test_image_mime_success() {
-    for (name, mime) in [
-        ("a.jpg", "image/jpeg"),
-        ("a.jpeg", "image/jpeg"),
-        ("a.gif", "image/gif"),
-        ("a.webp", "image/webp"),
-        ("a.bmp", "image/bmp"),
-        ("a.ico", "image/x-icon"),
-        ("a.svg", "image/svg+xml"),
+fn test_is_image_success() {
+    for name in [
+        "a.png", "a.jpg", "a.jpeg", "a.gif", "a.webp", "a.bmp", "a.ico", "a.svg", "a.JPG",
     ] {
-        assert_eq!(image_mime(Path::new(name)), Some(mime), "{}", name);
+        assert!(is_image(Path::new(name)), "{}", name);
     }
-    assert_eq!(image_mime(Path::new("a.txt")), None);
-    assert_eq!(image_mime(Path::new("noext")), None);
+    assert!(!is_image(Path::new("a.txt")));
+    assert!(!is_image(Path::new("noext")));
+}
+
+#[test]
+fn test_read_preview_allows_only_previewed_images_in_asset_scope() {
+    let app = tauri::test::mock_app();
+    let handle = app.handle().clone();
+    let dir = tempdir().unwrap();
+    let image = dir.path().join("a.png");
+    let text = dir.path().join("a.txt");
+    let other = dir.path().join("b.png");
+    for file in [&image, &text, &other] {
+        fs::write(file, "x").unwrap();
+    }
+    let scope = handle.asset_protocol_scope();
+    let read = |path: &Path| read_preview(handle.clone(), path.to_string_lossy().into_owned());
+
+    assert_eq!(read(&image).unwrap().kind, PreviewKind::Image);
+    assert_eq!(read(&text).unwrap().kind, PreviewKind::Text);
+
+    assert!(scope.is_allowed(&image));
+    assert!(!scope.is_allowed(&text));
+    assert!(!scope.is_allowed(&other));
 }
 
 #[test]
@@ -136,7 +157,8 @@ fn test_build_preview_directory_and_missing_failure() {
     assert!(build_preview(&missing)
         .unwrap_err()
         .starts_with("Path does not exist"));
-    assert!(read_preview(missing.to_string_lossy().into_owned()).is_err());
+    let app = tauri::test::mock_app();
+    assert!(read_preview(app.handle().clone(), missing.to_string_lossy().into_owned()).is_err());
 }
 
 #[cfg(unix)]

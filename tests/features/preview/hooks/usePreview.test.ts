@@ -13,7 +13,6 @@ const preview = {
   size: 1,
   encoding: "UTF-8",
   text: "a",
-  data_url: null,
   truncated: false,
 };
 

@@ -1,7 +1,5 @@
 //! ファイルのプレビュー (テキスト・画像・バイナリ) を取得するコマンド.
 
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine;
 use chardetng::{EncodingDetector, Iso2022JpDetection, Utf8Detection};
 use encoding_rs::Encoding;
 use serde::Serialize;
@@ -9,10 +7,11 @@ use specta::Type;
 use std::fs;
 use std::io::Read;
 use std::path::Path;
+use tauri::{AppHandle, Manager, Runtime};
 
 /// テキストとして読み込む最大のバイト数.
 const MAX_TEXT_BYTES: u64 = 256 * 1024;
-/// 画像として読み込む最大のバイト数.
+/// 画像としてプレビューする最大のバイト数.
 const MAX_IMAGE_BYTES: u64 = 10 * 1024 * 1024;
 /// バイナリのダンプに使うバイト数.
 const HEX_DUMP_BYTES: usize = 1024;
@@ -42,13 +41,11 @@ pub struct Preview {
     pub encoding: Option<String>,
     /// テキスト, またはバイナリの 16 進ダンプ. 画像では `None`.
     pub text: Option<String>,
-    /// 画像の data URL. 画像以外では `None`.
-    pub data_url: Option<String>,
     /// 先頭部分だけを読み込んだ場合は `true`.
     pub truncated: bool,
 }
 
-/// 拡張子から画像の MIME タイプを返します.
+/// 拡張子から, 画像 (画面に表示できる形式) かどうかを返します.
 ///
 /// # Arguments
 ///
@@ -56,19 +53,14 @@ pub struct Preview {
 ///
 /// # Returns
 ///
-/// 画像の場合は MIME タイプ. それ以外は `None`.
-fn image_mime(path: &Path) -> Option<&'static str> {
-    let ext = path.extension()?.to_string_lossy().to_lowercase();
-    match ext.as_str() {
-        "png" => Some("image/png"),
-        "jpg" | "jpeg" => Some("image/jpeg"),
-        "gif" => Some("image/gif"),
-        "webp" => Some("image/webp"),
-        "bmp" => Some("image/bmp"),
-        "ico" => Some("image/x-icon"),
-        "svg" => Some("image/svg+xml"),
-        _ => None,
-    }
+/// 画像の場合は `true`.
+fn is_image(path: &Path) -> bool {
+    path.extension().is_some_and(|ext| {
+        matches!(
+            ext.to_string_lossy().to_lowercase().as_str(),
+            "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "ico" | "svg"
+        )
+    })
 }
 
 /// バイト列を, 16 進ダンプの文字列にします.
@@ -140,7 +132,8 @@ fn decode_text(bytes: &[u8], truncated: bool) -> (String, String) {
 
 /// ファイルのプレビューを作ります.
 ///
-/// 画像は data URL, テキストは文字コードを判別した文字列, それ以外は 16 進ダンプにします.
+/// 画像は中身を読まずに種類とサイズだけを返し (画面は asset プロトコルでファイルを直接読む),
+/// テキストは文字コードを判別した文字列, それ以外は 16 進ダンプにします.
 ///
 /// # Arguments
 ///
@@ -162,18 +155,15 @@ pub fn build_preview(path: &Path) -> Result<Preview, String> {
     }
     let size = metadata.len();
 
-    if let Some(mime) = image_mime(path) {
+    if is_image(path) {
         if size > MAX_IMAGE_BYTES {
             return Err(format!("Image is too large to preview: {} bytes", size));
         }
-        // 画像は全体を base64 の data URL にするため, 丸ごと読み込む.
-        let bytes = fs::read(path).map_err(|e| e.to_string())?;
         return Ok(Preview {
             kind: PreviewKind::Image,
             size,
             encoding: None,
             text: None,
-            data_url: Some(format!("data:{};base64,{}", mime, STANDARD.encode(bytes))),
             truncated: false,
         });
     }
@@ -194,7 +184,6 @@ pub fn build_preview(path: &Path) -> Result<Preview, String> {
             size,
             encoding: None,
             text: Some(hex_dump(&bytes[..bytes.len().min(HEX_DUMP_BYTES)])),
-            data_url: None,
             truncated: size > HEX_DUMP_BYTES as u64,
         });
     }
@@ -204,15 +193,18 @@ pub fn build_preview(path: &Path) -> Result<Preview, String> {
         size,
         encoding: Some(encoding),
         text: Some(text),
-        data_url: None,
         truncated,
     })
 }
 
 /// ファイルのプレビューを取得します.
 ///
+/// 画像の場合は, 画面が asset プロトコルで読めるよう, そのファイルだけを asset プロトコルの範囲に加えます
+/// (`tauri.conf.json` では, どのファイルも許可していない).
+///
 /// # Arguments
 ///
+/// * `app` - アプリケーションのハンドル (asset プロトコルの範囲を変えるのに使う).
 /// * `path` - 対象のファイルのパス.
 ///
 /// # Returns
@@ -220,8 +212,15 @@ pub fn build_preview(path: &Path) -> Result<Preview, String> {
 /// プレビュー. 失敗した場合はエラー文字列を含む [`Err`].
 #[tauri::command(async)]
 #[specta::specta]
-pub fn read_preview(path: String) -> Result<Preview, String> {
-    let result = build_preview(Path::new(&path));
+pub fn read_preview<R: Runtime>(app: AppHandle<R>, path: String) -> Result<Preview, String> {
+    let result = build_preview(Path::new(&path)).and_then(|preview| {
+        if preview.kind == PreviewKind::Image {
+            app.asset_protocol_scope()
+                .allow_file(&path)
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(preview)
+    });
     if let Err(e) = &result {
         log::error!("プレビュー取得失敗: {} ({})", path, e);
     }

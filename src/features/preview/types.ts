@@ -28,9 +28,9 @@ export type Preview = {
   | {
       kind: "image";
       /**
-       * 画像の data URL.
+       * 画像の asset プロトコルの URL (`readPreview` が付ける).
        */
-      data_url: string;
+      src: string;
     }
   | {
       kind: "binary";

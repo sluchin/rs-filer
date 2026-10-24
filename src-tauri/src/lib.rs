@@ -36,7 +36,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::config::save_config,
             commands::config::save_last_paths,
             commands::fs::complete_path,
-            commands::preview::read_preview,
+            commands::preview::read_preview::<tauri::Wry>,
             commands::transfer::run_transfer,
             commands::transfer::cancel_transfer,
             commands::transfer::check_conflicts,

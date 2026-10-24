@@ -6,8 +6,8 @@ import type { ReactElement } from "react";
 interface ImagePreviewProps {
   /** ファイル名. */
   name: string;
-  /** 画像の data URL. */
-  dataUrl: string;
+  /** 画像の URL (asset プロトコル). */
+  src: string;
 }
 
 /**
@@ -18,11 +18,11 @@ interface ImagePreviewProps {
  */
 export default function ImagePreview({
   name,
-  dataUrl,
+  src,
 }: ImagePreviewProps): ReactElement {
   return (
     <div className="preview-image">
-      <img src={dataUrl} alt={name} />
+      <img src={src} alt={name} />
     </div>
   );
 }

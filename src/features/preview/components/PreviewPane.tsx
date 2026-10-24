@@ -33,7 +33,7 @@ function Body({ name, state }: PreviewPaneProps): ReactElement {
   }
   const { preview } = state;
   if (preview.kind === "image") {
-    return <ImagePreview name={name} dataUrl={preview.data_url} />;
+    return <ImagePreview name={name} src={preview.src} />;
   }
   if (preview.kind === "binary") {
     return <BinaryPreview dump={preview.text} />;

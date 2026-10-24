@@ -14,6 +14,8 @@ import { invoke } from "@tauri-apps/api/core";
 // @tauri-apps/api/core の invoke コマンドをモック
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
+  convertFileSrc: (path: string) =>
+    `asset://localhost/${encodeURIComponent(path)}`,
   Channel: class {
     onmessage?: (message: unknown) => void;
   },
@@ -3127,7 +3129,6 @@ const textPreview = (text: string, over: Record<string, unknown> = {}) => ({
   size: 12,
   encoding: "UTF-8",
   text,
-  data_url: null,
   truncated: false,
   ...over,
 });
@@ -3391,7 +3392,6 @@ describe("App (プレビュー)", () => {
         size: 3,
         encoding: null,
         text: null,
-        data_url: "data:image/png;base64,AQID",
         truncated: false,
       },
       "/mock/home/c.bin": {
@@ -3399,7 +3399,6 @@ describe("App (プレビュー)", () => {
         size: 4,
         encoding: null,
         text: "00000000  41 42 00 01",
-        data_url: null,
         truncated: false,
       },
     });
@@ -3408,7 +3407,10 @@ describe("App (プレビュー)", () => {
     await user.keyboard("jjv");
     const preview = screen.getByRole("region", { name: "preview pane" });
     const image = await within(preview).findByRole("img", { name: "b.png" });
-    expect(image).toHaveAttribute("src", "data:image/png;base64,AQID");
+    expect(image).toHaveAttribute(
+      "src",
+      `asset://localhost/${encodeURIComponent("/mock/home/b.png")}`,
+    );
 
     await user.keyboard("j");
     expect(

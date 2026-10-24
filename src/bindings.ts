@@ -183,8 +183,12 @@ export const commands = {
 	/**
 	 *  ファイルのプレビューを取得します.
 	 * 
+	 *  画像の場合は, 画面が asset プロトコルで読めるよう, そのファイルだけを asset プロトコルの範囲に加えます
+	 *  (`tauri.conf.json` では, どのファイルも許可していない).
+	 * 
 	 *  # Arguments
 	 * 
+	 *  * `app` - アプリケーションのハンドル (asset プロトコルの範囲を変えるのに使う).
 	 *  * `path` - 対象のファイルのパス.
 	 * 
 	 *  # Returns
@@ -743,8 +747,6 @@ export type Preview_Deserialize = {
 	encoding?: string | null,
 	/**  テキスト, またはバイナリの 16 進ダンプ. 画像では `None`. */
 	text?: string | null,
-	/**  画像の data URL. 画像以外では `None`. */
-	data_url?: string | null,
 	/**  先頭部分だけを読み込んだ場合は `true`. */
 	truncated: boolean,
 };
@@ -759,8 +761,6 @@ export type Preview_Serialize = {
 	encoding: string | null,
 	/**  テキスト, またはバイナリの 16 進ダンプ. 画像では `None`. */
 	text: string | null,
-	/**  画像の data URL. 画像以外では `None`. */
-	data_url: string | null,
 	/**  先頭部分だけを読み込んだ場合は `true`. */
 	truncated: boolean,
 };
