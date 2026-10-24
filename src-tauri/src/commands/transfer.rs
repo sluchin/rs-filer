@@ -225,23 +225,50 @@ fn temp_path_of(dst: &Path) -> PathBuf {
 /// 既にあるコピー先は元のまま残り, 一時ファイルは消します. コピー先がハードリンクでも, リンク先の中身は
 /// 書き換えません. 更新日時と権限も, コピー元に合わせます.
 ///
+/// 上書きしない場合は, 置き換えるときにもコピー先が無いことを確かめます (確認の後に作られた同名の
+/// ファイルを上書きしないため).
+///
 /// # Arguments
 ///
 /// * `src` - コピー元のファイル.
-/// * `dst` - コピー先のファイル (上書きされる).
+/// * `dst` - コピー先のファイル.
+/// * `overwrite` - true の場合, 既にあるコピー先を上書きする.
 /// * `progress` - 進捗の窓口.
 ///
 /// # Returns
 ///
-/// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
-fn copy_file(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop> {
+/// 成功した場合は [`Ok`]. 中断・失敗した場合, 上書きしない場合にコピー先が既にあるときは [`Stop`].
+fn copy_file(src: &Path, dst: &Path, overwrite: bool, progress: &mut Progress) -> Result<(), Stop> {
     let temp = temp_path_of(dst);
-    let result =
-        write_copy(src, &temp, progress).and_then(|()| fs::rename(&temp, dst).map_err(Stop::from));
+    let result = write_copy(src, &temp, progress).and_then(|()| place_temp(&temp, dst, overwrite));
     if result.is_err() {
         let _ = fs::remove_file(&temp);
     }
     result
+}
+
+/// 書き終えた一時ファイルを, 名前の変更でコピー先に置きます.
+///
+/// # Arguments
+///
+/// * `temp` - 書き終えた一時ファイル.
+/// * `dst` - コピー先のファイル.
+/// * `overwrite` - true の場合, 既にあるコピー先を置き換える. false の場合は, 置き換えない.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok`]. 上書きしない場合にコピー先が既にあるとき, 失敗したときは [`Stop::Failed`].
+fn place_temp(temp: &Path, dst: &Path, overwrite: bool) -> Result<(), Stop> {
+    if overwrite {
+        return fs::rename(temp, dst).map_err(Stop::from);
+    }
+    rename_noreplace(temp, dst).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::AlreadyExists {
+            Stop::Failed(format!("Already exists: {}", dst.display()))
+        } else {
+            Stop::from(e)
+        }
+    })
 }
 
 /// コピー元の中身を, 進捗と中断を確認しながら書き込み, 更新日時と権限をコピー元に合わせます.
@@ -372,12 +399,13 @@ fn remove_entry(path: &Path) -> std::io::Result<()> {
 /// * `src` - コピー元.
 /// * `dst` - コピー先 (名前を含むパス). 既存のディレクトリには内容を統合します.
 ///   `progress` の `skip` に含まれるパスは, コピーせずに進捗だけ進めます.
+/// * `overwrite` - true の場合, 既にあるファイル・リンクを上書きする. false の場合は, 上書きせずに失敗する.
 /// * `progress` - 進捗の窓口.
 ///
 /// # Returns
 ///
 /// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
-fn copy_tree(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop> {
+fn copy_tree(src: &Path, dst: &Path, overwrite: bool, progress: &mut Progress) -> Result<(), Stop> {
     if progress.skip.contains(src) {
         // 上書きしないと答えたファイル. 進捗だけ進める.
         progress.advance(tree_size(src), &file_name_of(src));
@@ -385,8 +413,12 @@ fn copy_tree(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop
     }
     let meta = fs::symlink_metadata(src)?;
     if meta.file_type().is_symlink() {
-        // 既にあるファイル・リンクは置き換える. ディレクトリは, リンクで置き換えない (中身を失うため)
+        // 既にあるファイル・リンクは, 上書きする場合だけ置き換える. ディレクトリは, リンクで置き換えない
+        // (中身を失うため)
         if let Ok(existing) = fs::symlink_metadata(dst) {
+            if !overwrite {
+                return Err(Stop::Failed(format!("Already exists: {}", dst.display())));
+            }
             if existing.is_dir() {
                 return Err(Stop::Failed(format!(
                     "Destination directory already exists: {}",
@@ -402,11 +434,16 @@ fn copy_tree(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop
         fs::create_dir_all(dst)?;
         for entry in fs::read_dir(src)? {
             let entry = entry?;
-            copy_tree(&entry.path(), &dst.join(entry.file_name()), progress)?;
+            copy_tree(
+                &entry.path(),
+                &dst.join(entry.file_name()),
+                overwrite,
+                progress,
+            )?;
         }
         Ok(())
     } else {
-        copy_file(src, dst, progress)
+        copy_file(src, dst, overwrite, progress)
     }
 }
 
@@ -825,7 +862,7 @@ fn move_one(
         Err(_) => {}
     }
     // 名前の変更に失敗した場合 (別のディスクへの移動など) は, コピーしてから元を消す.
-    copy_tree(src, dst, progress)?;
+    copy_tree(src, dst, overwrite, progress)?;
     let is_dir = fs::symlink_metadata(src)
         .map(|m| m.is_dir())
         .unwrap_or(false);
@@ -941,7 +978,7 @@ pub fn transfer_with(
             plan.iter().try_for_each(|(src, dst)| {
                 progress.check()?;
                 if kind == TransferKind::Copy {
-                    copy_tree(src, dst, &mut progress)?;
+                    copy_tree(src, dst, request.overwrite, &mut progress)?;
                 } else {
                     move_one(src, dst, request.overwrite, renamer, &mut progress)?;
                 }

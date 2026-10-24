@@ -858,6 +858,7 @@ fn test_copy_file_io_error_failure() {
     let result = copy_file(
         &dir.path().join("none"),
         &dir.path().join("dst"),
+        false,
         &mut progress,
     );
 
@@ -968,7 +969,7 @@ fn test_copy_tree_with_cyclic_symlink() {
     };
 
     // 循環リンクがあっても無限ループにならず, コピーが成功すること
-    let result = copy_tree(&src_dir, &dst_dir, &mut progress);
+    let result = copy_tree(&src_dir, &dst_dir, false, &mut progress);
     assert!(result.is_ok());
     assert!(dst_dir.join("f.txt").is_file());
     assert!(dst_dir.join("loop").is_symlink());
@@ -997,7 +998,7 @@ fn test_copy_tree_symlink_overwrites_existing_file() {
         last_sent: None,
     };
 
-    let result = copy_tree(&src_link, &dst_link, &mut progress);
+    let result = copy_tree(&src_link, &dst_link, true, &mut progress);
     assert!(result.is_ok());
     assert!(dst_link.is_symlink());
 }
@@ -1026,7 +1027,7 @@ fn test_copy_tree_symlink_onto_directory_failure() {
     };
 
     // ディレクトリをリンクで置き換えず, 中身を残すこと
-    let result = copy_tree(&src_link, &dst_dir, &mut progress);
+    let result = copy_tree(&src_link, &dst_dir, true, &mut progress);
     assert!(
         matches!(result, Err(Stop::Failed(m)) if m.starts_with("Destination directory already exists"))
     );
@@ -1168,7 +1169,7 @@ fn test_copy_file_replace_failure_removes_temp_file() {
         last_sent: None,
     };
 
-    let result = copy_file(&src, &dst, &mut progress);
+    let result = copy_file(&src, &dst, true, &mut progress);
 
     assert!(matches!(result, Err(Stop::Failed(_))));
     assert!(!temp_path_of(&dst).exists());
@@ -1206,4 +1207,62 @@ fn test_move_one_refuses_destination_created_after_the_check() {
     assert!(matches!(result, Err(Stop::Failed(m)) if m.starts_with("Already exists")));
     assert_eq!(fs::read_to_string(&dst).unwrap(), "other");
     assert!(src.exists());
+}
+
+/// テスト用の進捗の窓口を作り, `f` に渡す.
+fn with_progress<R>(f: impl FnOnce(&mut Progress) -> R) -> R {
+    let cancel = AtomicBool::new(false);
+    let skip = HashSet::new();
+    let mut progress = Progress {
+        cancel: &cancel,
+        skip: &skip,
+        on_progress: &mut |_| {},
+        done: 0,
+        total: 0,
+        last_sent: None,
+    };
+    f(&mut progress)
+}
+
+#[test]
+fn test_copy_file_without_overwrite_keeps_destination_created_after_the_check() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("a.txt");
+    fs::write(&src, "new").unwrap();
+    // 確認の後に, 別のプロセスが同名のファイルを作った.
+    let dst = dir.path().join("b.txt");
+    fs::write(&dst, "other").unwrap();
+
+    let result = with_progress(|p| copy_file(&src, &dst, false, p));
+
+    assert!(matches!(result, Err(Stop::Failed(m)) if m.starts_with("Already exists")));
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "other");
+    assert!(!temp_path_of(&dst).exists());
+}
+
+#[test]
+fn test_place_temp_without_overwrite_reports_other_errors() {
+    let dir = tempdir().unwrap();
+    let temp = dir.path().join("temp");
+    fs::write(&temp, "x").unwrap();
+
+    // 置く先のディレクトリが無い.
+    let result = place_temp(&temp, &dir.path().join("none").join("a.txt"), false);
+
+    assert!(matches!(result, Err(Stop::Failed(m)) if !m.starts_with("Already exists")));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_copy_tree_symlink_without_overwrite_keeps_existing_entry() {
+    let dir = tempdir().unwrap();
+    let src_link = dir.path().join("link");
+    std::os::unix::fs::symlink("target", &src_link).unwrap();
+    let dst = dir.path().join("dst");
+    fs::write(&dst, "keep").unwrap();
+
+    let result = with_progress(|p| copy_tree(&src_link, &dst, false, p));
+
+    assert!(matches!(result, Err(Stop::Failed(m)) if m.starts_with("Already exists")));
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "keep");
 }
