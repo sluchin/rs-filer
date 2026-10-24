@@ -14,6 +14,9 @@ interface OperationDialogProps {
 
 /**
  * 入力用のミニバッファ. 名前の入力を求めます.
+ *
+ * @param props - コンポーネントのプロパティ (入力のダイアログと, 閉じるハンドラー).
+ * @returns 入力用のミニバッファのReact要素.
  */
 function PromptBody({
   dialog,
@@ -48,6 +51,9 @@ function PromptBody({
 
 /**
  * 確認用のミニバッファ. `y` で承諾, `n` で取り消します.
+ *
+ * @param props - コンポーネントのプロパティ (確認のダイアログと, 閉じるハンドラー).
+ * @returns 確認用のミニバッファのReact要素.
  */
 function ConfirmBody({
   dialog,
@@ -81,6 +87,9 @@ function ConfirmBody({
 
 /**
  * 選択肢用のミニバッファ. 各選択肢のキー (例: `y` / `n` / `a`) で選び, `Esc` で取りやめます.
+ *
+ * @param props - コンポーネントのプロパティ (選択肢のダイアログ).
+ * @returns 選択肢用のミニバッファのReact要素.
  */
 function ChoiceBody({
   dialog,

@@ -152,6 +152,14 @@ const UNSUPPORTED_ERRORS: &[i32] = &[libc::EINVAL, libc::ENOSYS, libc::ENOTSUP, 
 const UNSUPPORTED_ERRORS: &[i32] = &[];
 
 /// パスを, C の文字列にします.
+///
+/// # Arguments
+///
+/// * `path` - 対象のパス.
+///
+/// # Returns
+///
+/// C の文字列. パスに NUL を含む場合は [`std::io::ErrorKind::InvalidInput`] の [`Err`].
 #[cfg(unix)]
 fn c_path(path: &Path) -> std::io::Result<std::ffi::CString> {
     use std::os::unix::ffi::OsStrExt;
@@ -160,6 +168,15 @@ fn c_path(path: &Path) -> std::io::Result<std::ffi::CString> {
 }
 
 /// 上書きをせずに名前を変更します (Linux の `renameat2` の `RENAME_NOREPLACE`).
+///
+/// # Arguments
+///
+/// * `src` - 変更元のパス.
+/// * `dest` - 変更先のパス.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok`]. 変更先が既にある場合は [`std::io::ErrorKind::AlreadyExists`] の [`Err`].
 #[cfg(target_os = "linux")]
 fn atomic_rename(src: &Path, dest: &Path) -> std::io::Result<()> {
     let (src, dest) = (c_path(src)?, c_path(dest)?);
@@ -181,6 +198,15 @@ fn atomic_rename(src: &Path, dest: &Path) -> std::io::Result<()> {
 }
 
 /// 上書きをせずに名前を変更します (macOS の `renameatx_np` の `RENAME_EXCL`).
+///
+/// # Arguments
+///
+/// * `src` - 変更元のパス.
+/// * `dest` - 変更先のパス.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok`]. 変更先が既にある場合は [`std::io::ErrorKind::AlreadyExists`] の [`Err`].
 #[cfg(target_os = "macos")]
 fn atomic_rename(src: &Path, dest: &Path) -> std::io::Result<()> {
     let (src, dest) = (c_path(src)?, c_path(dest)?);
@@ -202,18 +228,47 @@ fn atomic_rename(src: &Path, dest: &Path) -> std::io::Result<()> {
 }
 
 /// 上書きをしない名前の変更が無い OS では, 対応していないことを返します (確かめてから変更する).
+///
+/// # Arguments
+///
+/// * `_src` - 変更元のパス (使わない).
+/// * `_dest` - 変更先のパス (使わない).
+///
+/// # Returns
+///
+/// 常に [`std::io::ErrorKind::Unsupported`] の [`Err`].
 #[cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))]
 fn atomic_rename(_src: &Path, _dest: &Path) -> std::io::Result<()> {
     Err(std::io::ErrorKind::Unsupported.into())
 }
 
 /// 上書きをせずに名前を変更します (Windows の `MoveFileExW`. `MOVEFILE_REPLACE_EXISTING` を付けない).
+///
+/// # Arguments
+///
+/// * `src` - 変更元のパス.
+/// * `dest` - 変更先のパス.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok`]. 変更先が既にある場合は [`std::io::ErrorKind::AlreadyExists`] の [`Err`].
 #[cfg(windows)]
 fn atomic_rename(src: &Path, dest: &Path) -> std::io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
 
     #[link(name = "kernel32")]
     extern "system" {
+        /// ファイルやディレクトリの名前を変更します (kernel32).
+        ///
+        /// # Arguments
+        ///
+        /// * `existing` - 変更元のパス (NUL で終わる UTF-16).
+        /// * `new` - 変更先のパス (NUL で終わる UTF-16).
+        /// * `flags` - `MOVEFILE_*` の組み合わせ.
+        ///
+        /// # Returns
+        ///
+        /// 成功した場合は 0 以外. 失敗した場合は 0 (詳しくは `GetLastError`).
         fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
     }
 

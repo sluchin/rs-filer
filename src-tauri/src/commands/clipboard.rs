@@ -10,15 +10,39 @@ use std::path::Path;
 /// クリップボードの操作を行うトレイト. テストでは, 実際のクリップボードの代わりを渡す.
 trait SystemClipboard {
     /// 文字列をクリップボードへ入れます.
+    ///
+    /// # Arguments
+    ///
+    /// * `text` - 入れる文字列.
+    ///
+    /// # Returns
+    ///
+    /// 成功した場合は [`Ok`]. 失敗した場合はエラー文字列を含む [`Err`].
     fn set_text(&self, text: String) -> Result<(), String>;
 
-    /// クリップボードの文字列を読み取ります. 文字列が無い場合は空.
+    /// クリップボードの文字列を読み取ります.
+    ///
+    /// # Returns
+    ///
+    /// 文字列. 文字列が無い場合は空. 失敗した場合はエラー文字列を含む [`Err`].
     fn get_text(&self) -> Result<String, String>;
 
     /// ファイルリストをクリップボードへ入れます.
+    ///
+    /// # Arguments
+    ///
+    /// * `paths` - 入れるファイルパスのリスト.
+    ///
+    /// # Returns
+    ///
+    /// 成功した場合は [`Ok`]. 失敗した場合はエラー文字列を含む [`Err`].
     fn set_file_list(&self, paths: &[String]) -> Result<(), String>;
 
-    /// クリップボードのファイルリストを読み取ります. ファイルリストが無い場合は空.
+    /// クリップボードのファイルリストを読み取ります.
+    ///
+    /// # Returns
+    ///
+    /// ファイルパスのリスト. ファイルリストが無い場合は空. 失敗した場合はエラー文字列を含む [`Err`].
     fn get_file_list(&self) -> Result<Vec<String>, String>;
 }
 
@@ -31,6 +55,10 @@ struct OsClipboard;
 #[cfg(not(tarpaulin_include))]
 impl OsClipboard {
     /// クリップボードを開きます.
+    ///
+    /// # Returns
+    ///
+    /// クリップボード. 開けない場合はエラー文字列を含む [`Err`].
     fn open() -> Result<arboard::Clipboard, String> {
         arboard::Clipboard::new().map_err(|e| format!("Failed to access clipboard: {}", e))
     }

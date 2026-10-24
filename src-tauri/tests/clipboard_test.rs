@@ -1,3 +1,5 @@
+//! クリップボード (`commands::clipboard`) の結合テスト.
+
 use rsfiler::commands::check_text;
 
 #[test]

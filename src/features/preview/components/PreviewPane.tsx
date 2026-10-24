@@ -17,6 +17,9 @@ interface PreviewPaneProps {
 
 /**
  * プレビューの本体を, 状況と種類に応じて表示します.
+ *
+ * @param props - コンポーネントのプロパティ.
+ * @returns プレビューの本体のReact要素.
  */
 function Body({ name, state }: PreviewPaneProps): ReactElement {
   if (state.status === "idle") {

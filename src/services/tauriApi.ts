@@ -79,6 +79,7 @@ export function getHomeDir(): Promise<string> {
  *
  * @param parent - 作成先の親ディレクトリのパス.
  * @param name - 作成するディレクトリ名.
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export async function createDirectory(
   parent: string,
@@ -92,6 +93,7 @@ export async function createDirectory(
  *
  * @param parent - 作成先の親ディレクトリのパス.
  * @param name - 作成するファイル名.
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export async function createFile(parent: string, name: string): Promise<void> {
   await commands.createFile(parent, name);
@@ -102,6 +104,7 @@ export async function createFile(parent: string, name: string): Promise<void> {
  *
  * @param path - 対象のパス.
  * @param newName - 新しい名前.
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export async function renameItem(path: string, newName: string): Promise<void> {
   await commands.renameItem(path, newName);
@@ -111,6 +114,7 @@ export async function renameItem(path: string, newName: string): Promise<void> {
  * 関連付けられた外部アプリケーションでファイルまたはディレクトリを開きます.
  *
  * @param path - 開く対象のパス.
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export async function openItem(path: string): Promise<void> {
   await commands.openItem(path);
@@ -120,6 +124,7 @@ export async function openItem(path: string): Promise<void> {
  * 指定したエディタでファイルを開きます. エディタが未指定の場合は OS の既定のアプリケーションを使います.
  *
  * @param path - 開くファイルのパス.
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export async function openInEditor(path: string): Promise<void> {
   await commands.openInEditor(path);
@@ -216,6 +221,8 @@ export function runTransfer(
 
 /**
  * 実行中のコピー・移動・削除を中断します.
+ *
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export function cancelTransfer(): Promise<void> {
   return commands.cancelTransfer();
@@ -225,6 +232,7 @@ export function cancelTransfer(): Promise<void> {
  * ファイルリストをシステムクリップボードにコピーします.
  *
  * @param paths - コピーするファイルパスの配列.
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export async function copyFilesToClipboard(paths: string[]): Promise<void> {
   await commands.copyFilesToClipboard(paths);
@@ -234,6 +242,7 @@ export async function copyFilesToClipboard(paths: string[]): Promise<void> {
  * 文字列 (フルパスや名前) を, そのままシステムクリップボードにコピーします.
  *
  * @param text - コピーする文字列.
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export async function copyTextToClipboard(text: string): Promise<void> {
   await commands.copyTextToClipboard(text);
@@ -280,6 +289,8 @@ export function loadKeymap(): Promise<Record<string, string | null>> {
 
 /**
  * アプリケーションを終了します.
+ *
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export function quitApp(): Promise<void> {
   return commands.quitApp();
@@ -289,6 +300,7 @@ export function quitApp(): Promise<void> {
  * カレントディレクトリでターミナルを開きます.
  *
  * @param path - ターミナルの作業ディレクトリにするパス.
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export async function openTerminal(path: string): Promise<void> {
   await commands.openTerminal(path);
@@ -299,6 +311,7 @@ export async function openTerminal(path: string): Promise<void> {
  *
  * @param command - 実行するコマンド (`%f` を対象のパスに置き換える).
  * @param paths - 対象のパス.
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export async function runExternalCommand(
   command: string,
@@ -320,6 +333,7 @@ export function loadConfig(): Promise<AppConfig> {
  * アプリケーションの設定を書き込みます.
  *
  * @param config - 書き込む設定.
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export async function saveConfig(config: AppConfig): Promise<void> {
   await commands.saveConfig(config);
@@ -329,6 +343,7 @@ export async function saveConfig(config: AppConfig): Promise<void> {
  * 左右のペインのディレクトリを, 設定ファイルへ書き込みます. 他の設定は変えません.
  *
  * @param paths - 書き込む左右のペインのディレクトリ.
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export async function saveLastPaths(paths: LastPaths): Promise<void> {
   await commands.saveLastPaths(paths);
@@ -348,6 +363,7 @@ export function loadHistory(): Promise<PaneHistory> {
  * 左右のペインのディレクトリの移動履歴を, 履歴のファイルへ書き込みます.
  *
  * @param history - 書き込む左右のペインの履歴 (古い順).
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export async function saveHistory(history: PaneHistory): Promise<void> {
   await commands.saveHistory(history);
@@ -358,6 +374,7 @@ export async function saveHistory(history: PaneHistory): Promise<void> {
  *
  * @param level - ログの重大度.
  * @param message - ログの内容.
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
 export function logFrontendMessage(
   level: LogLevel,

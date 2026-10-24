@@ -77,6 +77,10 @@ const nameCollator = new Intl.Collator(undefined, {
 
 /**
  * 名前を, 大文字小文字を区別せず, 数字の並びを数値として比較します.
+ *
+ * @param a - 比べる名前.
+ * @param b - 比べる名前.
+ * @returns `a` が前なら負, 後なら正, 同じなら 0.
  */
 function compareNames(a: string, b: string): number {
   return nameCollator.compare(a, b);
@@ -86,15 +90,24 @@ function compareNames(a: string, b: string): number {
  * シュワルツ変換用のソートキー事前計算済みエントリ.
  */
 interface DecoratedEntry {
+  /** 元のエントリ. */
   entry: FileEntry;
+  /** 拡張子 (拡張子の順で並べるときに使う). */
   ext: string;
+  /** サイズ (バイト). */
   size: number;
+  /** 更新日時 (日時の順で並べるときに使う). */
   date: number;
 }
 
 /**
  * 2 つのエントリを比較します. ディレクトリは常にファイルより上に並びます (昇順・降順に関わらず).
  * ディレクトリ同士は, 基準に関わらず名前で比較します.
+ *
+ * @param a - 比べるエントリ.
+ * @param b - 比べるエントリ.
+ * @param sort - 並べ替えの基準と向き.
+ * @returns `a` が前なら負, 後なら正, 同じなら 0.
  */
 function compareDecorated(
   a: DecoratedEntry,

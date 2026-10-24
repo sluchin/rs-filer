@@ -142,6 +142,10 @@ struct Progress<'a> {
 
 impl Progress<'_> {
     /// 中断が要求されていれば [`Stop::Cancelled`] を返します.
+    ///
+    /// # Returns
+    ///
+    /// 中断が要求されていなければ [`Ok`]. 要求されていれば [`Stop::Cancelled`] の [`Err`].
     fn check(&self) -> Result<(), Stop> {
         if self.cancel.load(Ordering::SeqCst) {
             Err(Stop::Cancelled)
@@ -151,6 +155,11 @@ impl Progress<'_> {
     }
 
     /// 処理済みの量を加えて通知します.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - 加える量 (コピー・移動はバイト数, 削除は件数).
+    /// * `current` - 処理中の項目の名前.
     fn advance(&mut self, amount: u64, current: &str) {
         self.done += amount;
         // 通知が多すぎると IPC が詰まって遅くなるため, 一定時間ごとにまとめる (最初と最後は必ず通知する).
@@ -361,6 +370,14 @@ fn copy_tree(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop
 }
 
 /// パスの最後の名前を文字列で返します.
+///
+/// # Arguments
+///
+/// * `path` - 対象のパス.
+///
+/// # Returns
+///
+/// 最後の名前. 名前が無い場合 (ルートなど) は空の文字列.
 fn file_name_of(path: &Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())

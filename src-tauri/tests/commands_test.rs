@@ -1,3 +1,5 @@
+//! IPC コマンド (`commands`) の結合テスト. 公開 API だけを使い, 一時ディレクトリで実際の操作を確かめる.
+
 use rsfiler::commands::{
     check_conflicts, complete_path, create_directory, create_file, get_home_dir, list_drives,
     load_config, load_keymap, open_in_editor, open_item, read_directory, rename_item,

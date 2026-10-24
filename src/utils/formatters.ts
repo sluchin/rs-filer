@@ -2,6 +2,9 @@ import type { FileEntry } from "../features/explorer/types";
 
 /**
  * 数値を 2 桁にゼロ埋めします.
+ *
+ * @param n - 数値.
+ * @returns 2 桁の文字列.
  */
 function pad2(n: number): string {
   return String(n).padStart(2, "0");

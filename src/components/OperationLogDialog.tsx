@@ -14,6 +14,9 @@ interface OperationLogDialogProps {
 
 /**
  * 時刻を `HH:MM:SS` に整形します.
+ *
+ * @param time - 時刻 (UNIX エポックからのミリ秒).
+ * @returns `HH:MM:SS` の文字列.
  */
 function formatTime(time: number): string {
   const d = new Date(time);

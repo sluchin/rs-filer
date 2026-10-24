@@ -135,6 +135,10 @@ pub fn open_in_editor(path: String) -> Result<(), String> {
 /// 現在の OS で試す, ターミナルの候補 (プログラム名, 追加の引数). Windows.
 ///
 /// 先頭から順に起動を試み, 最初に成功したもので処理を終えます.
+///
+/// # Returns
+///
+/// (プログラム名, 追加の引数) の候補一覧.
 #[cfg(target_os = "windows")]
 fn terminal_candidates() -> Vec<(&'static str, Vec<&'static str>)> {
     vec![("cmd", vec!["/C", "start", "cmd"])]
@@ -143,6 +147,10 @@ fn terminal_candidates() -> Vec<(&'static str, Vec<&'static str>)> {
 /// 現在の OS で試す, ターミナルの候補 (プログラム名, 追加の引数). macOS.
 ///
 /// 先頭から順に起動を試み, 最初に成功したもので処理を終えます.
+///
+/// # Returns
+///
+/// (プログラム名, 追加の引数) の候補一覧.
 #[cfg(target_os = "macos")]
 fn terminal_candidates() -> Vec<(&'static str, Vec<&'static str>)> {
     vec![("open", vec!["-a", "Terminal"])]
@@ -151,6 +159,10 @@ fn terminal_candidates() -> Vec<(&'static str, Vec<&'static str>)> {
 /// 現在の OS で試す, ターミナルの候補 (プログラム名, 追加の引数). Windows と macOS 以外.
 ///
 /// 先頭から順に起動を試み, 最初に成功したもので処理を終えます.
+///
+/// # Returns
+///
+/// (プログラム名, 追加の引数) の候補一覧.
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn terminal_candidates() -> Vec<(&'static str, Vec<&'static str>)> {
     vec![

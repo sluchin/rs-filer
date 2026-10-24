@@ -69,6 +69,11 @@ async function fetchChildren(
 
 /**
  * 指定したノードを更新した新しいツリーを返します.
+ *
+ * @param nodes - 今のツリー.
+ * @param path - 更新するノードのパス.
+ * @param update - ノードを更新する関数.
+ * @returns 更新した新しいツリー (元のツリーは変えない).
  */
 function updateNode(
   nodes: TreeNode[],
@@ -84,6 +89,10 @@ function updateNode(
 
 /**
  * 指定したパスのノードを, ツリーの中から探します.
+ *
+ * @param nodes - 探すツリー.
+ * @param path - 探すノードのパス.
+ * @returns 見つかったノード. 無い場合は undefined.
  */
 function findNode(nodes: TreeNode[], path: string): TreeNode | undefined {
   for (const node of nodes) {
@@ -101,6 +110,10 @@ function findNode(nodes: TreeNode[], path: string): TreeNode | undefined {
 /**
  * 読み込み直した子ノードを, 今の子ノードへ重ねます. 既にあるノードは, 展開の状態と子を保ち,
  * 新しいノードだけを足します (読み込み直した順序で返す).
+ *
+ * @param current - 今の子ノード.
+ * @param fresh - 読み込み直した子ノード.
+ * @returns 重ねた子ノード.
  */
 function mergeChildren(current: TreeNode[], fresh: TreeNode[]): TreeNode[] {
   const byPath = new Map(current.map((node) => [node.path, node]));
@@ -109,6 +122,10 @@ function mergeChildren(current: TreeNode[], fresh: TreeNode[]): TreeNode[] {
 
 /**
  * 展開済みのノードをたどって, 表示順の行にします.
+ *
+ * @param nodes - たどるノード.
+ * @param depth - `nodes` の深さ (根は 0).
+ * @returns 表示順の行.
  */
 function flatten(nodes: TreeNode[], depth: number): TreeRow[] {
   return nodes.flatMap((node) => [

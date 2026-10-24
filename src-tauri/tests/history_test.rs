@@ -1,3 +1,5 @@
+//! 移動履歴 (`commands::history`) の結合テスト.
+
 use rsfiler::commands::{
     history_path, load_history_from, retain_existing, save_history_to, PaneHistory,
     DEFAULT_HISTORY_LIMIT,
