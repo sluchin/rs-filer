@@ -45,7 +45,7 @@ pub use config::{
     load_config, load_keymap, save_config, save_last_paths, AppConfig, FontSize, LastPaths, Theme,
 };
 pub use exec::run_external_command;
-pub use frontend_log::{log_frontend_message, LogLevel};
+pub use frontend_log::{log_frontend_message, FrontendLogEntry, LogLevel};
 pub use fs::{
     complete_path, dirs_have_entries, get_disk_space, get_home_dir, list_drives, read_directory,
     DiskSpace, FileEntry,

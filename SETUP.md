@@ -92,7 +92,7 @@ cargo install cargo-tarpaulin
 
 ## ログ
 
-ログは、標準エラー出力と、ログファイルに出ます。フロントエンド (`loglevel`) のログも、バックエンドに転送して、同じファイルに残します。
+ログは、標準エラー出力と、ログファイルに出ます。フロントエンド (`loglevel`) のログも、バックエンドに転送して、同じファイルに残します。フロントエンドのログは、200ms ごとにまとめて転送します (エラーはすぐに転送します)。1 件は 4000 文字までで、改行などの制御文字は `\n` のようにエスケープして、1 行で記録します。
 
 * ログファイル: `<データディレクトリ>/rsfiler/logs/rsfiler.log` (Linux は `~/.local/share/rsfiler/logs/rsfiler.log`、Windows は `%LOCALAPPDATA%\rsfiler\logs\rsfiler.log`、macOS は `~/Library/Application Support/rsfiler/logs/rsfiler.log`)。5 MB を超えると世代送りして、3 世代 (`.1` から `.3`) を残します。
 * レベル: デバッグ版 (`npm run tauri:dev`) はデバッグ以上、リリース版 (`npm run tauri:build`) は情報、警告、エラーを出します。

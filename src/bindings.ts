@@ -344,14 +344,15 @@ export const commands = {
 	 *  フロントエンドのログメッセージを, バックエンドのログ (標準エラー出力とログファイル) へ記録します.
 	 * 
 	 *  フロントエンドの `loglevel` の出力を, ブラウザの開発者ツールでしか見られないコンソールだけでなく,
-	 *  バックエンドのログファイルにも残すために使います. ログの記録自体は失敗しないため, 戻り値はありません.
+	 *  バックエンドのログファイルにも残すために使います. IPC の回数を減らすため, フロントエンドは
+	 *  複数件をまとめて送ります. 1 件は 1 行で記録します (改行などの制御文字はエスケープする).
+	 *  ログの記録自体は失敗しないため, 戻り値はありません.
 	 * 
 	 *  # Arguments
 	 * 
-	 *  * `level` - ログの重大度.
-	 *  * `message` - ログの内容.
+	 *  * `entries` - ログ (古い順).
 	 */
-	logFrontendMessage: (level: LogLevel, message: string) => __TAURI_INVOKE<void>("log_frontend_message", { level, message }),
+	logFrontendMessage: (entries: FrontendLogEntry[]) => __TAURI_INVOKE<void>("log_frontend_message", { entries }),
 	/**
 	 *  ファイルリストをクリップボードにコピーします.
 	 * 
@@ -579,6 +580,14 @@ export type FontSize =
 "medium" | 
 /**  大. */
 "large";
+
+/**  フロントエンドから送られる, 1 件のログ. */
+export type FrontendLogEntry = {
+	/**  ログの重大度. */
+	level: LogLevel,
+	/**  ログの内容. */
+	message: string,
+};
 
 /**  1 つの項目の詳細. */
 export type ItemInfo = ItemInfo_Serialize | ItemInfo_Deserialize;

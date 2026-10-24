@@ -14,10 +14,10 @@ import type {
   LastPaths,
   PaneHistory,
 } from "../features/settings/types";
-import type { LogLevel } from "../bindings";
+import type { FrontendLogEntry } from "../bindings";
 
 export { commands };
-export type { LogLevel } from "../bindings";
+export type { FrontendLogEntry, LogLevel } from "../bindings";
 
 /**
  * 指定ディレクトリ内のファイル・ディレクトリ一覧を取得します.
@@ -379,13 +379,9 @@ export async function saveHistory(history: PaneHistory): Promise<void> {
 /**
  * フロントエンドのログメッセージを, バックエンドのログ (標準エラー出力とログファイル) へ転送します.
  *
- * @param level - ログの重大度.
- * @param message - ログの内容.
+ * @param entries - ログ (古い順). まとめて 1 回で送る.
  * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
  */
-export function logFrontendMessage(
-  level: LogLevel,
-  message: string,
-): Promise<void> {
-  return commands.logFrontendMessage(level, message);
+export function logFrontendMessage(entries: FrontendLogEntry[]): Promise<void> {
+  return commands.logFrontendMessage(entries);
 }
