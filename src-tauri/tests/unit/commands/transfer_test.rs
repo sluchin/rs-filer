@@ -1266,3 +1266,54 @@ fn test_copy_tree_symlink_without_overwrite_keeps_existing_entry() {
     assert!(matches!(result, Err(Stop::Failed(m)) if m.starts_with("Already exists")));
     assert_eq!(fs::read_to_string(&dst).unwrap(), "keep");
 }
+
+#[test]
+fn test_copy_tree_cancel_removes_created_directories() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("d");
+    fs::create_dir_all(src.join("sub")).unwrap();
+    fs::write(src.join("sub").join("big.bin"), vec![7u8; CHUNK_SIZE * 2]).unwrap();
+    let dest = dir.path().join("dest");
+    fs::create_dir(&dest).unwrap();
+    let cancel = AtomicBool::new(false);
+
+    let result = transfer(
+        &request(TransferKind::Copy, &[&src], Some(&dest)),
+        &cancel,
+        &mut |_| cancel.store(true, Ordering::SeqCst),
+    );
+
+    assert!(result.unwrap().cancelled);
+    // 作りかけの `d` と `d/sub` は残らない.
+    assert_eq!(fs::read_dir(&dest).unwrap().count(), 0);
+    assert!(src.join("sub").join("big.bin").exists());
+}
+
+#[test]
+fn test_copy_tree_cancel_keeps_existing_directory() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("d");
+    fs::create_dir_all(src.join("sub")).unwrap();
+    fs::write(src.join("sub").join("big.bin"), vec![7u8; CHUNK_SIZE * 2]).unwrap();
+    // 統合する先のディレクトリが, 既にある.
+    let dst = dir.path().join("dst");
+    fs::create_dir(&dst).unwrap();
+    fs::write(dst.join("keep.txt"), "keep").unwrap();
+    let cancel = AtomicBool::new(false);
+    let skip = HashSet::new();
+    let mut progress = Progress {
+        cancel: &cancel,
+        skip: &skip,
+        on_progress: &mut |_| cancel.store(true, Ordering::SeqCst),
+        done: 0,
+        total: 0,
+        last_sent: None,
+    };
+
+    let result = copy_tree(&src, &dst, true, &mut progress);
+
+    assert!(matches!(result, Err(Stop::Cancelled)));
+    // 既にあったディレクトリと中身は残し, このコピーで作った `sub` は消す.
+    assert_eq!(fs::read_to_string(dst.join("keep.txt")).unwrap(), "keep");
+    assert!(!dst.join("sub").exists());
+}

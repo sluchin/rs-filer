@@ -393,6 +393,7 @@ fn remove_entry(path: &Path) -> std::io::Result<()> {
 /// ファイルまたはディレクトリを再帰的にコピーします.
 ///
 /// シンボリックリンクはリンク先をたどらず, リンクとして複製します (循環リンクによる無限ループを防ぐため).
+/// 途中で中断・失敗した場合は, このコピーで作ったディレクトリを消します (既にあったディレクトリは残します).
 ///
 /// # Arguments
 ///
@@ -431,17 +432,23 @@ fn copy_tree(src: &Path, dst: &Path, overwrite: bool, progress: &mut Progress) -
         progress.advance(meta.len(), &file_name_of(src));
         Ok(())
     } else if meta.is_dir() {
+        // 既にあるディレクトリには統合する. 無ければ作り, 途中で中断・失敗したら, 作った分を消す
+        // (中は全て, このコピーで作ったものなので)
+        let created = fs::symlink_metadata(dst).is_err();
         fs::create_dir_all(dst)?;
-        for entry in fs::read_dir(src)? {
+        let result = fs::read_dir(src)?.try_for_each(|entry| {
             let entry = entry?;
             copy_tree(
                 &entry.path(),
                 &dst.join(entry.file_name()),
                 overwrite,
                 progress,
-            )?;
+            )
+        });
+        if result.is_err() && created {
+            let _ = fs::remove_dir_all(dst);
         }
-        Ok(())
+        result
     } else {
         copy_file(src, dst, overwrite, progress)
     }
