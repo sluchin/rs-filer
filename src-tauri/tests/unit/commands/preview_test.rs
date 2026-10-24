@@ -139,6 +139,15 @@ fn test_build_preview_directory_and_missing_failure() {
     assert!(read_preview(missing.to_string_lossy().into_owned()).is_err());
 }
 
+#[cfg(unix)]
+#[test]
+fn test_build_preview_special_file_failure() {
+    // デバイス (名前付きパイプと同じく, 通常のファイルでないもの) は, 開かずに断る.
+    assert!(build_preview(Path::new("/dev/null"))
+        .unwrap_err()
+        .contains("regular files"));
+}
+
 #[test]
 fn test_build_preview_empty_file() {
     let dir = tempdir().unwrap();

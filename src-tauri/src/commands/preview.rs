@@ -148,12 +148,17 @@ fn decode_text(bytes: &[u8], truncated: bool) -> (String, String) {
 ///
 /// # Returns
 ///
-/// プレビュー. ディレクトリ・存在しないパス・大きすぎる画像・読み込みに失敗した場合は [`Err`].
+/// プレビュー. ディレクトリ・通常のファイルでないもの (名前付きパイプ・デバイスなど)・存在しないパス・
+/// 大きすぎる画像・読み込みに失敗した場合は [`Err`].
 pub fn build_preview(path: &Path) -> Result<Preview, String> {
     let metadata =
         fs::metadata(path).map_err(|_| format!("Path does not exist: {}", path.display()))?;
     if metadata.is_dir() {
         return Err("Directories cannot be previewed".to_string());
+    }
+    // 名前付きパイプやデバイスは, 開いたり読んだりすると戻ってこないことがあるため, 通常のファイルに限る.
+    if !metadata.is_file() {
+        return Err("Only regular files can be previewed".to_string());
     }
     let size = metadata.len();
 
