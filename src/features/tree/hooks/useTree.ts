@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import log from "loglevel";
+import loglevel from "loglevel";
 import { dirsHaveEntries, readDirectory } from "../../../services/tauriApi";
 import { compareNames } from "../../explorer/view";
 import { getParentPath } from "../../../utils/path";
 import type { TreeNode, TreeRow } from "../types";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("tree");
 
 /**
  * 配下にディレクトリもファイルも無いディレクトリを調べます.
@@ -23,7 +26,7 @@ async function findEmptyDirs(
     const flags = await dirsHaveEntries(paths, showHidden);
     return new Set(paths.filter((_, i) => flags[i] === false));
   } catch (e) {
-    log.warn("[React] 配下の有無の確認失敗:", e);
+    log.warn("配下の有無の確認失敗:", e);
     return new Set();
   }
 }
@@ -63,7 +66,7 @@ async function fetchChildren(
       children: [],
     }));
   } catch (e) {
-    log.error(`[React] ${path} の読み込み失敗:`, e);
+    log.error(`${path} の読み込み失敗:`, e);
     return [];
   }
 }

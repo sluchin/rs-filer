@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import log from "loglevel";
+import loglevel from "loglevel";
 import { loadKeymap } from "../../../services/tauriApi";
 import { buildKeymap, DEFAULT_KEYMAP, type Keymap } from "../keymap";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("keybindings");
 
 /**
  * ユーザーの設定ファイルでキーマップを上書きするフック.
@@ -29,7 +32,7 @@ export function useUserKeymap(onWarning: (message: string) => void): Keymap {
         }
       })
       .catch((e) => {
-        log.warn("[React] キーマップ設定の読み込みに失敗:", e);
+        log.warn("キーマップ設定の読み込みに失敗:", e);
       });
     return () => {
       cancelled = true;

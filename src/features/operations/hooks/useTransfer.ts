@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import log from "loglevel";
+import loglevel from "loglevel";
 import {
   cancelTransfer,
   checkConflicts,
@@ -20,6 +20,9 @@ import type {
 } from "../types";
 import { nestedMessage, overwriteMessage } from "../overwriteMessage";
 import { getBaseName, getParentPath, isSamePath } from "../../../utils/path";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("operations");
 
 /** 操作の種類ごとの, 表示に使う動詞. */
 const LABELS: Record<TransferKind, string> = {
@@ -134,7 +137,7 @@ export function useTransfer({
             : `${label}しました: ${summary.processed} 件`,
         );
       } catch (e) {
-        log.error(`[React] ${label} 失敗:`, e);
+        log.error(`${label} 失敗:`, e);
         failure = String(e);
       }
       setTask(null);
@@ -424,7 +427,7 @@ export function useTransfer({
   /** 実行中の操作を中断します. */
   const cancel = useCallback((): void => {
     setCancelling(true);
-    cancelTransfer().catch((e) => log.warn("[React] 中断の要求に失敗:", e));
+    cancelTransfer().catch((e) => log.warn("中断の要求に失敗:", e));
   }, []);
 
   /** 進捗ダイアログを隠して, 処理をバックグラウンドで続けます. */

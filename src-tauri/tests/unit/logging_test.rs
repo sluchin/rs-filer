@@ -144,3 +144,145 @@ fn test_rotating_file_flush_success() {
 
     assert_eq!(fs::read_to_string(&path).unwrap(), "x");
 }
+
+/// 記録を [`write_record`] で書いた 1 行を返す (時刻帯は +09:00).
+fn render(record: &Record, now: DateTime<Utc>) -> String {
+    let mut out = Vec::new();
+    let tz = chrono::FixedOffset::east_opt(9 * 3600).unwrap();
+    write_record(&mut out, record, &tz, now).unwrap();
+    String::from_utf8(out).unwrap()
+}
+
+#[test]
+fn test_write_record_uses_now_in_local_time_with_millis() {
+    let now = DateTime::from_timestamp_millis(1_761_351_931_005).unwrap();
+
+    let line = render(
+        &Record::builder()
+            .args(format_args!("hello"))
+            .level(log::Level::Info)
+            .target("rsfiler::commands::app")
+            .file(Some("src/commands/app.rs"))
+            .line(Some(42))
+            .build(),
+        now,
+    );
+
+    assert_eq!(
+        line,
+        "2025-10-25T09:25:31.005+09:00 [INFO]  commands/app.rs:42 hello\n"
+    );
+}
+
+#[test]
+fn test_write_record_prefers_time_key() {
+    let now = DateTime::from_timestamp_millis(1_761_351_999_000).unwrap();
+    let kvs = [(TIME_KEY, 1_761_351_931_123_i64)];
+
+    let line = render(
+        &Record::builder()
+            .args(format_args!("from front"))
+            .level(log::Level::Error)
+            .target("frontend::explorer")
+            .key_values(&kvs)
+            .build(),
+        now,
+    );
+
+    assert_eq!(
+        line,
+        "2025-10-25T09:25:31.123+09:00 [ERROR] front/explorer from front\n"
+    );
+}
+
+#[test]
+fn test_write_record_out_of_range_time_falls_back_to_now() {
+    let now = DateTime::from_timestamp_millis(1_761_351_931_005).unwrap();
+    let kvs = [(TIME_KEY, i64::MAX)];
+
+    let line = render(
+        &Record::builder()
+            .args(format_args!("x"))
+            .level(log::Level::Warn)
+            .target("frontend")
+            .key_values(&kvs)
+            .build(),
+        now,
+    );
+
+    assert_eq!(line, "2025-10-25T09:25:31.005+09:00 [WARN]  front x\n");
+}
+
+/// ターゲット・ファイル・行番号だけを指定した記録の, ログを出した場所を返す.
+fn location_of(target: &str, file: Option<&str>, line: Option<u32>) -> String {
+    location(
+        &Record::builder()
+            .target(target)
+            .file(file)
+            .line(line)
+            .build(),
+    )
+}
+
+#[test]
+fn test_location_own_crate_strips_src() {
+    assert_eq!(
+        location_of(
+            "rsfiler::commands::app",
+            Some("src/commands/app.rs"),
+            Some(42)
+        ),
+        "commands/app.rs:42"
+    );
+    // src/ の外 (テストなど) は, 相対パスのまま.
+    assert_eq!(
+        location_of("rsfiler", Some("tests/unit/a.rs"), Some(1)),
+        "tests/unit/a.rs:1"
+    );
+    // Windows の区切り.
+    assert_eq!(
+        location_of("rsfiler", Some("src\\commands\\app.rs"), Some(7)),
+        "commands/app.rs:7"
+    );
+}
+
+#[test]
+fn test_location_external_crate_is_crate_and_file_name() {
+    assert_eq!(
+        location_of(
+            "tao::platform_impl::linux",
+            Some("/home/u/.cargo/registry/src/index/tao-0.30.0/src/platform_impl/linux/mod.rs"),
+            Some(120),
+        ),
+        "tao/mod.rs:120"
+    );
+}
+
+#[test]
+fn test_location_without_file_or_line() {
+    assert_eq!(location_of("some::module", None, Some(1)), "some::module");
+    assert_eq!(
+        location_of("rsfiler::app", Some("src/app.rs"), None),
+        "app.rs"
+    );
+}
+
+#[test]
+fn test_location_frontend() {
+    assert_eq!(location_of("frontend", None, None), "front");
+    assert_eq!(location_of("frontend::tree", None, None), "front/tree");
+    // 転送したコマンドの場所ではなく, フロントエンドの機能名を出す.
+    assert_eq!(
+        location_of(
+            "frontend::tree",
+            Some("src/commands/frontend_log.rs"),
+            Some(84)
+        ),
+        "front/tree"
+    );
+    // frontend で始まるだけの別のターゲットは, 通常どおり.
+    assert_eq!(
+        location_of("frontends::x", Some("src/x.rs"), Some(3)),
+        "x.rs:3"
+    );
+}

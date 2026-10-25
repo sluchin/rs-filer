@@ -2813,6 +2813,7 @@ version = "0.3.3"
 dependencies = [
  "arboard",
  "chardetng",
+ "chrono",
  "dirs",
  "encoding_rs",
  "env_logger",

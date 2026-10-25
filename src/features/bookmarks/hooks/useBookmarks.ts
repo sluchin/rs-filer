@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import log from "loglevel";
+import loglevel from "loglevel";
 import type { useSettings } from "../../../hooks/useSettings";
 import { uniqueNativePaths } from "../../../utils/path";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("bookmarks");
 
 /** 以前の版がブックマークを保存していた localStorage のキー. */
 const LEGACY_STORAGE_KEY = "rsfiler.bookmarks";
@@ -20,7 +23,7 @@ function loadLegacyBookmarks(): string[] {
       ? parsed.filter((p): p is string => typeof p === "string")
       : [];
   } catch (e) {
-    log.warn("[React] 以前のブックマークの読み込みに失敗:", e);
+    log.warn("以前のブックマークの読み込みに失敗:", e);
     return [];
   }
 }
@@ -32,7 +35,7 @@ function removeLegacyBookmarks(): void {
   try {
     localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch (e) {
-    log.warn("[React] 以前のブックマークの削除に失敗:", e);
+    log.warn("以前のブックマークの削除に失敗:", e);
   }
 }
 
@@ -72,7 +75,7 @@ export function useBookmarks(
     const legacy = loadLegacyBookmarks();
     if (legacy.length > 0) {
       migrated.current = true;
-      log.info(`[React] 以前のブックマークを取り込み: ${legacy.length} 件`);
+      log.info(`以前のブックマークを取り込み: ${legacy.length} 件`);
       update({ bookmarks: uniqueNativePaths(legacy) });
     }
   }, [loaded, saved, update]);

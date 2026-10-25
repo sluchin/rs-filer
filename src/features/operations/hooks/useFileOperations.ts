@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import log from "loglevel";
+import loglevel from "loglevel";
 import {
   createDirectory,
   createFile,
@@ -10,6 +10,9 @@ import {
 import type { PaneDeps } from "../../explorer/hooks/useFileList";
 import type { FileEntry } from "../../explorer/types";
 import type { ChoiceOption, DialogState } from "../types";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("operations");
 
 /**
  * ファイル操作 (作成・名前変更・外部アプリやエディタで開く) と, その入力・確認のダイアログ状態を扱うフック.
@@ -113,9 +116,9 @@ export function useFileOperations({
       try {
         setError(null);
         await action();
-        log.info(`[React] ${label} 完了`);
+        log.info(`${label} 完了`);
       } catch (e) {
-        log.error(`[React] ${label} 失敗:`, e);
+        log.error(`${label} 失敗:`, e);
         setError(String(e));
       }
     },

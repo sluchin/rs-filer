@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import log from "loglevel";
+import loglevel from "loglevel";
 import type { useBookmarks } from "../../bookmarks/hooks/useBookmarks";
 import type { CopyKind, CopyTarget } from "../../explorer/copyText";
 import type { useFileList } from "../../explorer/hooks/useFileList";
@@ -21,6 +21,9 @@ import {
   runExternalCommand,
 } from "../../../services/tauriApi";
 import type { Command } from "../types";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("keybindings");
 
 /** ページ送り (`PageUp` / `PageDown`) で動かす行数. */
 const PAGE_SIZE = 10;
@@ -359,7 +362,7 @@ export function useCommandDispatcher(
         panels.toggleTree(activePane);
         break;
       case "quit":
-        quitApp().catch((e) => log.warn("[React] 終了に失敗:", e));
+        quitApp().catch((e) => log.warn("終了に失敗:", e));
         break;
     }
   };

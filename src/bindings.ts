@@ -346,6 +346,8 @@ export const commands = {
 	 *  フロントエンドの `loglevel` の出力を, ブラウザの開発者ツールでしか見られないコンソールだけでなく,
 	 *  バックエンドのログファイルにも残すために使います. IPC の回数を減らすため, フロントエンドは
 	 *  複数件をまとめて送ります. 1 件は 1 行で記録します (改行などの制御文字はエスケープする).
+	 *  時刻は, 記録した時刻ではなく, フロントエンドでログを出した時刻 (`time`) にします.
+	 *  ターゲットは, 機能の名前 (`name`) ごとに `frontend::<機能の名前>` にします.
 	 *  ログの記録自体は失敗しないため, 戻り値はありません.
 	 * 
 	 *  # Arguments
@@ -585,6 +587,10 @@ export type FontSize =
 export type FrontendLogEntry = {
 	/**  ログの重大度. */
 	level: LogLevel,
+	/**  ログを出した時刻 (UNIX 時間のミリ秒. JavaScript の `Date.now()`). */
+	time: number | null,
+	/**  ログを出した機能の名前 (`loglevel` のロガーの名前. `explorer` など). 名前の無いロガーは空文字列. */
+	name: string,
 	/**  ログの内容. */
 	message: string,
 };

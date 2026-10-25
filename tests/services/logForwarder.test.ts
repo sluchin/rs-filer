@@ -9,6 +9,10 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 const mockedInvoke = vi.mocked(invoke);
 const originalFactory = log.methodFactory;
+/** 転送を設定する前に作った (モジュールの読み込み時に作られたのと同じ), 名前付きのロガー. */
+const earlyLogger = log.getLogger("early");
+/** テストの開始時刻 (UNIX 時間のミリ秒). */
+const NOW = 1_761_351_931_000;
 
 /**
  * 転送されたログ (呼び出しごとの配列) を返す.
@@ -23,6 +27,7 @@ describe("installLogForwarding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    vi.setSystemTime(NOW);
     mockedInvoke.mockResolvedValue(undefined);
     log.methodFactory = originalFactory;
     log.setLevel("trace");
@@ -32,6 +37,9 @@ describe("installLogForwarding", () => {
   afterEach(() => {
     vi.useRealTimers();
     log.methodFactory = originalFactory;
+    for (const logger of Object.values(log.getLoggers())) {
+      logger.methodFactory = originalFactory;
+    }
     log.rebuild();
   });
 
@@ -39,25 +47,47 @@ describe("installLogForwarding", () => {
     installLogForwarding({ force: true });
 
     log.debug("a");
+    vi.advanceTimersByTime(50);
     log.info("hello", 1);
     log.warn("w", { x: 1 });
     expect(mockedInvoke).not.toHaveBeenCalled();
 
-    vi.advanceTimersByTime(200);
+    vi.advanceTimersByTime(150);
 
     expect(mockedInvoke).toHaveBeenCalledTimes(1);
     expect(mockedInvoke).toHaveBeenCalledWith("log_frontend_message", {
       entries: [
-        { level: "debug", message: "a" },
-        { level: "info", message: "hello 1" },
-        { level: "warn", message: 'w {"x":1}' },
+        { level: "debug", time: NOW, name: "", message: "a" },
+        { level: "info", time: NOW + 50, name: "", message: "hello 1" },
+        { level: "warn", time: NOW + 50, name: "", message: 'w {"x":1}' },
       ],
     });
 
-    // 送った後のログは, 次の回にまとめる.
+    // 時刻は, 送った時刻ではなく, ログを出した時刻. 送った後のログは, 次の回にまとめる.
     log.info("next");
     vi.advanceTimersByTime(200);
-    expect(sentBatches()[1]).toEqual([{ level: "info", message: "next" }]);
+    expect(sentBatches()[1]).toEqual([
+      { level: "info", time: NOW + 200, name: "", message: "next" },
+    ]);
+  });
+
+  it("正常系: 名前付きのロガーは, その名前を付けて転送されること", () => {
+    installLogForwarding({ force: true });
+    const lateLogger = log.getLogger("late");
+
+    earlyLogger.info("e");
+    lateLogger.warn("l");
+    log.info("root");
+    vi.advanceTimersByTime(200);
+
+    // 転送の設定の前に作ったロガーも, 後に作ったロガーも転送する.
+    expect(sentBatches()).toEqual([
+      [
+        { level: "info", time: NOW, name: "early", message: "e" },
+        { level: "warn", time: NOW, name: "late", message: "l" },
+        { level: "info", time: NOW, name: "", message: "root" },
+      ],
+    ]);
   });
 
   it("正常系: エラーは, それまでにたまった分と一緒に, 待たずに転送されること", () => {
@@ -69,8 +99,8 @@ describe("installLogForwarding", () => {
 
     expect(sentBatches()).toEqual([
       [
-        { level: "info", message: "before" },
-        { level: "error", message: error.stack },
+        { level: "info", time: NOW, name: "", message: "before" },
+        { level: "error", time: NOW, name: "", message: error.stack },
       ],
     ]);
     // 待っていた分も送ったので, 後から重ねて送らない.
@@ -85,7 +115,9 @@ describe("installLogForwarding", () => {
 
     log.error(error);
 
-    expect(sentBatches()).toEqual([[{ level: "error", message: "no stack" }]]);
+    expect(sentBatches()).toEqual([
+      [{ level: "error", time: NOW, name: "", message: "no stack" }],
+    ]);
   });
 
   it("境界: 50 件たまったら, 待たずに転送すること", () => {
@@ -108,10 +140,12 @@ describe("installLogForwarding", () => {
     log.error("y".repeat(4001));
 
     expect(sentBatches()).toEqual([
-      [{ level: "error", message: "x".repeat(4000) }],
+      [{ level: "error", time: NOW, name: "", message: "x".repeat(4000) }],
       [
         {
           level: "error",
+          time: NOW,
+          name: "",
           message: `${"y".repeat(4000)}... (1 文字を省略)`,
         },
       ],

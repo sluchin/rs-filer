@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
-import log from "loglevel";
+import loglevel from "loglevel";
 import { getDirStats, getItemInfo } from "../../../services/tauriApi";
 import type { DirStats, InfoState, ItemInfo, StatsState } from "../types";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("info");
 
 /** パスが変わってから, 取得を始めるまで待つ時間 (ミリ秒). */
 const FETCH_DELAY_MS = 100;
@@ -51,7 +54,7 @@ function useByPath<T>(
         }
       })
       .catch((e) => {
-        log.warn(`[React] ${label}の取得に失敗:`, e);
+        log.warn(`${label}の取得に失敗:`, e);
         if (!cancelled) {
           setResult({ path, error: String(e) });
         }

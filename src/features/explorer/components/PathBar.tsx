@@ -1,9 +1,12 @@
 import { useState } from "react";
-import log from "loglevel";
+import loglevel from "loglevel";
 import { useScrollToEnd } from "../../../hooks/useScrollToEnd";
 import { completePath } from "../../../services/tauriApi";
 import { commonPrefix } from "../../../utils/strings";
 import type { ChangeEvent, KeyboardEvent, ReactElement } from "react";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("explorer");
 
 /**
  * PathBar コンポーネントのプロパティ.
@@ -84,7 +87,7 @@ export default function PathBar({
         setCandidates(found.length > 1 ? found : []);
         setSelected(-1);
       })
-      .catch((err) => log.warn("[React] パス補完に失敗:", err));
+      .catch((err) => log.warn("パス補完に失敗:", err));
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {

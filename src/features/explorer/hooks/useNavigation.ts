@@ -1,9 +1,12 @@
 import { useCallback, useState } from "react";
-import log from "loglevel";
+import loglevel from "loglevel";
 import { listDrives } from "../../../services/tauriApi";
 import { getBaseName, getParentPath } from "../../../utils/path";
 import type { PaneDeps } from "./useFileList";
 import type { FileEntry, PaneId } from "../types";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("explorer");
 
 /**
  * ディレクトリ移動 (親へ・入る・再読み込み・履歴・ドライブ切り替え) を扱うフック.
@@ -97,7 +100,7 @@ export function useNavigation({
       setError(null);
       setDrives(await listDrives());
     } catch (e) {
-      log.error("[React] ドライブ一覧の取得に失敗:", e);
+      log.error("ドライブ一覧の取得に失敗:", e);
       setError(String(e));
     }
   }, [setError]);

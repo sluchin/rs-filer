@@ -94,6 +94,8 @@ cargo install cargo-tarpaulin
 
 ログは、標準エラー出力と、ログファイルに出ます。フロントエンド (`loglevel`) のログも、バックエンドに転送して、同じファイルに残します。フロントエンドのログは、200ms ごとにまとめて転送します (エラーはすぐに転送します)。1 件は 4000 文字までで、改行などの制御文字は `\n` のようにエスケープして、1 行で記録します。
 
+1 行は `2026-10-25T09:25:31.123+09:00 [INFO]  commands/app.rs:42 アプリケーション終了` のように、時刻 (ローカル時刻、ミリ秒まで)、レベル、出力元、内容の順に並びます。出力元は、アプリのログは `src/` からのファイルのパスと行番号、外部のクレートのログは `クレート名/ファイル名:行番号` (`tao/mod.rs:120` など)、フロントエンドのログは `front/<機能名>` (`front/explorer` など。機能名は `loglevel.getLogger("explorer")` で付けた名前) です。フロントエンドのログの時刻は、バックエンドが書き込んだ時刻ではなく、フロントエンドでログを出した時刻です。まとめて転送するため、ファイルの中で、前後の行と最大 200ms ほど順番が入れ替わることがあります。時刻の順に並べ直すときは、`LC_ALL=C sort rsfiler.log` を使います (書式がそろっているので、行の先頭で並べれば時刻の順になります)。
+
 * ログファイル: `<データディレクトリ>/rsfiler/logs/rsfiler.log` (Linux は `~/.local/share/rsfiler/logs/rsfiler.log`、Windows は `%LOCALAPPDATA%\rsfiler\logs\rsfiler.log`、macOS は `~/Library/Application Support/rsfiler/logs/rsfiler.log`)。5 MB を超えると世代送りして、3 世代 (`.1` から `.3`) を残します。
 * レベル: デバッグ版 (`npm run tauri:dev`) はデバッグ以上、リリース版 (`npm run tauri:build`) は情報、警告、エラーを出します。
 * レベルを変えるとき: `RUST_LOG=debug npm run tauri:dev` のように、環境変数 `RUST_LOG` で上書きします (リリース版でも効きます)。

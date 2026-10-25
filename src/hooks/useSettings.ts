@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import log from "loglevel";
+import loglevel from "loglevel";
 import { loadConfig, saveConfig } from "../services/tauriApi";
 import {
   DEFAULT_CONFIG,
@@ -8,6 +8,9 @@ import {
   type AppConfig,
   type ColumnWidths,
 } from "../features/settings/types";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("settings");
 
 /**
  * 並びの中で, 現在の値の次の値を返します. 最後の次は最初に戻ります. 見つからない場合は先頭を返します.
@@ -46,7 +49,7 @@ export function useSettings() {
         }
       })
       .catch((e) => {
-        log.warn("[React] 設定の読み込みに失敗:", e);
+        log.warn("設定の読み込みに失敗:", e);
       });
     return () => {
       cancelled = true;
@@ -63,7 +66,7 @@ export function useSettings() {
     }
     unsaved.current = false;
     saveConfig(config).catch((e) => {
-      log.warn("[React] 設定の保存に失敗:", e);
+      log.warn("設定の保存に失敗:", e);
     });
   }, [config]);
 

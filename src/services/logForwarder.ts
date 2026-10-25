@@ -68,7 +68,12 @@ export interface InstallLogForwardingOptions {
  *
  * IPC の回数を減らすため, ログはためておき, {@link FLUSH_DELAY_MS} ごとに古い順にまとめて送ります.
  * ただし, エラーのログと, {@link MAX_PENDING} 件たまったときは, 待たずに送ります. 長いメッセージは
- * {@link MAX_MESSAGE_LENGTH} 文字までにします.
+ * {@link MAX_MESSAGE_LENGTH} 文字までにします. 各ログには, ログを出した時刻を付けて送り, バックエンドは
+ * (送り届いた時刻ではなく) その時刻で記録します. また, ロガーの名前 (`log.getLogger("explorer")` の
+ * `explorer` など. 機能ごとに付ける) を付けて送り, バックエンドは `front/<名前>` としてログを出した場所に書きます.
+ *
+ * 名前付きのロガーは, 作られたときのルートの `methodFactory` を使い続けるため, この関数を呼ぶ前に
+ * (各モジュールの読み込み時に) 作られたロガーも, 転送するよう設定し直します.
  *
  * `trace` は対象外です (このアプリでは使っていないため). また, テスト環境 (`vitest`,
  * `import.meta.env.MODE === "test"`) では, バックエンドが実在せず, invoke のモックの呼び出し回数を
@@ -100,15 +105,25 @@ export function installLogForwarding(
     }
   };
   const originalFactory = log.methodFactory;
-  log.methodFactory = (methodName, logLevel, loggerName) => {
+  const forwardingFactory: typeof log.methodFactory = (
+    methodName,
+    logLevel,
+    loggerName,
+  ) => {
     const rawMethod = originalFactory(methodName, logLevel, loggerName);
     if (!FORWARDABLE_LEVELS.includes(methodName)) {
       return rawMethod;
     }
     const level = methodName as LogLevel;
+    const name = typeof loggerName === "string" ? loggerName : "";
     return (...args: unknown[]) => {
       rawMethod(...args);
-      pending.push({ level, message: truncate(formatArgs(args)) });
+      pending.push({
+        level,
+        time: Date.now(),
+        name,
+        message: truncate(formatArgs(args)),
+      });
       if (level === "error" || pending.length >= MAX_PENDING) {
         flush();
       } else {
@@ -116,5 +131,10 @@ export function installLogForwarding(
       }
     };
   };
+  log.methodFactory = forwardingFactory;
+  for (const logger of Object.values(log.getLoggers())) {
+    logger.methodFactory = forwardingFactory;
+  }
+  // ルートの rebuild は, 名前付きのロガーも作り直す
   log.rebuild();
 }

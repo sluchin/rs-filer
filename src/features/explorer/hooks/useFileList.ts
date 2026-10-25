@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import log from "loglevel";
+import loglevel from "loglevel";
 import {
   getHomeDir,
   loadConfig,
@@ -17,6 +17,9 @@ import {
 } from "../../../utils/path";
 import { deriveFiles } from "../view";
 import { pushHistory } from "../history";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("explorer");
 
 /** ペインの初期状態. */
 const INITIAL_PANE: PaneState = {
@@ -163,16 +166,13 @@ export function useFileList(onError: (message: string) => void) {
       const loadId = ++latestLoadId.current[pane];
       try {
         setError(null);
-        log.debug(`[React] ${pane}ペイン 読み込み要求:`, targetPath);
+        log.debug(`${pane}ペイン 読み込み要求:`, targetPath);
 
         const result = await readDirectory(targetPath);
 
         // 新しいリクエストが既に開始されている場合は, この結果を破棄する (競合状態の防止)
         if (latestLoadId.current[pane] !== loadId) {
-          log.debug(
-            `[React] ${pane}ペイン 古いリクエストのため破棄:`,
-            targetPath,
-          );
+          log.debug(`${pane}ペイン 古いリクエストのため破棄:`, targetPath);
           return false;
         }
 
@@ -209,14 +209,14 @@ export function useFileList(onError: (message: string) => void) {
           };
         });
 
-        log.info(`[React] ${pane}ペイン 取得完了: ${result.length} 件`);
+        log.info(`${pane}ペイン 取得完了: ${result.length} 件`);
         return true;
       } catch (e) {
         // 新しいリクエストが進行中の場合は, 古いエラーで上書きしない
         if (latestLoadId.current[pane] !== loadId) {
           return false;
         }
-        log.error(`[React] ${pane}ペイン 読み込み失敗:`, e);
+        log.error(`${pane}ペイン 読み込み失敗:`, e);
         setError(String(e));
         onError(String(e));
         return false;
@@ -302,7 +302,7 @@ export function useFileList(onError: (message: string) => void) {
         saved = config.last_paths ?? {};
         historyLimit.current = config.history_limit ?? DEFAULT_HISTORY_LIMIT;
       } catch (e) {
-        log.warn("[React] 前回のディレクトリの読み込みに失敗:", e);
+        log.warn("前回のディレクトリの読み込みに失敗:", e);
       }
       // 前回の履歴を戻してから, ディレクトリを開く. 開いたディレクトリは, 履歴の末尾へ移る.
       try {
@@ -318,7 +318,7 @@ export function useFileList(onError: (message: string) => void) {
           }));
         });
       } catch (e) {
-        log.warn("[React] 移動履歴の読み込みに失敗:", e);
+        log.warn("移動履歴の読み込みに失敗:", e);
       }
       let home: string | null = null;
       const openPane = async (pane: PaneId): Promise<void> => {
@@ -330,10 +330,7 @@ export function useFileList(onError: (message: string) => void) {
           try {
             home = await getHomeDir();
           } catch (e) {
-            log.warn(
-              "[React] ホームディレクトリ取得失敗, ルートを使用します:",
-              e,
-            );
+            log.warn("ホームディレクトリ取得失敗, ルートを使用します:", e);
             home = "/";
           }
         }
@@ -353,7 +350,7 @@ export function useFileList(onError: (message: string) => void) {
       return;
     }
     saveLastPaths({ left: leftPath, right: rightPath }).catch((e) => {
-      log.warn("[React] 前回のディレクトリの保存に失敗:", e);
+      log.warn("前回のディレクトリの保存に失敗:", e);
     });
   }, [leftPath, rightPath]);
 
@@ -366,7 +363,7 @@ export function useFileList(onError: (message: string) => void) {
       return;
     }
     saveHistory({ left: leftHistory, right: rightHistory }).catch((e) => {
-      log.warn("[React] 移動履歴の保存に失敗:", e);
+      log.warn("移動履歴の保存に失敗:", e);
     });
   }, [leftHistory, rightHistory]);
 

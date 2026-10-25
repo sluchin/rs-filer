@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import log from "loglevel";
+import loglevel from "loglevel";
 import { getDiskSpace } from "../../../services/tauriApi";
 import type { DiskSpace } from "../types";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("explorer");
 
 /**
  * 指定パスが載っているディスクの空き容量を取得するフック.
@@ -21,7 +24,7 @@ export function useDiskSpace(path: string): DiskSpace | null {
         }
       })
       .catch((e) => {
-        log.warn("[React] ディスク容量の取得に失敗:", e);
+        log.warn("ディスク容量の取得に失敗:", e);
         if (!cancelled) {
           setSpace(null);
         }

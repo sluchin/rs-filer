@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
-import log from "loglevel";
+import loglevel from "loglevel";
 import { readPreview } from "../../../services/tauriApi";
 import type { Preview, PreviewState } from "../types";
+
+/** この機能のロガー. */
+const log = loglevel.getLogger("preview");
 
 /** パスが変わってから, 取得を始めるまで待つ時間 (ミリ秒). */
 const FETCH_DELAY_MS = 100;
@@ -39,7 +42,7 @@ export function usePreview(path: string | null): PreviewState {
         }
       })
       .catch((e) => {
-        log.warn("[React] プレビューの取得に失敗:", e);
+        log.warn("プレビューの取得に失敗:", e);
         if (!cancelled) {
           setResult({ path, error: String(e) });
         }
