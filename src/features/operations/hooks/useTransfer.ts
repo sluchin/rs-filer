@@ -144,6 +144,7 @@ export function useTransfer({
       updatePane(srcPane, (p) => ({
         ...p,
         marks: p.marks.filter((m) => !request.sources.includes(m)),
+        flags: p.flags.filter((m) => !request.sources.includes(m)),
       }));
       for (const pane of ["left", "right"] as const) {
         const { currentPath, historyIndex } = latestPanes.current[pane];
@@ -410,6 +411,22 @@ export function useTransfer({
   );
 
   /**
+   * 削除の印を付けた項目を, 確認のうえゴミ箱へ移動します (Emacs の Dired の `x`. `dired-do-flagged-delete`).
+   * 印が無ければ, 知らせるだけです.
+   */
+  const startDeleteFlagged = useCallback((): void => {
+    const files = source.files.filter((f) => source.flags.includes(f.path));
+    if (files.length === 0) {
+      notify("削除の印の付いた項目がありません (d で印を付ける)");
+      return;
+    }
+    confirmDelete(
+      files.map((f) => ({ path: f.path, name: f.name })),
+      false,
+    );
+  }, [source, notify, confirmDelete]);
+
+  /**
    * 指定した項目を, 確認のうえ削除します (ツリー表示用). 削除したら (失敗しても), 呼び出し側 (ツリー) へ知らせます.
    *
    * @param items - 削除する項目 (絶対パスと名前).
@@ -495,6 +512,7 @@ export function useTransfer({
     startCopy: (alwaysConfirm: boolean) => startPlace("copy", alwaysConfirm),
     startMove: (alwaysConfirm: boolean) => startPlace("move", alwaysConfirm),
     startDelete,
+    startDeleteFlagged,
     startDeletePaths,
     copyToClipboard,
     pasteFromClipboard,

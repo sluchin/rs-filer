@@ -499,7 +499,7 @@ describe("App (キーボード操作)", () => {
       cmd === "open_item" ? Promise.reject("起動できません") : undefined,
     );
     const user = await renderLoaded();
-    await user.keyboard("jx");
+    await user.keyboard("jW");
     expect(
       await screen.findByText("エラー: 起動できません"),
     ).toBeInTheDocument();
@@ -520,6 +520,12 @@ describe("App (キーボード操作)", () => {
       screen.getByText("エラー: 対象の項目が選択されていません."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // W (外部アプリで開く) は, 何もしない
+    await user.keyboard("W");
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "open_item",
+      expect.anything(),
+    );
   });
 
   it("正常系: Backspace で親へ移動し, M-g でパス入力欄にフォーカスして Enter で移動できること", async () => {
@@ -758,12 +764,16 @@ describe("App (作成・名前変更・削除)", () => {
     );
   });
 
-  it("正常系: d でゴミ箱へ移動する確認が出て, y で削除されること", async () => {
+  it("正常系: d で削除の印を付け, x でゴミ箱へ移動する確認が出て, y で削除されること (Dired と同じ)", async () => {
     mockHome();
     const user = await renderLoaded();
     await user.keyboard("j");
 
+    // 印を付けるだけで, まだ削除しない (最後の行なので, カーソルは動かない)
     await user.keyboard("d");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(cursorNames()).toEqual(["b.txt"]);
+    await user.keyboard("x");
     expect(
       screen.getByText("「b.txt」をゴミ箱へ移動しますか? (y/n)"),
     ).toBeInTheDocument();
@@ -795,13 +805,13 @@ describe("App (作成・名前変更・削除)", () => {
     );
   });
 
-  it("正常系: D と Shift+Delete は完全削除の確認になり, 「はい」で実行されること", async () => {
+  it("正常系: D はゴミ箱へ移動, Shift+Delete は完全削除の確認になり, 「はい」で実行されること", async () => {
     mockHome();
     const user = await renderLoaded();
 
     await user.keyboard("D");
     expect(
-      screen.getByRole("dialog", { name: "完全に削除" }),
+      screen.getByRole("dialog", { name: "ゴミ箱へ移動" }),
     ).toBeInTheDocument();
     await user.keyboard("{Escape}");
     await user.keyboard("{Shift>}{Delete}{/Shift}");
@@ -826,7 +836,7 @@ describe("App (作成・名前変更・削除)", () => {
       cmd === "run_transfer" ? Promise.reject("削除できません") : undefined,
     );
     const user = await renderLoaded();
-    await user.keyboard("dy");
+    await user.keyboard("Dy");
     expect(
       await screen.findByText("エラー: 削除できません"),
     ).toBeInTheDocument();
@@ -878,11 +888,11 @@ describe("App (分岐の網羅)", () => {
 
     await user.keyboard("r");
     expect(screen.getByLabelText("名前")).toHaveValue("FolderA");
-    await user.keyboard("{Escape}d");
+    await user.keyboard("{Escape}D");
     expect(screen.getByText(/「FolderA」をゴミ箱/)).toBeInTheDocument();
   });
 
-  it("境界: ルートでは ^ を押しても移動せず, 空のペインで d を押してもダイアログが開かないこと", async () => {
+  it("境界: ルートでは ^ を押しても移動せず, 空のペインで D と d と x を押してもダイアログが開かないこと", async () => {
     mockedInvoke.mockImplementation((cmd) =>
       cmd === "get_home_dir" ? Promise.resolve("/") : Promise.resolve([]),
     );
@@ -891,7 +901,7 @@ describe("App (分岐の網羅)", () => {
     await screen.findAllByDisplayValue("/");
     mockedInvoke.mockClear();
 
-    await user.keyboard("^d");
+    await user.keyboard("^Ddx");
 
     expect(mockedInvoke).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -1226,11 +1236,16 @@ describe("App (分岐の網羅)", () => {
     ).toHaveAttribute("data-cursor", "active");
   });
 
-  it("正常系: ツリーで D (または Shift+Delete) は完全に削除する確認になり, n で何もしないこと", async () => {
+  it("正常系: ツリーで D は d と同じくゴミ箱へ, Shift+Delete は完全に削除する確認になり, n で何もしないこと", async () => {
     mockTreeFs();
     const user = await openTree();
 
     await user.keyboard("D");
+    expect(
+      screen.getByText("「FolderA」をゴミ箱へ移動しますか? (y/n)"),
+    ).toBeInTheDocument();
+    await user.keyboard("n");
+    await user.keyboard("{Shift>}{Delete}{/Shift}");
     expect(
       screen.getByText(
         "「FolderA」を完全に削除しますか? 元に戻せません. (y/n)",
@@ -1680,6 +1695,109 @@ const leftNames = (): string[] =>
 /** ステータスバーの文字列を返す. */
 const statusText = (): string =>
   document.querySelector(".status-bar")?.textContent ?? "";
+
+/** 左ペインの, 削除の印を付けた行の名前を返す. */
+const flaggedNames = (): string[] =>
+  paneOf("left")
+    .queryAllByRole("listitem")
+    .filter((li) => li.getAttribute("data-flagged") === "true")
+    .map((li) => li.querySelector(".file-name")?.textContent ?? "");
+
+describe("App (削除の印. Dired の d と x)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: d で印を付け, マークとは 1 つの行に 1 つだけで, u と U で外れ, t では変わらないこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+
+    await user.keyboard("dd");
+    expect(flaggedNames()).toEqual(["FolderA", "a.txt"]);
+    expect(statusText()).toContain("削除の印: 2");
+    expect(cursorNames()).toEqual(["b.md"]);
+    // 再読み込みしても, 残っているものの印は残る
+    await user.keyboard("g");
+    await waitFor(() => expect(cursorNames()).toEqual(["b.md"]));
+    expect(flaggedNames()).toEqual(["FolderA", "a.txt"]);
+
+    // マークすると, 削除の印は外れる. 削除の印を付けると, マークは外れる
+    await user.keyboard("km");
+    expect(flaggedNames()).toEqual(["FolderA"]);
+    expect(markedNames()).toEqual(["a.txt"]);
+    await user.keyboard("kd");
+    expect(flaggedNames()).toEqual(["FolderA", "a.txt"]);
+    expect(markedNames()).toEqual([]);
+
+    // t (マークの反転) は, 削除の印の行を変えない
+    await user.keyboard("t");
+    expect(markedNames()).toEqual(["b.md"]);
+    expect(flaggedNames()).toEqual(["FolderA", "a.txt"]);
+
+    // u は, 印を外す. U は, マークと削除の印を全て外す
+    await user.keyboard("kku");
+    expect(flaggedNames()).toEqual(["a.txt"]);
+    await user.keyboard("U");
+    expect(flaggedNames()).toEqual([]);
+    expect(markedNames()).toEqual([]);
+    expect(statusText()).not.toContain("削除の印");
+  });
+
+  it("正常系: x は削除の印を付けたものだけを削除し, 印が無ければ知らせること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+
+    await user.keyboard("x");
+    expect(
+      await screen.findByText(/削除の印の付いた項目がありません/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // マークは, x の対象にならない
+    await user.keyboard("mdd");
+    await user.keyboard("x");
+    expect(
+      screen.getByText("2 件をゴミ箱へ移動しますか? (y/n)"),
+    ).toBeInTheDocument();
+    await user.keyboard("y");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {
+        request: {
+          kind: "delete",
+          sources: ["/mock/home/a.txt", "/mock/home/b.md"],
+          dest_dir: null,
+          overwrite: false,
+          permanent: false,
+        },
+        onProgress: expect.anything(),
+      }),
+    );
+  });
+
+  it("正常系: % d と * s で, パターンと全部に印を付けること (付けたものの, もう一方の印は外れる)", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+
+    await user.keyboard("m");
+    await user.keyboard("%d");
+    expect(
+      screen.getByRole("dialog", { name: /パターンで削除の印/ }),
+    ).toBeInTheDocument();
+    await user.keyboard("/^(F|a)/{Enter}");
+    expect(flaggedNames()).toEqual(["FolderA", "a.txt"]);
+    expect(markedNames()).toEqual([]);
+
+    // 空のパターンは, 何もしない. 不正なパターンは, エラー
+    await user.keyboard("%d{Enter}");
+    expect(flaggedNames()).toEqual(["FolderA", "a.txt"]);
+    await user.keyboard("%d/(/{Enter}");
+    expect(await screen.findByText(/パターンが不正です/)).toBeInTheDocument();
+
+    await user.keyboard("*s");
+    expect(markedNames()).toEqual(["FolderA", "a.txt", "b.md"]);
+    expect(flaggedNames()).toEqual([]);
+  });
+});
 
 describe("App (マーク)", () => {
   beforeEach(() => {
@@ -2850,12 +2968,11 @@ describe("App (コピー・移動・削除の実行)", () => {
   it("正常系: マークした複数の項目の削除は, 件数で確認されること", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("mmd");
+    await user.keyboard("mmD");
     expect(
       screen.getByText("2 件をゴミ箱へ移動しますか? (y/n)"),
     ).toBeInTheDocument();
-    await user.keyboard("D");
-    await user.keyboard("{Escape}D");
+    await user.keyboard("{Escape}{Shift>}{Delete}{/Shift}");
     expect(
       screen.getByText("2 件を完全に削除しますか? 元に戻せません. (y/n)"),
     ).toBeInTheDocument();
@@ -2990,7 +3107,7 @@ describe("App (コピー・移動・削除の実行)", () => {
       cmd === "cancel_transfer" ? Promise.reject("失敗") : undefined,
     );
     const user = await renderTwoDirs();
-    await user.keyboard("jdy");
+    await user.keyboard("jDy");
     await screen.findByRole("dialog", { name: "削除中" });
 
     await user.click(screen.getByRole("button", { name: "中断 (C-g)" }));

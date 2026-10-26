@@ -109,6 +109,8 @@ interface FileListProps {
   isActive: boolean;
   /** マークされているエントリのパス. */
   marks: string[];
+  /** 削除の印 (Dired の `D`) が付いているエントリのパス. */
+  flags?: string[];
   /** 詳細 (サイズ・更新日時・属性) の列を表示するかどうか. */
   showDetails: boolean;
   /** 親ディレクトリへ移動できるかどうか. true の場合は先頭に `..` の行を表示する. */
@@ -190,6 +192,7 @@ export default function FileList({
   selectedIndex,
   isActive,
   marks,
+  flags = [],
   showDetails,
   hasParent,
   onParent,
@@ -439,6 +442,7 @@ export default function FileList({
           selectedIndex !== idx ? "none" : isActive ? "active" : "inactive"
         }
         marked={marks.includes(file.path)}
+        flagged={flags.includes(file.path)}
         showDetails={showDetails}
         measureRef={rowMeasureRef}
         onClick={() => onItemClick(idx, file)}

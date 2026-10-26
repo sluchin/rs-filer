@@ -9,7 +9,8 @@ export type Keymap = Map<string, Command>;
  * 既定のキー割り当て. キーの並びから, コマンドへの対応.
  *
  * Emacs の Dired と同じキーには, Dired と同じ働きのコマンドを割り当てる. Dired の働きが rs-filer に無いキー
- * (`c`, `M`, `O`, `H`, `x`, `L`, `i`, `.`, `<`, `>` など) には, rs-filer のコマンドを割り当てている.
+ * (`c`, `M`, `O`, `H`, `L`, `i`, `.`, `<`, `>` など) には, rs-filer のコマンドを割り当てている.
+ * 削除は Dired と同じく, `d` で印を付けて `x` で削除するか, `D` でマーク (無ければカーソル位置) を削除する.
  *
  * キーの並びの表記の規則:
  * - キーは空白で区切って並べる (`C-x C-f`).
@@ -38,7 +39,6 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   f: "open",
   l: "open",
   Right: "open",
-  x: "openExternal",
   e: "openEditor",
   Backspace: "parent",
   "^": "parent",
@@ -76,8 +76,9 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   I: "info",
   L: "log",
   Delete: "delete",
-  d: "delete",
-  D: "deletePermanent",
+  D: "delete",
+  d: "flagDeletion",
+  x: "deleteFlagged",
   "S-Delete": "deletePermanent",
   u: "unmark",
   U: "unmarkAll",
@@ -92,6 +93,7 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   "* t": "invertMarks",
   "* %": "markPattern",
   "% m": "markPattern",
+  "% d": "flagPattern",
   ".": "toggleHidden",
   "C-x .": "toggleHidden",
   s: "cycleSort",

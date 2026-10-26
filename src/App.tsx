@@ -496,6 +496,9 @@ export default function App(): ReactElement {
         info={[
           sortLabel(activeState.sort),
           `マーク: ${activeState.marks.length}`,
+          ...(activeState.flags.length > 0
+            ? [`削除の印: ${activeState.flags.length}`]
+            : []),
           ...(activeState.showHidden ? [] : ["隠しファイル非表示"]),
         ].join(" / ")}
         disk={disk}

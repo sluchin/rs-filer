@@ -54,6 +54,10 @@ export interface PaneState {
    */
   marks: string[];
   /**
+   * 削除の印 (Emacs の Dired の `D`) を付けたエントリのパス. `x` で削除する. マークとは重ならない.
+   */
+  flags: string[];
+  /**
    * 隠しファイルを表示するかどうか.
    */
   showHidden: boolean;

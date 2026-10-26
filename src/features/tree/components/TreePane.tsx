@@ -194,13 +194,14 @@ export default function TreePane({
         !e.metaKey &&
         !e.altKey
       ) {
-        // 削除. `d` / `Delete`: ゴミ箱へ. `D` / `Shift+Delete`: 完全に削除 (通常の一覧と同じ).
+        // 削除. `d` / `D` / `Delete`: ゴミ箱へ. `Shift+Delete`: 完全に削除 (通常の一覧と同じ).
+        // ツリーにはマークが無いので, `d` も削除の印を付けず, すぐに確認する.
         e.preventDefault();
         const row = rows.find((r) => r.node.path === cursorPath);
         if (row) {
           // ツリーの行は根の下にあるので, 親は必ずある
           const parent = getParentPath(row.node.path) as string;
-          const permanent = e.key === "D" || (e.key === "Delete" && e.shiftKey);
+          const permanent = e.key === "Delete" && e.shiftKey;
           onDelete(
             row.node.path,
             row.node.name,

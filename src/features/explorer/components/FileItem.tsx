@@ -17,6 +17,8 @@ interface FileItemProps {
   cursor: "active" | "inactive" | "none";
   /** マークされているかどうか. */
   marked: boolean;
+  /** 削除の印 (Dired の `D`) が付いているかどうか. */
+  flagged?: boolean;
   /** 詳細 (サイズ・更新日時・属性) を表示するかどうか. */
   showDetails: boolean;
   /** 行の高さを測るための ref コールバック (仮想スクロール用). */
@@ -51,6 +53,7 @@ export default function FileItem({
   file,
   cursor,
   marked,
+  flagged = false,
   showDetails,
   measureRef,
   onClick,
@@ -69,6 +72,7 @@ export default function FileItem({
       style={rowStyle}
       data-cursor={cursor}
       data-marked={marked}
+      data-flagged={flagged}
       aria-current={cursor === "active" ? "true" : undefined}
       onClick={onClick}
       onDoubleClick={onDoubleClick}

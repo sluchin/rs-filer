@@ -28,6 +28,7 @@ const INITIAL_PANE: PaneState = {
   allFiles: [],
   selectedIndex: 0,
   marks: [],
+  flags: [],
   showHidden: false,
   showDetails: true,
   sort: { key: "name", desc: false },
@@ -198,6 +199,7 @@ export function useFileList(onError: (message: string) => void) {
             files,
             filter,
             marks: moved ? [] : prev.marks.filter((m) => existing.has(m)),
+            flags: moved ? [] : prev.flags.filter((m) => existing.has(m)),
             selectedIndex: cursorAfterLoad(
               files,
               prev.selectedIndex,

@@ -103,6 +103,7 @@ function Pane({
         selectedIndex={state.selectedIndex}
         isActive={isActive}
         marks={state.marks}
+        flags={state.flags}
         showDetails={state.showDetails}
         hasParent={getParentPath(state.currentPath) !== null}
         onParent={onParent}

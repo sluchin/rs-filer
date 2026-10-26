@@ -307,6 +307,12 @@ body,
   font-weight: bold;
 }
 
+/* 削除の印 (Dired の D). マークと区別できるよう, 取り消し線を引く. */
+.file-row[data-flagged="true"] {
+  color: var(--error);
+  text-decoration: line-through;
+}
+
 .filter-bar {
   display: flex;
   align-items: center;

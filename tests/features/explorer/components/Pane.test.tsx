@@ -14,6 +14,7 @@ const STATE: PaneState = {
   allFiles: [],
   selectedIndex: 0,
   marks: [],
+  flags: [],
   showHidden: false,
   showDetails: true,
   sort: { key: "name", desc: false },

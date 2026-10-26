@@ -25,6 +25,7 @@ const pane = (files: FileEntry[], selectedIndex = 0): PaneState => ({
   allFiles: files,
   selectedIndex,
   marks: [],
+  flags: [],
   showHidden: false,
   showDetails: true,
   sort: { key: "name", desc: false },

@@ -251,6 +251,18 @@ export function useCommandDispatcher(
       case "deletePermanent":
         transfer.startDelete(true);
         break;
+      case "flagDeletion":
+        marks.flag();
+        break;
+      case "deleteFlagged":
+        transfer.startDeleteFlagged();
+        break;
+      case "flagPattern":
+        operations.openPrompt(
+          "パターンで削除の印 (例: *.tmp または /正規表現/)",
+          marks.flagPattern,
+        );
+        break;
       case "syncPane":
         navigation.handleSyncPane();
         break;

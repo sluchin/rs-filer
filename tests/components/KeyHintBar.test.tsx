@@ -44,8 +44,8 @@ describe("KeyHintBar", () => {
       "N:mkdir",
       "+:根にmkdir",
       "r:名前変更",
-      "d:削除",
-      "D:完全削除",
+      "d/D:削除",
+      "S-Del:完全削除",
       "w:名前コピー",
       "T/Esc:戻る",
     ]);
