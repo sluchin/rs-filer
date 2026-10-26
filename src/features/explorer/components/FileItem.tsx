@@ -5,6 +5,7 @@ import {
   formatSize,
 } from "../../../utils/formatters";
 import type { FileEntry } from "../types";
+import { fileKind } from "../../../utils/fileKind";
 import FileIcon from "./FileIcon";
 
 /**
@@ -81,7 +82,7 @@ export default function FileItem({
         onContextMenu(e.clientX, e.clientY);
       }}
     >
-      <FileIcon kind={file.is_dir ? "dir" : "file"} />
+      <FileIcon kind={fileKind(file.name, file.is_dir)} />
       <span
         className="col-name file-name"
         style={colNameStyle}

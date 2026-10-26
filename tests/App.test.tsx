@@ -1312,7 +1312,7 @@ describe("App (分岐の網羅)", () => {
       await paneOf("left").findByRole("treeitem", { name: /FolderA/ }),
     ).toBeInTheDocument();
     const file = paneOf("left").getByRole("treeitem", { name: /b\.txt/ });
-    expect(file.querySelector('svg[data-icon="file"]')).not.toBeNull();
+    expect(file.querySelector('svg[data-icon="text"]')).not.toBeNull();
     expect(file).not.toHaveAttribute("aria-expanded");
     const items = paneOf("left").getAllByRole("treeitem");
     expect(items.indexOf(file)).toBeGreaterThan(
@@ -1637,7 +1637,7 @@ describe("App (分岐の網羅)", () => {
     await renderLoaded();
     const left = paneOf("left").getAllByRole("listitem");
     const icons = left.map((li) => li.querySelector("svg")?.dataset.icon);
-    expect(icons).toEqual(["parent", "dir", "file"]);
+    expect(icons).toEqual(["parent", "dir", "text"]);
   });
 });
 

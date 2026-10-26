@@ -3,6 +3,7 @@ import type { PaneId } from "../../explorer/types";
 import { useTree } from "../hooks/useTree";
 import FileIcon from "../../explorer/components/FileIcon";
 import { useScrollToEnd } from "../../../hooks/useScrollToEnd";
+import { fileKind } from "../../../utils/fileKind";
 import { getParentPath } from "../../../utils/path";
 import type { CopyKind, CopyTarget } from "../../explorer/copyText";
 
@@ -320,7 +321,7 @@ export default function TreePane({
                 >
                   {node.isDir && !node.empty ? "▶" : ""}
                 </span>
-                <FileIcon kind={node.isDir ? "dir" : "file"} />
+                <FileIcon kind={fileKind(node.name, node.isDir)} />
                 {node.isDir ? `${node.name}/` : node.name}
               </span>
             </li>

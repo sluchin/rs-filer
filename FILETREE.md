@@ -46,6 +46,7 @@ src/
 │   │   │   ├── PathBar.tsx             # カレントパス表示・直接入力バー (Tab でパス補完)
 │   │   │   ├── FileList.tsx            # ファイル一覧テーブル (仮想スクロール対応)
 │   │   │   ├── FileItem.tsx            # 行要素 (アイコン, 名前, 拡張子, サイズ, 更新日時)
+│   │   │   ├── FileIcon.tsx            # 行頭の 16px のアイコン (ファイルの種類ごとの絵)
 │   │   │   └── HistoryPane.tsx         # ペインの表示をディレクトリ移動履歴の一覧に差し替えるビュー
 │   │   ├── hooks/
 │   │   │   ├── useFileList.ts          # ファイル一覧の取得・ファイル監視イベント連携
@@ -131,6 +132,7 @@ src/
 │   └── useTaskStore.ts                 # 実行中の非同期タスク管理
 │
 └── utils/                              # 補助関数
+    ├── fileKind.ts                     # 名前 (拡張子) から, アイコンの種類を決める
     ├── formatters.ts                   # 日付・ファイルサイズ・属性フォーマット
     └── path.ts                         # パス結合・親パス取得・Windowsドライブ判定
 ```
@@ -188,6 +190,7 @@ tests/
 │   ├── explorer/
 │   │   ├── components/
 │   │   │   ├── DualPaneContainer.test.tsx
+│   │   │   ├── FileIcon.test.tsx
 │   │   │   ├── FileList.test.tsx
 │   │   │   ├── HistoryPane.test.tsx
 │   │   │   ├── Pane.test.tsx
@@ -237,6 +240,7 @@ tests/
 ├── services/
 │   └── logForwarder.test.ts
 ├── utils/
+│   ├── fileKind.test.ts
 │   ├── formatters.test.ts
 │   └── path.test.ts
 ├── App.test.tsx
