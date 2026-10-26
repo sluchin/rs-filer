@@ -30,6 +30,7 @@ rsfiler は、xyzzy のファイラを参考にした、キーボード操作優
 - `README.md` / `INSTALL.md` / `SETUP.md`: 利用者・開発者向けの文書。
 - `INTEGRATION_TESTS.md`: 結合試験項目書 (実際に起動したアプリケーションでの, 画面操作単位の試験項目)。キーバインドや操作を変更したら, 該当する項目も見直す。
 - `.github/workflows/release.yml`: `v*` タグの push で、3 OS 向けにビルドして GitHub Releases にドラフトを作る。
+- `.github/workflows/debug-build.yml`: 手動実行で、選んだ OS 向けにデバッグ版 (`tauri build --debug`) をビルドし、Artifacts に置く (14 日で消える)。
 - `dist/`、`coverage/`、`docs/`、`node_modules/`、`src-tauri/target/` は生成物。編集しない。
 
 ## コードの構成規約

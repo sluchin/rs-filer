@@ -1,0 +1,122 @@
+name: Debug Build
+
+# デバッグ版 (`tauri build --debug`) を作る. 手動実行だけ (Actions タブの「Debug Build」から「Run workflow」).
+# デバッグ版は, ログをデバッグ以上で出し, 開発者ツール (Ctrl+Shift+I) を使え, Windows ではコンソールを出す.
+# 成果物は, 実行結果の Artifacts (`rsfiler-debug-<OS>-<コミット>`) からダウンロードする. GitHub Releases には上げない.
+on:
+  workflow_dispatch:
+    inputs:
+      linux:
+        description: 'Linux (deb / rpm / AppImage)'
+        type: boolean
+        default: true
+      windows:
+        description: 'Windows (msi / nsis / exe)'
+        type: boolean
+        default: true
+      macos:
+        description: 'macOS (dmg / app)'
+        type: boolean
+        default: true
+
+# 同じブランチで新しい実行が始まったら, 古い実行を取り消す.
+concurrency:
+  group: debug-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 選んだ OS だけを, ビルドの組み合わせにする.
+  plan:
+    runs-on: ubuntu-26.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - id: matrix
+        env:
+          LINUX: ${{ inputs.linux }}
+          WINDOWS: ${{ inputs.windows }}
+          MACOS: ${{ inputs.macos }}
+        run: |
+          include='[]'
+          add() { include=$(jq -c --arg os "$1" --arg target "$2" '. + [{os: $os, target: $target}]' <<< "$include"); }
+          [ "$LINUX" = true ] && add ubuntu-26.04 x86_64-unknown-linux-gnu
+          [ "$WINDOWS" = true ] && add windows-latest x86_64-pc-windows-msvc
+          [ "$MACOS" = true ] && add macos-latest universal-apple-darwin
+          if [ "$include" = '[]' ]; then
+            echo "::error::Choose at least one OS"
+            exit 1
+          fi
+          echo "matrix={\"include\":$include}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # 成果物の名前に入れる, コミットの短いハッシュ.
+      - name: Short commit hash
+        shell: bash
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # universal-apple-darwin は Rust のターゲットではないため, macOS は 2 つのアーキテクチャを個別に入れる.
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
+
+      # デバッグ版は, リリース版とキャッシュを分ける (ビルドの成果物が違うため).
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: debug
+
+      - name: Install Linux Dependencies
+        if: matrix.os == 'ubuntu-26.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # デバッグ版をビルドする (成果物は src-tauri/target/<target>/debug/bundle/).
+      - uses: tauri-apps/tauri-action@v1
+        with:
+          args: --debug --target ${{ matrix.target }}
+
+      # Windows: インストーラとは別に, exe 単体を zip にする (入れずに試せるように).
+      - name: Create Windows portable zip
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $zip = "rsfiler_debug_${env:SHORT_SHA}_windows_x64_portable.zip"
+          Compress-Archive -Path "src-tauri/target/${{ matrix.target }}/debug/rsfiler.exe" -DestinationPath $zip
+          "PORTABLE_ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload bundles as artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: rsfiler-debug-${{ matrix.os }}-${{ env.SHORT_SHA }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/debug/bundle/deb/*.deb
+            src-tauri/target/${{ matrix.target }}/debug/bundle/rpm/*.rpm
+            src-tauri/target/${{ matrix.target }}/debug/bundle/appimage/*.AppImage
+            src-tauri/target/${{ matrix.target }}/debug/bundle/msi/*.msi
+            src-tauri/target/${{ matrix.target }}/debug/bundle/nsis/*.exe
+            src-tauri/target/${{ matrix.target }}/debug/bundle/dmg/*.dmg
+            ${{ env.PORTABLE_ZIP }}
+          if-no-files-found: error
+          # デバッグ版は, 確かめるあいだだけ使うので, 長くは残さない.
+          retention-days: 14
