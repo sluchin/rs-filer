@@ -269,14 +269,9 @@ where
         .unwrap_or(now);
     // 重大度の長さが違っても, 場所の列がそろうよう, 最も長い `[ERROR]` の幅に合わせる
     let level = format!("[{}]", record.level());
-    writeln!(
-        out,
-        "{} {:<7} {} {}",
-        time.with_timezone(tz).format("%Y-%m-%dT%H:%M:%S%.3f%:z"),
-        level,
-        location(record),
-        record.args()
-    )
+    let stamp = time.with_timezone(tz).format("%Y-%m-%dT%H:%M:%S%.3f%:z");
+    let place = location(record);
+    writeln!(out, "{stamp} {level:<7} {place} {}", record.args())
 }
 
 /// ログ出力を初期化します. 標準エラー出力と, ローテートするログファイルの両方へ出力します.
