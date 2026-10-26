@@ -26,6 +26,7 @@ dist-ssr
 # coverage
 coverage/
 tarpaulin-report.html
+*.profraw
 
 # doc
 /src-tauri/target/

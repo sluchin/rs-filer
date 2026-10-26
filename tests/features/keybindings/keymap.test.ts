@@ -6,6 +6,7 @@ import {
   eventToToken,
   normalizeSpec,
   PREFIX_CTRL_X,
+  PREFIX_PERCENT,
   PREFIX_STAR,
   resolveKey,
   reverseKeymap,
@@ -29,38 +30,45 @@ const key = (
 describe("resolveKey", () => {
   it.each([
     ["ArrowUp", "cursorUp"],
+    ["p", "cursorUp"],
     ["k", "cursorUp"],
+    ["n", "cursorDown"],
     ["j", "cursorDown"],
     ["Enter", "open"],
     ["f", "open"],
     ["l", "open"],
     ["Backspace", "parent"],
-    ["h", "parent"],
+    ["h", "help"],
     ["^", "parent"],
-    ["g", "goto"],
+    ["g", "reload"],
     ["F5", "reload"],
-    ["R", "reload"],
+    ["R", "move"],
     ["Tab", "switchPane"],
     ["N", "mkdir"],
     ["+", "mkdir"],
     ["r", "rename"],
     ["F2", "rename"],
     ["c", "copy"],
+    ["C", "copyConfirm"],
     ["d", "delete"],
     ["Delete", "delete"],
     ["D", "deletePermanent"],
     ["x", "openExternal"],
     ["e", "openEditor"],
-    ["m", "move"],
-    ["C", "copyConfirm"],
+    ["m", "mark"],
     ["M", "moveConfirm"],
     ["O", "syncPane"],
     ["v", "preview"],
     ["L", "log"],
     ["H", "gotoHome"],
-    [" ", "mark"],
+    [" ", "cursorDown"],
     ["u", "unmark"],
     ["U", "unmarkAll"],
+    ["t", "invertMarks"],
+    ["T", "toggleTree"],
+    ["w", "copyName"],
+    ["W", "openExternal"],
+    ["(", "toggleDetails"],
     [".", "toggleHidden"],
     ["s", "cycleSort"],
     ["i", "toggleDetails"],
@@ -95,14 +103,36 @@ describe("resolveKey", () => {
     });
   });
 
-  it("正常系: * の後に * / u / t / s でマーク操作になること", () => {
+  it("正常系: * の後のキーで, Dired と同じマーク操作になること", () => {
     expect(resolveKey(key("*"), null)).toEqual({ prefix: PREFIX_STAR });
-    expect(resolveKey(key("*"), PREFIX_STAR)).toEqual({ command: "markAll" });
-    expect(resolveKey(key("u"), PREFIX_STAR)).toEqual({ command: "unmarkAll" });
-    expect(resolveKey(key("t"), PREFIX_STAR)).toEqual({
-      command: "invertMarks",
+    for (const [k, command] of [
+      ["*", "markAll"],
+      ["s", "markAll"],
+      ["m", "mark"],
+      ["u", "unmark"],
+      ["!", "unmarkAll"],
+      ["?", "unmarkAll"],
+      ["t", "invertMarks"],
+      ["%", "markPattern"],
+    ] as const) {
+      expect(resolveKey(key(k), PREFIX_STAR)).toEqual({ command });
+    }
+  });
+
+  it("正常系: 0 の後に w でフルパスのコピー, ! で外部コマンドになること (Dired と同じ)", () => {
+    expect(resolveKey(key("0"), null)).toEqual({ prefix: "0" });
+    expect(resolveKey(key("w"), "0")).toEqual({ command: "copyFullPath" });
+    expect(resolveKey(key("!"), null)).toEqual({
+      command: "externalCommand",
     });
-    expect(resolveKey(key("s"), PREFIX_STAR)).toEqual({
+    expect(resolveKey(key("!", { altKey: true }), null)).toEqual({
+      command: "openTerminal",
+    });
+  });
+
+  it("正常系: % の後に m でパターンマークになること", () => {
+    expect(resolveKey(key("%"), null)).toEqual({ prefix: PREFIX_PERCENT });
+    expect(resolveKey(key("m"), PREFIX_PERCENT)).toEqual({
       command: "markPattern",
     });
   });
@@ -265,7 +295,7 @@ describe("reverseKeymap", () => {
     expect(reversed.cursorDown).toEqual(
       expect.arrayContaining(["Down", "C-n", "j"]),
     );
-    expect(reversed.help).toEqual(["?"]);
+    expect(reversed.help).toEqual(["?", "h"]);
   });
 
   it("境界: 何も割り当てられていないコマンドは含まれないこと", () => {

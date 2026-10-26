@@ -118,10 +118,20 @@ export default function TreePane({
       return;
     }
     const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === "ArrowDown" || e.key === "j") {
+      if (
+        (e.key === "ArrowDown" || e.key === "j" || e.key === "n") &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.metaKey
+      ) {
         e.preventDefault();
         moveCursor(1);
-      } else if (e.key === "ArrowUp" || e.key === "k") {
+      } else if (
+        (e.key === "ArrowUp" || e.key === "k" || e.key === "p") &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.metaKey
+      ) {
         e.preventDefault();
         moveCursor(-1);
       } else if ((e.key === "ArrowRight" || e.key === "l") && !e.shiftKey) {
@@ -198,19 +208,23 @@ export default function TreePane({
             () => void refresh(parent),
           );
         }
-      } else if (e.key === "x" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        // 通常の一覧の `x` (外部アプリで開く) と同じ. 全体のキー操作は無効なので, ここで代わりに行う.
+      } else if (
+        (e.key === "x" || e.key === "W") &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        // 通常の一覧の `x` と `W` (外部アプリで開く) と同じ. 全体のキー操作は無効なので, ここで代わりに行う.
         e.preventDefault();
         if (cursorPath) {
           onOpenExternal(cursorPath);
         }
       } else if (
-        (e.key === "w" || e.key === "n") &&
-        e.altKey &&
+        (e.key === "w" || (e.key === "n" && e.altKey)) &&
         !e.ctrlKey &&
         !e.metaKey
       ) {
-        // 通常の一覧の `M-w` (フルパスをコピー) と `M-n` (名前をコピー) と同じ.
+        // 通常の一覧の `M-w` (フルパスをコピー), `M-n` と `w` (名前をコピー) と同じ.
         e.preventDefault();
         const row = rows.find((r) => r.node.path === cursorPath);
         if (row) {
@@ -220,11 +234,12 @@ export default function TreePane({
               name: row.node.name,
               isDir: row.node.isDir,
             },
-            e.key === "w" ? "fullPath" : "name",
+            e.key === "w" && e.altKey ? "fullPath" : "name",
           );
         }
       } else if (
         e.key === "t" ||
+        e.key === "T" ||
         e.key === "Escape" ||
         (e.ctrlKey && e.key === "g")
       ) {

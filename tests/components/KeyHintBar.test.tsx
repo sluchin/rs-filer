@@ -13,7 +13,7 @@ describe("KeyHintBar", () => {
     // 1 つの案内は 1 つの要素に入る (途中で分けない). 区切りの空白を含まない.
     expect(hints.length).toBeGreaterThan(20);
     expect(hints).toContain("Tab:ペイン");
-    expect(hints).toContain("N:mkdir");
+    expect(hints).toContain("+:mkdir");
     expect(hints).toContain("C-x C-f:新規ファイル");
     expect(hints.every((h) => h !== null && h.trim() === h)).toBe(true);
     expect(new Set(hints).size).toBe(hints.length);
@@ -34,7 +34,7 @@ describe("KeyHintBar", () => {
     );
     expect(hints).toEqual([
       "Tab:ペイン",
-      "j/k:移動",
+      "n/p:移動",
       "→/l:展開",
       "←/h:折畳/親",
       "S-→/L:3階層展開",
@@ -46,10 +46,11 @@ describe("KeyHintBar", () => {
       "r:名前変更",
       "d:削除",
       "D:完全削除",
-      "t/Esc:戻る",
+      "w:名前コピー",
+      "T/Esc:戻る",
     ]);
     // ツリー表示中は効かないキー (一覧用のコピーなど) を案内しない.
-    expect(hints).not.toContain("c:コピー");
+    expect(hints).not.toContain("C:コピー");
   });
 
   it("正常系: 既定 (mode を指定しない) は一覧用の案内であること", () => {
@@ -59,7 +60,7 @@ describe("KeyHintBar", () => {
       "data-mode",
       "list",
     );
-    expect(screen.getByText("c:コピー")).toBeInTheDocument();
-    expect(screen.queryByText("t/Esc:戻る")).not.toBeInTheDocument();
+    expect(screen.getByText("C:コピー")).toBeInTheDocument();
+    expect(screen.queryByText("T/Esc:戻る")).not.toBeInTheDocument();
   });
 });

@@ -97,6 +97,27 @@ describe("TreePane", () => {
     expect(onCreateDirectory).toHaveBeenCalledWith("/h", expect.any(Function));
   });
 
+  it("正常系: w と M-n で名前, M-w でフルパスをコピーし, W と x で外部アプリで開くこと (Dired と同じ)", async () => {
+    mockTree([{ node: FILE, depth: 0 }], FILE.path);
+    const handlers = renderTree();
+    const user = userEvent.setup();
+    const item = { path: FILE.path, name: FILE.name, isDir: false };
+
+    await user.keyboard("w");
+    expect(handlers.onCopyText).toHaveBeenLastCalledWith(item, "name");
+    await user.keyboard("{Alt>}n{/Alt}");
+    expect(handlers.onCopyText).toHaveBeenLastCalledWith(item, "name");
+    await user.keyboard("{Alt>}w{/Alt}");
+    expect(handlers.onCopyText).toHaveBeenLastCalledWith(item, "fullPath");
+    // C-w は, コピーしない
+    await user.keyboard("{Control>}w{/Control}");
+    expect(handlers.onCopyText).toHaveBeenCalledTimes(3);
+
+    await user.keyboard("Wx");
+    expect(handlers.onOpenExternal).toHaveBeenCalledTimes(2);
+    expect(handlers.onOpenExternal).toHaveBeenCalledWith(FILE.path);
+  });
+
   it("境界: カーソルの行が無いとき, N は根に作り, Enter・r・d・x・M-w は何もしないこと", async () => {
     mockTree([], null);
     const handlers = renderTree();

@@ -8,6 +8,9 @@ export type Keymap = Map<string, Command>;
 /**
  * 既定のキー割り当て. キーの並びから, コマンドへの対応.
  *
+ * Emacs の Dired と同じキーには, Dired と同じ働きのコマンドを割り当てる. Dired の働きが rs-filer に無いキー
+ * (`c`, `M`, `O`, `H`, `x`, `L`, `i`, `.`, `<`, `>` など) には, rs-filer のコマンドを割り当てている.
+ *
  * キーの並びの表記の規則:
  * - キーは空白で区切って並べる (`C-x C-f`).
  * - 修飾キーは `C-` (Ctrl), `M-` (Alt), `S-` (Shift) をキーの前に付ける. Shift は, 名前のあるキー (`S-Delete`) だけに使う.
@@ -17,10 +20,13 @@ export type Keymap = Map<string, Command>;
 export const DEFAULT_BINDINGS: Record<string, Command> = {
   Up: "cursorUp",
   "C-p": "cursorUp",
+  p: "cursorUp",
   k: "cursorUp",
   Down: "cursorDown",
   "C-n": "cursorDown",
+  n: "cursorDown",
   j: "cursorDown",
+  Space: "cursorDown",
   PageUp: "pageUp",
   "M-v": "pageUp",
   PageDown: "pageDown",
@@ -35,16 +41,14 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   x: "openExternal",
   e: "openEditor",
   Backspace: "parent",
-  h: "parent",
   "^": "parent",
   Left: "parent",
-  g: "goto",
   "M-g": "goto",
   "~": "gotoHome",
   H: "gotoHome",
   "M-d": "drives",
+  g: "reload",
   F5: "reload",
-  R: "reload",
   "C-l": "reload",
   Tab: "switchPane",
   "C-i": "switchPane",
@@ -58,9 +62,13 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   C: "copyConfirm",
   "C-c": "copyToClipboard",
   "C-v": "pasteFromClipboard",
+  w: "copyName",
+  "0 w": "copyFullPath",
+  W: "openExternal",
   "M-w": "copyFullPath",
   "M-n": "copyName",
-  m: "move",
+  R: "move",
+  m: "mark",
   M: "moveConfirm",
   O: "syncPane",
   "C-x 4": "syncPane",
@@ -71,18 +79,24 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   d: "delete",
   D: "deletePermanent",
   "S-Delete": "deletePermanent",
-  Space: "mark",
   u: "unmark",
   U: "unmarkAll",
+  t: "invertMarks",
   "C-a": "markAll",
   "* *": "markAll",
-  "* u": "unmarkAll",
+  "* s": "markAll",
+  "* m": "mark",
+  "* u": "unmark",
+  "* !": "unmarkAll",
+  "* ?": "unmarkAll",
   "* t": "invertMarks",
-  "* s": "markPattern",
+  "* %": "markPattern",
+  "% m": "markPattern",
   ".": "toggleHidden",
   "C-x .": "toggleHidden",
   s: "cycleSort",
   i: "toggleDetails",
+  "(": "toggleDetails",
   "/": "filter",
   "C-s": "filter",
   Escape: "cancel",
@@ -95,7 +109,8 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   "M-x": "palette",
   ":": "palette",
   "?": "help",
-  "!": "openTerminal",
+  h: "help",
+  "!": "externalCommand",
   "M-!": "openTerminal",
   X: "externalCommand",
   "&": "externalCommand",
@@ -103,7 +118,7 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   "M-0": "cycleFontSize",
   ">": "resizeColumnWider",
   "<": "resizeColumnNarrower",
-  t: "toggleTree",
+  T: "toggleTree",
   q: "quit",
   "C-x C-c": "quit",
 };
@@ -287,6 +302,8 @@ export function resolveKey(
 export const PREFIX_CTRL_X = "C-x";
 /** プレフィクスキー `*` の識別子. */
 export const PREFIX_STAR = "*";
+/** プレフィクスキー `%` の識別子. */
+export const PREFIX_PERCENT = "%";
 
 /**
  * キーマップを, コマンドから, それに割り当てられているキーの並びの一覧への対応にします.

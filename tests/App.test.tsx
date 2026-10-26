@@ -466,7 +466,7 @@ describe("App (キーボード操作)", () => {
   });
 
   it.each(["{Enter}", "f", "l", "{ArrowRight}"])(
-    "正常系: %s でディレクトリに入り, h で親へ戻って元のディレクトリにカーソルが合うこと",
+    "正常系: %s でディレクトリに入り, ^ で親へ戻って元のディレクトリにカーソルが合うこと",
     async (openKey) => {
       mockHome();
       const user = await renderLoaded();
@@ -475,7 +475,7 @@ describe("App (キーボード操作)", () => {
       expect(await paneOf("left").findByText("in.txt")).toBeInTheDocument();
       expect(cursorNames()).toEqual(["in.txt"]);
 
-      await user.keyboard("h");
+      await user.keyboard("^");
       await waitFor(() => expect(cursorNames()).toEqual(["FolderA"]));
       expect(paneOf("left").queryByText("in.txt")).not.toBeInTheDocument();
     },
@@ -522,11 +522,11 @@ describe("App (キーボード操作)", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("正常系: Backspace で親へ移動し, g でパス入力欄にフォーカスして Enter で移動できること", async () => {
+  it("正常系: Backspace で親へ移動し, M-g でパス入力欄にフォーカスして Enter で移動できること", async () => {
     mockHome();
     const user = await renderLoaded();
 
-    await user.keyboard("g");
+    await user.keyboard("{Alt>}g{/Alt}");
     const input = screen.getAllByLabelText("left path")[0];
     expect(input).toHaveFocus();
 
@@ -545,14 +545,14 @@ describe("App (キーボード操作)", () => {
   it("正常系: パス入力欄で Esc を押すとフォーカスが外れ, 入力中のキーはコマンドにならないこと", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("g");
+    await user.keyboard("{Alt>}g{/Alt}");
     await user.keyboard("j");
     expect(cursorNames()).toEqual(["FolderA"]);
     await user.keyboard("{Escape}");
     expect(screen.getAllByLabelText("left path")[0]).not.toHaveFocus();
   });
 
-  it("正常系: F5 と C-l で, カーソル位置を保ったまま再読み込みされること", async () => {
+  it("正常系: F5 と C-l と g で, カーソル位置を保ったまま再読み込みされること", async () => {
     mockHome();
     const user = await renderLoaded();
     await user.keyboard("j");
@@ -564,6 +564,9 @@ describe("App (キーボード操作)", () => {
 
     await user.keyboard("{Control>}l{/Control}");
     await waitFor(() => expect(mockedInvoke).toHaveBeenCalledTimes(2));
+
+    await user.keyboard("g");
+    await waitFor(() => expect(mockedInvoke).toHaveBeenCalledTimes(3));
   });
 
   it("正常系: M-d でドライブ一覧が開き, 選んだドライブへ移動できること", async () => {
@@ -862,7 +865,7 @@ describe("App (分岐の網羅)", () => {
 
     await user.keyboard("{Enter}");
     expect(await paneOf("right").findByText("in.txt")).toBeInTheDocument();
-    await user.keyboard("h");
+    await user.keyboard("^");
     await waitFor(() => expect(cursorNames()).toEqual(["FolderA"]));
 
     mockedInvoke.mockClear();
@@ -879,7 +882,7 @@ describe("App (分岐の網羅)", () => {
     expect(screen.getByText(/「FolderA」をゴミ箱/)).toBeInTheDocument();
   });
 
-  it("境界: ルートでは h を押しても移動せず, 空のペインで d を押してもダイアログが開かないこと", async () => {
+  it("境界: ルートでは ^ を押しても移動せず, 空のペインで d を押してもダイアログが開かないこと", async () => {
     mockedInvoke.mockImplementation((cmd) =>
       cmd === "get_home_dir" ? Promise.resolve("/") : Promise.resolve([]),
     );
@@ -888,7 +891,7 @@ describe("App (分岐の網羅)", () => {
     await screen.findAllByDisplayValue("/");
     mockedInvoke.mockClear();
 
-    await user.keyboard("hd");
+    await user.keyboard("^d");
 
     expect(mockedInvoke).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -903,7 +906,7 @@ describe("App (分岐の網羅)", () => {
       "/mock/home",
     );
 
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
     expect(paneOf("left").getByTitle("/mock/home")).toHaveClass("tree-path");
   });
@@ -917,7 +920,7 @@ describe("App (分岐の網羅)", () => {
     expect(paneOf("left").getByTitle("b.txt")).toHaveTextContent("b.txt");
 
     // ツリー: ディレクトリの表示は「FolderA/」だが, title には「/」を付けない名前を入れる.
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
     expect(paneOf("left").getByTitle("FolderA")).toHaveTextContent("FolderA/");
     expect(paneOf("left").getByTitle("b.txt")).toHaveTextContent("b.txt");
@@ -969,7 +972,7 @@ describe("App (分岐の網羅)", () => {
   it("正常系: ツリーで N を押すと, カーソル位置のディレクトリの下にディレクトリを作り, ツリーに加わってカーソルが合うこと. 名前の入力中のキー (t など) でツリーは動かないこと", async () => {
     mockMkdirTree();
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
 
     await user.keyboard("N");
@@ -997,7 +1000,7 @@ describe("App (分岐の網羅)", () => {
   it("正常系: ツリーでファイルにカーソルがあるときは, そのファイルのあるディレクトリ (ここでは根) の下に作ること. + でも作れること", async () => {
     mockMkdirTree();
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /b\.txt/ });
     await user.keyboard("j"); // b.txt
 
@@ -1018,7 +1021,7 @@ describe("App (分岐の網羅)", () => {
   it("正常系: 右のペインのツリーでも, N で作り, r で名前の変更を始められること", async () => {
     mockMkdirTree();
     const user = await renderLoaded();
-    await user.keyboard("{Tab}t");
+    await user.keyboard("{Tab}T");
     await paneOf("right").findByRole("treeitem", { name: /FolderA/ });
 
     await user.keyboard("N");
@@ -1041,7 +1044,7 @@ describe("App (分岐の網羅)", () => {
   it("正常系: ツリーの名前の入力を Esc で取り消すと, 何も作られないこと", async () => {
     mockMkdirTree();
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
 
     await user.keyboard("N");
@@ -1060,7 +1063,7 @@ describe("App (分岐の網羅)", () => {
   it("異常系: ツリーでディレクトリを作れなかったら, エラーを表示し, ツリーは変わらないこと", async () => {
     mockMkdirTree({ fail: true });
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
     const before = paneOf("left").getAllByRole("treeitem").length;
 
@@ -1132,7 +1135,7 @@ describe("App (分岐の網羅)", () => {
   /** ツリーを開いて, FolderA の行が出るまで待つ (カーソルは先頭の FolderA). */
   async function openTree(): Promise<ReturnType<typeof userEvent.setup>> {
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
     return user;
   }
@@ -1267,10 +1270,10 @@ describe("App (分岐の網羅)", () => {
     expect(bar()).toHaveAttribute("data-mode", "list");
 
     // 左のペインをツリー表示にすると, ツリー用の案内に切り替わる.
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
     expect(bar()).toHaveAttribute("data-mode", "tree");
-    expect(bar()).toHaveTextContent("t/Esc:戻る");
+    expect(bar()).toHaveTextContent("T/Esc:戻る");
 
     // もう一方 (ツリーでない) のペインがアクティブなら, 一覧用の案内に戻る (アクティブなペインが基準).
     await user.keyboard("{Tab}");
@@ -1279,16 +1282,16 @@ describe("App (分岐の網羅)", () => {
     expect(bar()).toHaveAttribute("data-mode", "tree");
 
     // ツリーを閉じると, 元の案内に戻る.
-    await user.keyboard("t");
+    await user.keyboard("T");
     expect(bar()).toHaveAttribute("data-mode", "list");
-    expect(bar()).toHaveTextContent("c:コピー");
+    expect(bar()).toHaveTextContent("C:コピー");
   });
 
-  it("正常系: t でペインの一覧がツリー表示になり, ディレクトリの後ろにファイルが並び, もう一方のペインは残ること", async () => {
+  it("正常系: T でペインの一覧がツリー表示になり, ディレクトリの後ろにファイルが並び, もう一方のペインは残ること", async () => {
     mockHome();
     const user = await renderLoaded();
 
-    await user.keyboard("t");
+    await user.keyboard("T");
 
     expect(
       await paneOf("left").findByRole("treeitem", { name: /FolderA/ }),
@@ -1322,7 +1325,7 @@ describe("App (分岐の網羅)", () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findAllByText("Empty");
-    await user.keyboard("t");
+    await user.keyboard("T");
 
     const empty = await paneOf("left").findByRole("treeitem", {
       name: /Empty/,
@@ -1337,7 +1340,7 @@ describe("App (分岐の網羅)", () => {
   it("正常系: ツリーでファイルに Enter を押すと, 外部アプリで開き, ツリーは残ること", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /b\.txt/ });
 
     await user.keyboard("j{Enter}");
@@ -1353,7 +1356,7 @@ describe("App (分岐の網羅)", () => {
   it("正常系: ツリーのファイルをダブルクリックすると, 外部アプリで開くこと", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
 
     await user.dblClick(
       await paneOf("left").findByRole("treeitem", { name: /b\.txt/ }),
@@ -1371,7 +1374,7 @@ describe("App (分岐の網羅)", () => {
       cmd === "open_item" ? Promise.reject("起動できません") : undefined,
     );
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /b\.txt/ });
 
     await user.keyboard("j{Enter}");
@@ -1383,7 +1386,7 @@ describe("App (分岐の網羅)", () => {
   it("正常系: ツリーで x を押すと, カーソル位置の項目 (ファイルもディレクトリも) を外部アプリで開き, ツリーは残ること", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /b\.txt/ });
 
     await user.keyboard("x");
@@ -1404,7 +1407,7 @@ describe("App (分岐の網羅)", () => {
   it("境界: ツリーで Ctrl+x を押しても, 外部アプリで開かないこと", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
 
     await user.keyboard("{Control>}x{/Control}");
@@ -1418,7 +1421,7 @@ describe("App (分岐の網羅)", () => {
   it("境界: ツリーでファイルに → を押しても, 展開もカーソル移動もしないこと", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /b\.txt/ });
 
     const before = paneOf("left").getAllByRole("treeitem").length;
@@ -1440,7 +1443,7 @@ describe("App (分岐の網羅)", () => {
         : undefined,
     );
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
 
     const icon = (): Element | null | undefined =>
@@ -1464,7 +1467,7 @@ describe("App (分岐の網羅)", () => {
   it("正常系: ツリーで t を押すと通常のファイル一覧へ戻ること", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
 
     await user.keyboard("t");
@@ -1683,16 +1686,16 @@ describe("App (マーク)", () => {
     vi.clearAllMocks();
   });
 
-  it("正常系: Space でマークしてカーソルが下へ動き, u で解除して下へ動くこと", async () => {
+  it("正常系: m でマークしてカーソルが下へ動き, u で解除して下へ動くこと", async () => {
     mockPhase4();
     const user = await renderLoaded();
 
-    await user.keyboard(" ");
+    await user.keyboard("m");
     expect(markedNames()).toEqual(["FolderA"]);
     expect(cursorNames()).toEqual(["a.txt"]);
     expect(statusText()).toContain("マーク: 1");
 
-    await user.keyboard("k");
+    await user.keyboard("p");
     await user.keyboard("u");
     expect(markedNames()).toEqual([]);
     expect(cursorNames()).toEqual(["a.txt"]);
@@ -1702,19 +1705,19 @@ describe("App (マーク)", () => {
     mockPhase4();
     const user = await renderLoaded();
     await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}");
-    await user.keyboard(" ");
-    await user.keyboard(" ");
+    await user.keyboard("m");
+    await user.keyboard("m");
     expect(markedNames()).toEqual(["b.md"]);
     expect(statusText()).toContain("マーク: 1");
   });
 
-  it("正常系: * * と Ctrl+A で全マーク, * u と U で全解除, * t で反転できること", async () => {
+  it("正常系: * * と Ctrl+A で全マーク, * ! と U で全解除, * t と t で反転できること", async () => {
     mockPhase4();
     const user = await renderLoaded();
 
     await user.keyboard("**");
     expect(markedNames()).toHaveLength(3);
-    await user.keyboard("*u");
+    await user.keyboard("*!");
     expect(markedNames()).toEqual([]);
 
     await user.keyboard("{Control>}a{/Control}");
@@ -1722,29 +1725,40 @@ describe("App (マーク)", () => {
     await user.keyboard("U");
     expect(markedNames()).toEqual([]);
 
-    await user.keyboard(" ");
+    await user.keyboard("m");
     await user.keyboard("*t");
     expect(markedNames()).toEqual(["a.txt", "b.md"]);
+
+    await user.keyboard("t");
+    expect(markedNames()).toEqual(["FolderA"]);
   });
 
-  it("正常系: * s でワイルドカードによるパターンマークができ, 既存のマークは維持されること", async () => {
+  it("正常系: * % と % m でワイルドカードによるパターンマークができ, 既存のマークは維持されること", async () => {
     mockPhase4();
     const user = await renderLoaded();
-    await user.keyboard(" ");
+    await user.keyboard("m");
 
-    await user.keyboard("*s");
+    await user.keyboard("*%");
     expect(
       screen.getByRole("dialog", { name: /パターンでマーク/ }),
     ).toBeInTheDocument();
     await user.keyboard("*.txt{Enter}");
 
     expect(markedNames().sort()).toEqual(["FolderA", "a.txt"]);
+
+    await user.keyboard("U");
+    await user.keyboard("%m");
+    expect(
+      screen.getByRole("dialog", { name: /パターンでマーク/ }),
+    ).toBeInTheDocument();
+    await user.keyboard("*.txt{Enter}");
+    expect(markedNames()).toEqual(["a.txt"]);
   });
 
-  it("正常系: * s で /正規表現/ によるマークができること", async () => {
+  it("正常系: * % で /正規表現/ によるマークができること", async () => {
     mockPhase4();
     const user = await renderLoaded();
-    await user.keyboard("*s");
+    await user.keyboard("*%");
     await user.keyboard("/^b\\./{Enter}");
     expect(markedNames()).toEqual(["b.md"]);
   });
@@ -1753,30 +1767,30 @@ describe("App (マーク)", () => {
     mockPhase4();
     const user = await renderLoaded();
 
-    await user.keyboard("*s");
+    await user.keyboard("*%");
     await user.keyboard("{Enter}");
     expect(markedNames()).toEqual([]);
     expect(screen.queryByText(/パターンが不正/)).not.toBeInTheDocument();
 
-    await user.keyboard("*s");
+    await user.keyboard("*%");
     await user.keyboard("/(/{Enter}");
     expect(screen.getByText(/エラー: パターンが不正です/)).toBeInTheDocument();
     expect(markedNames()).toEqual([]);
   });
 
-  it("境界: 項目の無いディレクトリで Space を押しても何も起きないこと", async () => {
+  it("境界: 項目の無いディレクトリで m を押しても何も起きないこと", async () => {
     mockPhase4(() => []);
     const user = userEvent.setup();
     render(<App />);
     await screen.findAllByDisplayValue("/mock/home");
-    await user.keyboard(" ");
+    await user.keyboard("m");
     expect(statusText()).toContain("マーク: 0");
   });
 
   it("正常系: ディレクトリを移動するとマークが解除され, 再読み込みでは維持されること", async () => {
     mockPhase4();
     const user = await renderLoaded();
-    await user.keyboard("j ");
+    await user.keyboard("jm");
     expect(markedNames()).toEqual(["a.txt"]);
 
     await user.keyboard("{F5}");
@@ -1807,7 +1821,7 @@ describe("App (マーク)", () => {
     const user = userEvent.setup();
     render(<App />);
     await paneOf("left").findByText("x.txt");
-    await user.keyboard(" ");
+    await user.keyboard("m");
     expect(statusText()).toContain("マーク: 1");
     gone = true;
     await user.keyboard("{F5}");
@@ -1932,7 +1946,7 @@ describe("App (表示・ソート・絞り込み)", () => {
   it("正常系: パス入力欄で Esc を押すと入力が元のパスに戻ること", async () => {
     mockPhase4();
     const user = await renderLoaded();
-    await user.keyboard("g");
+    await user.keyboard("{Alt>}g{/Alt}");
     await user.keyboard("xyz");
     expect(screen.getAllByLabelText("left path")[0]).toHaveValue("xyz");
     await user.keyboard("{Escape}");
@@ -1973,7 +1987,7 @@ describe("App (履歴・ブックマーク)", () => {
     await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
     await waitFor(() => expect(leftNames()).toContain("a.txt"));
 
-    await user.keyboard("g");
+    await user.keyboard("{Alt>}g{/Alt}");
     await user.keyboard("/mock/home/FolderA{Enter}");
     await paneOf("left").findByText("in.txt");
     await user.keyboard("{Alt>}{ArrowRight}{/Alt}");
@@ -2013,7 +2027,7 @@ describe("App (履歴・ブックマーク)", () => {
     expect(paneOf("left").getByText("/mock/home/FolderA")).toBeInTheDocument();
     await user.keyboard("{Escape}");
 
-    await user.keyboard("h");
+    await user.keyboard("^");
     await waitFor(() => expect(leftNames()).toContain("a.txt"));
     await user.keyboard("b");
     await user.keyboard("{Enter}");
@@ -2143,7 +2157,7 @@ describe("App (履歴一覧)", () => {
     const user = await renderLoaded();
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
-    await user.keyboard("h");
+    await user.keyboard("^");
     await waitFor(() => expect(leftNames()).toContain("a.txt"));
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
@@ -2306,12 +2320,12 @@ describe("App (コピー・移動・削除の実行)", () => {
     vi.clearAllMocks();
   });
 
-  it("正常系: m で移動でき, 完了の通知が表示されること", async () => {
+  it("正常系: R で移動でき, 完了の通知が表示されること", async () => {
     mockHome();
     const user = await renderTwoDirs();
     await user.keyboard("j");
 
-    await user.keyboard("m");
+    await user.keyboard("R");
 
     await waitFor(() =>
       expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {
@@ -2347,7 +2361,7 @@ describe("App (コピー・移動・削除の実行)", () => {
   it("異常系: 対向ペインが同じディレクトリのときは, コピー・移動せずエラーが表示されること", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("m");
+    await user.keyboard("R");
     expect(
       screen.getByText(/対向ペインが同じディレクトリです/),
     ).toBeInTheDocument();
@@ -2360,7 +2374,7 @@ describe("App (コピー・移動・削除の実行)", () => {
   it("正常系: マークした複数の項目がまとめてコピーされ, 完了後にマークが解除されること", async () => {
     mockHome();
     const user = await renderTwoDirs();
-    await user.keyboard("  ");
+    await user.keyboard("mm");
     expect(statusText()).toContain("マーク: 2");
 
     await user.keyboard("c");
@@ -2408,7 +2422,7 @@ describe("App (コピー・移動・削除の実行)", () => {
     );
     const user = await renderTwoDirs();
 
-    await user.keyboard("m");
+    await user.keyboard("R");
     expect(
       screen.getByText(
         "4 件が既に存在します (a, b, c ほか). 上書きして移動しますか? (y/n)",
@@ -2450,7 +2464,7 @@ describe("App (コピー・移動・削除の実行)", () => {
     mockNestedConflicts();
     const user = await renderTwoDirs();
 
-    await user.keyboard("m");
+    await user.keyboard("R");
     await user.keyboard("y");
     expect(
       await screen.findByText(
@@ -2507,7 +2521,7 @@ describe("App (コピー・移動・削除の実行)", () => {
   it("正常系: 最初に全て上書き (a) を選ぶと, 確認は 1 回だけで, skip は空であること", async () => {
     mockNestedConflicts();
     const user = await renderTwoDirs();
-    await user.keyboard("m");
+    await user.keyboard("R");
     await user.keyboard("y");
     await screen.findByText(/\(1\/2\)/);
 
@@ -2523,7 +2537,7 @@ describe("App (コピー・移動・削除の実行)", () => {
   it("正常系: ボタンのクリックでも選べること", async () => {
     mockNestedConflicts();
     const user = await renderTwoDirs();
-    await user.keyboard("m");
+    await user.keyboard("R");
     await user.keyboard("y");
     await screen.findByText(/\(1\/2\)/);
 
@@ -2535,7 +2549,7 @@ describe("App (コピー・移動・削除の実行)", () => {
   it("正常系: 1 件ずつの確認で Esc を押すと, 全体を取りやめて何も実行しないこと", async () => {
     mockNestedConflicts();
     const user = await renderTwoDirs();
-    await user.keyboard("m");
+    await user.keyboard("R");
     await user.keyboard("y");
     await screen.findByText(/\(1\/2\)/);
     await user.keyboard("y");
@@ -2553,7 +2567,7 @@ describe("App (コピー・移動・削除の実行)", () => {
     );
     const user = await renderTwoDirs();
 
-    await user.keyboard("m");
+    await user.keyboard("R");
     await user.keyboard("y");
 
     await waitFor(() =>
@@ -2572,7 +2586,7 @@ describe("App (コピー・移動・削除の実行)", () => {
     });
     const user = await renderTwoDirs();
 
-    await user.keyboard("m");
+    await user.keyboard("R");
     await user.keyboard("y");
 
     expect(await screen.findByText(/読めません/)).toBeInTheDocument();
@@ -2808,7 +2822,7 @@ describe("App (コピー・移動・削除の実行)", () => {
     });
     const user = await renderTwoDirs();
 
-    await user.keyboard("m");
+    await user.keyboard("R");
     await user.keyboard("y");
 
     expect(
@@ -2836,7 +2850,7 @@ describe("App (コピー・移動・削除の実行)", () => {
   it("正常系: マークした複数の項目の削除は, 件数で確認されること", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("  d");
+    await user.keyboard("mmd");
     expect(
       screen.getByText("2 件をゴミ箱へ移動しますか? (y/n)"),
     ).toBeInTheDocument();
@@ -2900,7 +2914,7 @@ describe("App (コピー・移動・削除の実行)", () => {
       const transfer = mockControlledTransfer();
       const user = await renderTwoDirs();
       await user.keyboard("j");
-      await user.keyboard("m");
+      await user.keyboard("R");
       await screen.findByRole("dialog", { name: "移動中" });
 
       await cancel(user);
@@ -3509,10 +3523,10 @@ describe("App (プレビュー)", () => {
     expect(cursorNames()).toEqual(["home"]);
   });
 
-  it("正常系: .. の行では Space・名前変更・コピーは対象なしとして扱われ, j で先頭へ戻れること", async () => {
+  it("正常系: .. の行では m・名前変更・コピーは対象なしとして扱われ, j で先頭へ戻れること", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("k ");
+    await user.keyboard("km");
     expect(statusText()).toContain("マーク: 0");
     expect(cursorNames()).toEqual(["FolderA"]);
 
@@ -3626,7 +3640,7 @@ describe("App (ページ送り・先頭末尾・パス補完・パレット・�
     expect(cursorNames()).toEqual([""]);
   });
 
-  it("正常系: g でパス入力欄へ移り, Tab でディレクトリを補完できること", async () => {
+  it("正常系: M-g でパス入力欄へ移り, Tab でディレクトリを補完できること", async () => {
     mockHome((cmd, args) => {
       if (cmd === "complete_path" && pathOf(args) === undefined)
         return undefined;
@@ -3649,7 +3663,7 @@ describe("App (ページ送り・先頭末尾・パス補完・パレット・�
     });
     const user = await renderLoaded();
 
-    await user.keyboard("g");
+    await user.keyboard("{Alt>}g{/Alt}");
     await user.keyboard("/mock/home/Fol");
     await user.keyboard("{Tab}");
 
@@ -3665,7 +3679,7 @@ describe("App (ページ送り・先頭末尾・パス補完・パレット・�
       cmd === "complete_path" ? Promise.resolve([]) : undefined,
     );
     const user = await renderLoaded();
-    await user.keyboard("g");
+    await user.keyboard("{Alt>}g{/Alt}");
     await user.keyboard("zzz");
     await user.keyboard("{Tab}");
     expect(screen.getAllByLabelText("left path")[0]).toHaveValue("zzz");
@@ -3847,7 +3861,7 @@ describe("App (ページ送り・先頭末尾・パス補完・パレット・�
       cmd === "complete_path" ? Promise.reject("補完できません") : undefined,
     );
     const user = await renderLoaded();
-    await user.keyboard("g");
+    await user.keyboard("{Alt>}g{/Alt}");
     await user.keyboard("zzz");
     await user.keyboard("{Tab}");
     await waitFor(() =>
@@ -4068,18 +4082,10 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
     vi.clearAllMocks();
   });
 
-  it("正常系: ! と M-! でカレントディレクトリのターミナルが開くこと", async () => {
+  it("正常系: M-! でカレントディレクトリのターミナルが開くこと", async () => {
     mockHome();
     const user = await renderLoaded();
 
-    await user.keyboard("!");
-    await waitFor(() =>
-      expect(mockedInvoke).toHaveBeenCalledWith("open_terminal", {
-        path: "/mock/home",
-      }),
-    );
-
-    mockedInvoke.mockClear();
     await user.keyboard("{Alt>}!{/Alt}");
     await waitFor(() =>
       expect(mockedInvoke).toHaveBeenCalledWith("open_terminal", {
@@ -4093,13 +4099,13 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
       cmd === "open_terminal" ? Promise.reject("起動できません") : undefined,
     );
     const user = await renderLoaded();
-    await user.keyboard("!");
+    await user.keyboard("{Alt>}!{/Alt}");
     expect(
       await screen.findByText("エラー: 起動できません"),
     ).toBeInTheDocument();
   });
 
-  it("正常系: X / & でコマンドを入力すると, カーソル位置の項目に対して実行されること", async () => {
+  it("正常系: ! / X / & でコマンドを入力すると, カーソル位置の項目に対して実行されること", async () => {
     mockHome();
     const user = await renderLoaded();
     await user.keyboard("j");
@@ -4126,12 +4132,22 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
         paths: ["/mock/home/FolderA"],
       }),
     );
+
+    // Dired の dired-do-shell-command と同じ
+    await user.keyboard("!");
+    await user.keyboard("ls{Enter}");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("run_external_command", {
+        command: "ls",
+        paths: ["/mock/home/FolderA"],
+      }),
+    );
   });
 
   it("正常系: マークがあれば, マークした全件に対してコマンドが実行されること", async () => {
     mockHome();
     const user = await renderLoaded();
-    await user.keyboard("  X");
+    await user.keyboard("mmX");
     await user.keyboard("echo{Enter}");
 
     await waitFor(() =>
@@ -4488,7 +4504,7 @@ describe("App (右クリックでフルパス・名前のコピー)", () => {
   /** ツリーを開いて, FolderA の行が出るまで待つ (カーソルは先頭の FolderA). */
   async function openTree(): Promise<ReturnType<typeof userEvent.setup>> {
     const user = await renderLoaded();
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
     return user;
   }
@@ -4534,7 +4550,7 @@ describe("App (右クリックでフルパス・名前のコピー)", () => {
     // 空の FolderA に入ってから, ツリーにする.
     await user.keyboard("{Enter}");
     await waitFor(() => expect(paneOf("left").queryByText("b.txt")).toBeNull());
-    await user.keyboard("t");
+    await user.keyboard("T");
     await paneOf("left").findByText("(空)");
 
     await user.keyboard("{Alt>}w{/Alt}");
