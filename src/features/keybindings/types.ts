@@ -20,6 +20,7 @@ export const COMMANDS = [
   "mkdir",
   "touch",
   "rename",
+  "extract",
   "copy",
   "copyConfirm",
   "copyToClipboard",

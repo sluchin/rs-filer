@@ -14,6 +14,7 @@ const COMMANDS: &[&str] = &[
     "create_directory",
     "create_file",
     "rename_item",
+    "extract_archive",
     "quit_app",
     "load_keymap",
     "load_config",

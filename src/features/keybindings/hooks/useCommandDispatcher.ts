@@ -218,6 +218,9 @@ export function useCommandDispatcher(
       case "rename":
         operations.startRename();
         break;
+      case "extract":
+        operations.startExtract();
+        break;
       case "copy":
         transfer.startCopy(false);
         break;

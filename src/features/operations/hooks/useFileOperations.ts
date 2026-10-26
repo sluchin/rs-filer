@@ -3,6 +3,7 @@ import loglevel from "loglevel";
 import {
   createDirectory,
   createFile,
+  extractArchive,
   openInEditor,
   openItem,
   renameItem,
@@ -10,6 +11,9 @@ import {
 import type { PaneDeps } from "../../explorer/hooks/useFileList";
 import type { FileEntry } from "../../explorer/types";
 import type { ChoiceOption, DialogState } from "../types";
+
+/** 展開できるアーカイブの名前 (拡張子). 展開先の名前の初期値は, これを除いたもの. */
+const ARCHIVE_EXTENSION = /\.(zip|tar|tar\.gz|tgz)$/i;
 
 /** この機能のロガー. */
 const log = loglevel.getLogger("operations");
@@ -270,6 +274,45 @@ export function useFileOperations({
     [activePane, leftPane, rightPane, attempt, loadDirectory],
   );
 
+  /**
+   * カーソル位置のアーカイブ (zip, tar, tar.gz, tgz) を, 展開先のディレクトリの名前を入力させて,
+   * 同じディレクトリの下へ展開します. 名前の初期値は, アーカイブの名前から拡張子を除いたもの.
+   * アーカイブでなければ, エラーを表示します.
+   */
+  const startExtract = useCallback((): void => {
+    const file = selectedEntry();
+    if (!file) {
+      return;
+    }
+    const extension = file.is_dir ? null : ARCHIVE_EXTENSION.exec(file.name);
+    if (!extension) {
+      setError(`展開できるアーカイブではありません: ${file.name}`);
+      return;
+    }
+    const pane = activePane;
+    const dir = (pane === "left" ? leftPane : rightPane).currentPath;
+    setDialog({
+      kind: "prompt",
+      title: "展開先",
+      initialValue: file.name.slice(0, extension.index),
+      onSubmit: (name) => {
+        setDialog(null);
+        attempt("アーカイブの展開", async () => {
+          await extractArchive(file.path, dir, name);
+          await loadDirectory(pane, dir, { selectName: name.trim() });
+        });
+      },
+    });
+  }, [
+    selectedEntry,
+    activePane,
+    leftPane,
+    rightPane,
+    setError,
+    attempt,
+    loadDirectory,
+  ]);
+
   /** カーソル位置の項目を, 関連付けられた外部アプリで開きます. */
   const openExternal = useCallback((): void => {
     const file = selectedEntry();
@@ -309,6 +352,7 @@ export function useFileOperations({
     startTouch,
     startRename,
     startRenameAt,
+    startExtract,
     openExternal,
     openPath,
     openEditor,

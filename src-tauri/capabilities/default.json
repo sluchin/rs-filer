@@ -15,6 +15,7 @@
     "allow-create-directory",
     "allow-create-file",
     "allow-rename-item",
+    "allow-extract-archive",
     "allow-quit-app",
     "allow-load-keymap",
     "allow-load-config",

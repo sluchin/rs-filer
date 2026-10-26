@@ -152,6 +152,7 @@ src-tauri/src/
 │   ├── mod.rs
 │   ├── fs.rs                           # 一覧取得, ホームディレクトリ, ドライブ一覧, ディスク容量
 │   ├── ops.rs                          # ディレクトリ/ファイル作成, リネーム
+│   ├── archive.rs                      # アーカイブ (zip, tar, tar.gz) の展開
 │   ├── transfer.rs                     # コピー/移動/ゴミ箱・完全削除 (進捗通知・中断対応)
 │   ├── open.rs                         # 関連付けアプリ・エディタで開く, ターミナルを開く
 │   ├── exec.rs                         # 選択したファイルに対する外部コマンドの実行
@@ -260,6 +261,7 @@ src-tauri/tests/
     ├── logging_test.rs
     ├── window_state_test.rs
     └── commands/
+        ├── archive_test.rs
         ├── clipboard_test.rs
         ├── config_test.rs
         ├── exec_test.rs

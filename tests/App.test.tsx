@@ -520,12 +520,13 @@ describe("App (キーボード操作)", () => {
       screen.getByText("エラー: 対象の項目が選択されていません."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    // W (外部アプリで開く) は, 何もしない
-    await user.keyboard("W");
+    // W (外部アプリで開く) と Z (アーカイブの展開) は, 何もしない
+    await user.keyboard("WZ");
     expect(mockedInvoke).not.toHaveBeenCalledWith(
       "open_item",
       expect.anything(),
     );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("正常系: Backspace で親へ移動し, M-g でパス入力欄にフォーカスして Enter で移動できること", async () => {
@@ -762,6 +763,89 @@ describe("App (作成・名前変更・削除)", () => {
         newName: "c.txt",
       }),
     );
+  });
+
+  /** ホームにアーカイブ (`src.Tar.Gz`, `z.ZIP`) も置いた invoke のモックを設定する. */
+  function mockArchives(extract?: () => Promise<unknown>): void {
+    mockHome((cmd, args) => {
+      if (cmd === "read_directory" && pathOf(args) === "/mock/home") {
+        return Promise.resolve([
+          { name: "FolderA", path: "/mock/home/FolderA", is_dir: true },
+          { name: "b.txt", path: "/mock/home/b.txt", is_dir: false },
+          { name: "src.Tar.Gz", path: "/mock/home/src.Tar.Gz", is_dir: false },
+          { name: "z.ZIP", path: "/mock/home/z.ZIP", is_dir: false },
+        ]);
+      }
+      return cmd === "extract_archive" && extract ? extract() : undefined;
+    });
+  }
+
+  it("正常系: Z で, アーカイブ (zip, tar.gz) を, 名前から拡張子を除いたディレクトリへ展開できること", async () => {
+    mockArchives();
+    const user = await renderLoaded();
+    await user.keyboard("{End}");
+    expect(cursorNames()).toEqual(["z.ZIP"]);
+
+    await user.keyboard("Z");
+    expect(screen.getByText("展開先")).toBeInTheDocument();
+    const input = screen.getByLabelText("名前");
+    expect(input).toHaveValue("z");
+    // 入力欄の名前は選んだ状態なので, 末尾へ動かしてから足す
+    await user.keyboard("{End}_out{Enter}");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("extract_archive", {
+        path: "/mock/home/z.ZIP",
+        parent: "/mock/home",
+        name: "z_out",
+      }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // tar.gz は, 2 つ続く拡張子をまとめて除く
+    await user.keyboard("{End}k");
+    expect(cursorNames()).toEqual(["src.Tar.Gz"]);
+    await user.keyboard("Z");
+    expect(screen.getByLabelText("名前")).toHaveValue("src");
+    await user.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("extract_archive", {
+        path: "/mock/home/src.Tar.Gz",
+        parent: "/mock/home",
+        name: "src",
+      }),
+    );
+
+    // 右のペインでは, 右のペインのディレクトリへ展開する
+    await user.keyboard("{Tab}{End}Z{Enter}");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("extract_archive", {
+        path: "/mock/home/z.ZIP",
+        parent: "/mock/home",
+        name: "z",
+      }),
+    );
+  });
+
+  it("異常系: アーカイブでないものと, ディレクトリでは, Z でエラーが表示され, 展開に失敗してもエラーが表示されること", async () => {
+    mockArchives(() => Promise.reject("アーカイブが壊れています"));
+    const user = await renderLoaded();
+
+    await user.keyboard("jZ");
+    expect(
+      screen.getByText("エラー: 展開できるアーカイブではありません: b.txt"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.keyboard("{Home}j");
+    expect(cursorNames()).toEqual(["FolderA"]);
+    await user.keyboard("Z");
+    expect(
+      screen.getByText("エラー: 展開できるアーカイブではありません: FolderA"),
+    ).toBeInTheDocument();
+
+    await user.keyboard("{End}Z{Enter}");
+    expect(
+      await screen.findByText("エラー: アーカイブが壊れています"),
+    ).toBeInTheDocument();
   });
 
   it("正常系: d で削除の印を付け, x でゴミ箱へ移動する確認が出て, y で削除されること (Dired と同じ)", async () => {

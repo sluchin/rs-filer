@@ -59,6 +59,7 @@ npm run tauri dev
 | `+` / `N` | ディレクトリ作成 (`dired-create-directory`) |
 | `C-x C-f` | 空ファイル作成 |
 | `r` / `F2` | 名前の変更 |
+| `Z` | アーカイブ (`.zip`, `.tar`, `.tar.gz`, `.tgz`) を展開 (展開先のディレクトリの名前を入力) |
 | `d` / `x` | 削除の印を付ける / 印を付けたものをゴミ箱へ移動 (`dired-flag-file-deletion` / `dired-do-flagged-delete`) |
 | `% d` | パターンまたは正規表現で削除の印を付ける (`dired-flag-files-regexp`) |
 | `D` / `Delete` | ゴミ箱へ移動 (`dired-do-delete`. マークがあれば全件) |

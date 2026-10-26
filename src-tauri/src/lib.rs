@@ -30,6 +30,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::ops::create_directory,
             commands::ops::create_file,
             commands::ops::rename_item,
+            commands::archive::extract_archive,
             commands::app::quit_app,
             commands::config::load_keymap,
             commands::config::load_config,

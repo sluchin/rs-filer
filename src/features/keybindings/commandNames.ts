@@ -21,6 +21,7 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   mkdir: "ディレクトリ作成",
   touch: "空ファイル作成",
   rename: "名前の変更",
+  extract: "アーカイブ (zip, tar, tar.gz) を展開",
   copy: "対向ペインへコピー",
   copyConfirm: "確認してから対向ペインへコピー",
   copyToClipboard: "クリップボードへコピー",

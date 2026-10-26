@@ -119,6 +119,21 @@ export const commands = {
 	 */
 	renameItem: (path: string, newName: string) => __TAURI_INVOKE<null>("rename_item", { path, newName }),
 	/**
+	 *  アーカイブ (zip, tar, tar.gz) を, 指定ディレクトリの直下に新しく作るディレクトリへ展開します.
+	 * 
+	 *  # Arguments
+	 * 
+	 *  * `path` - アーカイブのパス.
+	 *  * `parent` - 展開先のディレクトリを作る, 親ディレクトリのパス.
+	 *  * `name` - 展開先のディレクトリの名前 (まだ無いもの).
+	 * 
+	 *  # Returns
+	 * 
+	 *  成功した場合は [`Ok(())`]. 名前が不正な場合, 展開先が既にある場合, 展開できない形式の場合,
+	 *  アーカイブが壊れている場合などは, エラー文字列を含む [`Err`].
+	 */
+	extractArchive: (path: string, parent: string, name: string) => __TAURI_INVOKE<null>("extract_archive", { path, parent, name }),
+	/**
 	 *  ウィンドウの状態 (大きさ・位置) を保存して, アプリケーションを終了します.
 	 * 
 	 *  # Arguments

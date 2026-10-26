@@ -1,6 +1,6 @@
 //! フロントエンドから呼び出す IPC コマンドを提供するモジュール.
 //!
-//! 機能ごとに, ファイルシステムの情報取得 (`fs`), ファイルの作成・名前変更 (`ops`),
+//! 機能ごとに, ファイルシステムの情報取得 (`fs`), ファイルの作成・名前変更 (`ops`), アーカイブの展開 (`archive`),
 //! ファイルの詳細 (`info`), 外部アプリケーションで開く操作 (`open`), コピー・移動・削除 (`transfer`), 外部コマンド実行 (`exec`),
 //! ファイルのプレビュー (`preview`), 設定ファイルの読み書き (`config`), アプリ自体の操作 (`app`),
 //! ファイルクリップボード操作 (`clipboard`), フロントエンドのログの転送 (`frontend_log`),
@@ -14,6 +14,8 @@
 
 /// アプリケーション自体の操作 (終了) を行うコマンド.
 pub mod app;
+/// アーカイブ (zip, tar, tar.gz) を展開するコマンド.
+pub mod archive;
 /// ファイルリストのクリップボード操作 (コピー・読み取り).
 pub mod clipboard;
 /// 設定ファイルの読み込み・書き込みを行うコマンド.
@@ -38,6 +40,7 @@ pub mod preview;
 pub mod transfer;
 
 pub use app::quit_app;
+pub use archive::{extract_archive, extract_archive_to};
 pub use clipboard::check_text;
 #[cfg(not(tarpaulin_include))]
 pub use clipboard::{copy_files_to_clipboard, copy_text_to_clipboard, read_clipboard_files};

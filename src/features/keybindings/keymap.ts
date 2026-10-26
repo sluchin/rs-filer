@@ -58,6 +58,7 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   "C-x C-f": "touch",
   F2: "rename",
   r: "rename",
+  Z: "extract",
   c: "copy",
   C: "copyConfirm",
   "C-c": "copyToClipboard",

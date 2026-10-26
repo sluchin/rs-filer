@@ -111,6 +111,23 @@ export async function renameItem(path: string, newName: string): Promise<void> {
 }
 
 /**
+ * アーカイブ (zip, tar, tar.gz, tgz) を, 指定ディレクトリの直下に新しく作るディレクトリへ展開します.
+ * 形式は, 名前の拡張子で決めます.
+ *
+ * @param path - アーカイブのパス.
+ * @param parent - 展開先のディレクトリを作る, 親ディレクトリのパス.
+ * @param name - 展開先のディレクトリの名前 (まだ無いもの).
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
+ */
+export async function extractArchive(
+  path: string,
+  parent: string,
+  name: string,
+): Promise<void> {
+  await commands.extractArchive(path, parent, name);
+}
+
+/**
  * 関連付けられた外部アプリケーションでファイルまたはディレクトリを開きます.
  *
  * @param path - 開く対象のパス.
