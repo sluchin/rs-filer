@@ -1,6 +1,6 @@
-name: Debug Build
+name: Debug
 
-# デバッグ版 (`tauri build --debug`) を作る. 手動実行だけ (Actions タブの「Debug Build」から「Run workflow」).
+# デバッグ版 (`tauri build --debug`) を作る. 手動実行だけ (Actions タブの「Debug」から「Run workflow」).
 # デバッグ版は, ログをデバッグ以上で出し, 開発者ツール (Ctrl+Shift+I) を使え, Windows ではコンソールを出す.
 # 成果物は, 実行結果の Artifacts (`rsfiler-debug-<OS>-<コミット>`) からダウンロードする. GitHub Releases には上げない.
 on:
