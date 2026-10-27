@@ -1,6 +1,6 @@
 [package]
 name = "rsfiler"
-version = "0.3.4"
+version = "0.3.5"
 description = "A Tauri App"
 authors = ["Tetsuya Higashi"]
 edition = "2021"
