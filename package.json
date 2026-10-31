@@ -46,7 +46,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@typescript-eslint/eslint-plugin": "^8.71.2",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
     "@typescript-eslint/parser": "^8.70.0",
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/coverage-v8": "^5.0.5",
@@ -60,7 +60,7 @@
     "typescript": "~6.0.3",
     "vite": "^8.3.5",
     "vitest": "^5.0.0",
-    "markdownlint-cli2": "^0.17.2"
+    "markdownlint-cli2": "^0.24.0"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
