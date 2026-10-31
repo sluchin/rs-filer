@@ -197,7 +197,7 @@ jobs:
         uses: actions/upload-pages-artifact@v5
         with:
           name: github-pages
-          path: build/docs/
+          path: combined_docs/
 
       # GitHub Pagesへデプロイ
       - name: Deploy to GitHub Pages
