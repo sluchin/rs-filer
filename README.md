@@ -238,7 +238,7 @@ npm version patch --no-git-tag-version
 
 #### 更新レベルの選択
 
-```
+```text
 【定期メンテナンス】
    └─ パターン A: npm update (推奨)
 

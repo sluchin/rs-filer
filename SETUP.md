@@ -118,22 +118,17 @@ cargo install cargo-tarpaulin
 * `open.rs`: 関連付けアプリ・エディタで開く、ターミナルを開く。
 * `exec.rs`: 選択したファイルに対する外部コマンドの実行 (`%f` をパスに置換)。
 
-
 * **`src-tauri/src/lib.rs`**
 * `commands` モジュールのコマンドを `specta_builder` (tauri-specta) で集め、Tauri アプリの `invoke_handler` に登録。フロントエンドの型 (`src/bindings.ts`) は `npm run bindings:generate` で作る。
 
-
 * **`src-tauri/src/main.rs`**
 * エントリポイント。`lib::run()` を呼び出し。
-
-
 
 ### 4.2 フロントエンド (React + TypeScript)
 
 * **`src/App.tsx`**
 * ホームディレクトリを初期表示し、パスの移動やファイル一覧表示を行うメインコンポーネント。
 * エラーハンドリング・デバッグログ (`loglevel` / `console`) を含む。
-
 
 * **`tests/setup.ts`**
 * Vitest および React Testing Library の初期セットアップ設定ファイル。

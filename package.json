@@ -16,8 +16,8 @@
     "lint:rust": "cd src-tauri && cargo clippy",
     "lint:all": "npm run lint && npm run lint:rust",
     "lint:fix": "eslint src tests --fix",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\" \"tests/**/*.{ts,tsx}\" && cd src-tauri && cargo fmt",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\" \"tests/**/*.{ts,tsx}\" && cd src-tauri && cargo fmt --check",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\" \"tests/**/*.{ts,tsx}\" && cd src-tauri && cargo fmt && npm run format:markdown",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\" \"tests/**/*.{ts,tsx}\" && cd src-tauri && cargo fmt --check && npm run format:markdown:check",
     "pretest": "vite build",
     "test": "vitest run",
     "test:rust": "cd src-tauri && cargo test",
@@ -34,7 +34,9 @@
     "doc:be:open": "cd src-tauri && CARGO_TARGET_DIR=target/doc_build cargo doc --no-deps --open",
     "doc": "npm run doc:fe && npm run doc:be",
     "doc:open": "npm run doc:fe:open && npm run doc:be:open",
-    "check": "npm run format:check && npm run lint:all && npm run test:all"
+    "check": "npm run format:check && npm run lint:all && npm run test:all",
+    "format:markdown": "markdownlint-cli2 --fix",
+    "format:markdown:check": "markdownlint-cli2"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
@@ -57,7 +59,8 @@
     "typedoc": "^0.28.0",
     "typescript": "~6.0.3",
     "vite": "^8.3.5",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.0",
+    "markdownlint-cli2": "^0.17.2"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
