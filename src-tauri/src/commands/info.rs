@@ -379,5 +379,5 @@ pub async fn dir_stats(
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/commands/info_test.rs"]
+#[path = "../../tests/unit/commands/test_info.rs"]
 mod tests;

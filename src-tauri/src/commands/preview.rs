@@ -228,5 +228,5 @@ pub fn read_preview<R: Runtime>(app: AppHandle<R>, path: String) -> Result<Previ
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/commands/preview_test.rs"]
+#[path = "../../tests/unit/commands/test_preview.rs"]
 mod tests;

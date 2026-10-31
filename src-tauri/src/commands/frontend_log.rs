@@ -119,5 +119,5 @@ pub fn log_frontend_message(entries: Vec<FrontendLogEntry>) {
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/commands/frontend_log_test.rs"]
+#[path = "../../tests/unit/commands/test_frontend_log.rs"]
 mod tests;

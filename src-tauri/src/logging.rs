@@ -300,5 +300,5 @@ pub fn init_logging() {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/logging_test.rs"]
+#[path = "../tests/unit/test_logging.rs"]
 mod tests;

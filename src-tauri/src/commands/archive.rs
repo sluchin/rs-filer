@@ -309,5 +309,5 @@ pub fn extract_archive(path: String, parent: String, name: String) -> Result<(),
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/commands/archive_test.rs"]
+#[path = "../../tests/unit/commands/test_archive.rs"]
 mod tests;

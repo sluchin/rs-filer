@@ -324,5 +324,5 @@ pub fn rename_item(path: String, new_name: String) -> Result<(), String> {
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/commands/ops_test.rs"]
+#[path = "../../tests/unit/commands/test_ops.rs"]
 mod tests;

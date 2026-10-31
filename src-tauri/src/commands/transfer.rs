@@ -1161,5 +1161,5 @@ pub fn cancel_transfer(state: tauri::State<'_, TransferState>) {
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/commands/transfer_test.rs"]
+#[path = "../../tests/unit/commands/test_transfer.rs"]
 mod tests;

@@ -279,5 +279,5 @@ pub fn open_terminal(path: String) -> Result<(), String> {
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/commands/open_test.rs"]
+#[path = "../../tests/unit/commands/test_open.rs"]
 mod tests;

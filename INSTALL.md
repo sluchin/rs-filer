@@ -17,24 +17,24 @@ npm run tauri build
 
 ### GitHub Actions でのビルド
 
-`.github/workflows/release.yml` が, Linux・Windows・macOS 向けのパッケージを自動でビルドします.
+`.github/workflows/release.yml` が、Linux・Windows・macOS 向けのパッケージを自動でビルドします。
 
-- **タグを push したとき** (`v*`, 例: `v1.0.1`): ビルドした成果物が GitHub Releases のドラフトにアップロードされます. Windows は, インストーラー (`.msi` / `.exe`) に加えて, exe 単体のポータブル版 `rsfiler_<タグ>_windows_x64_portable.zip` も付きます.
-- **手動実行** (Actions タブの「Release」から「Run workflow」): タグを打たずにビルドできます. 成果物は, 実行結果の Artifacts (`rsfiler-<OS>`) からダウンロードします.
+- **タグを push したとき** (`v*`、例: `v1.0.1`): ビルドした成果物が GitHub Releases のドラフトにアップロードされます。Windows は、インストーラー (`.msi` / `.exe`) に加えて、exe 単体のポータブル版 `rsfiler_<タグ>_windows_x64_portable.zip` も付きます。
+- **手動実行** (Actions タブの「Release」から「Run workflow」): タグを打たずにビルドできます。成果物は、実行結果の Artifacts (`rsfiler-<OS>`) からダウンロードします。
 
 ### デバッグ版のビルド
 
-`.github/workflows/debug-build.yml` が, デバッグ版 (`tauri build --debug`) のパッケージをビルドします. 不具合を調べるときに使います.
+`.github/workflows/debug-build.yml` が、デバッグ版 (`tauri build --debug`) のパッケージをビルドします。不具合を調べるときに使います。
 
-- **手動実行のみ** (Actions タブの「Debug Build」から「Run workflow」): ブランチと, ビルドする OS (Linux / Windows / macOS) を選べます.
-- 成果物は, 実行結果の Artifacts (`rsfiler-debug-<OS>-<コミットの短いハッシュ>`) からダウンロードします. 14 日で消えます. GitHub Releases には上げません. Windows は, インストーラーに加えて, exe 単体の `rsfiler_debug_<コミット>_windows_x64_portable.zip` も付きます.
-- デバッグ版は, リリース版と次の点が違います.
-  - ログを, デバッグ以上で出します (ログファイルは `<データディレクトリ>/rsfiler/logs/rsfiler.log`).
-  - 開発者ツールを使えます (`Ctrl+Shift+I`. macOS は `Cmd+Option+I`. ファイルの行のほかを右クリックした「検証」でも開けます).
-  - Windows では, ログを出すコンソールの窓も開きます.
-  - 最適化しないので, リリース版より遅く, ファイルも大きくなります.
+- **手動実行のみ** (Actions タブの「Debug Build」から「Run workflow」): ブランチと、ビルドする OS (Linux / Windows / macOS) を選べます。
+- 成果物は、実行結果の Artifacts (`rsfiler-debug-<OS>-<コミットの短いハッシュ>`) からダウンロードします。14 日で消えます。GitHub Releases には上げません。Windows は、インストーラーに加えて、exe 単体の `rsfiler_debug_<コミット>_windows_x64_portable.zip` も付きます。
+- デバッグ版は、リリース版と次の点が違います。
+  - ログを、デバッグ以上で出します (ログファイルは `<データディレクトリ>/rsfiler/logs/rsfiler.log`)。
+  - 開発者ツールを使えます (`Ctrl+Shift+I`。macOS は `Cmd+Option+I`。ファイルの行のほかを右クリックした「検証」でも開けます)。
+  - Windows では、ログを出すコンソールの窓も開きます。
+  - 最適化しないので、リリース版より遅く、ファイルも大きくなります。
 
-通常の push や Pull Request で動く CI (`ci.yml`) は, 検査のみでパッケージは作りません.
+通常の push や Pull Request で動く CI (`ci.yml`) は、検査のみでパッケージは作りません。
 
 ---
 

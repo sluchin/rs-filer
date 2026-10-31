@@ -174,7 +174,7 @@ src-tauri/src/
 
 ### 🧪 フロントエンドのテスト (`tests/` - Vitest)
 
-`src/` と同じ構成で, `<ソースのファイル名>.test.ts(x)` の名前で置く. `src/` は `@/` で参照する (`import App from "@/App"`).
+`src/` と同じ構成で、`<ソースのファイル名>.test.ts(x)` の名前で置く。`src/` は `@/` で参照する (`import App from "@/App"`)。
 
 ```text
 tests/
@@ -252,25 +252,25 @@ tests/
 
 ```text
 src-tauri/tests/
-├── commands_test.rs                    # 結合テスト (公開 API だけを使う。直下の `*_test.rs`)
-├── clipboard_test.rs
-├── history_test.rs
-├── logging_test.rs
-└── unit/                               # 単体テスト (`src/` と同じ構成で `<ソースのファイル名>_test.rs`。対象のソースに `#[path]` で子モジュールとして組み込む)
-    ├── lib_test.rs
-    ├── logging_test.rs
-    ├── window_state_test.rs
+├── test_commands.rs                    # 結合テスト (公開 API だけを使う。直下の `test_*.rs`)
+├── test_clipboard.rs
+├── test_history.rs
+├── test_logging.rs
+└── unit/                               # 単体テスト (`src/` と同じ構成で `test_<ソースのファイル名>.rs`。対象のソースに `#[path]` で子モジュールとして組み込む)
+    ├── test_lib.rs
+    ├── test_logging.rs
+    ├── test_window_state.rs
     └── commands/
-        ├── archive_test.rs
-        ├── clipboard_test.rs
-        ├── config_test.rs
-        ├── exec_test.rs
-        ├── frontend_log_test.rs
-        ├── fs_test.rs
-        ├── history_test.rs
-        ├── info_test.rs
-        ├── open_test.rs
-        ├── ops_test.rs
-        ├── preview_test.rs
-        └── transfer_test.rs
+        ├── test_archive.rs
+        ├── test_clipboard.rs
+        ├── test_config.rs
+        ├── test_exec.rs
+        ├── test_frontend_log.rs
+        ├── test_fs.rs
+        ├── test_history.rs
+        ├── test_info.rs
+        ├── test_open.rs
+        ├── test_ops.rs
+        ├── test_preview.rs
+        └── test_transfer.rs
 ```

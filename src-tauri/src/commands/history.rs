@@ -162,5 +162,5 @@ pub async fn save_history(history: PaneHistory) -> Result<(), String> {
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/commands/history_test.rs"]
+#[path = "../../tests/unit/commands/test_history.rs"]
 mod tests;

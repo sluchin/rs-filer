@@ -268,5 +268,5 @@ pub fn copy_text_to_clipboard(text: String) -> Result<(), String> {
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/commands/clipboard_test.rs"]
+#[path = "../../tests/unit/commands/test_clipboard.rs"]
 mod tests;

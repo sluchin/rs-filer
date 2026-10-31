@@ -190,5 +190,5 @@ pub fn run_external_command(command: String, paths: Vec<String>) -> Result<(), S
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/commands/exec_test.rs"]
+#[path = "../../tests/unit/commands/test_exec.rs"]
 mod tests;

@@ -4,7 +4,7 @@
 ///
 /// ここに書いたコマンドには, 権限 `allow-<コマンド名 (`_` を `-` にしたもの)>` が作られます.
 /// 呼べるのは, `capabilities/default.json` で許可したコマンドだけです (書き忘れると, 実行時に拒否される).
-/// `lib_test.rs` の `test_capabilities_allow_every_command` で, 漏れが無いことを確かめます.
+/// `test_lib.rs` の `test_capabilities_allow_every_command` で, 漏れが無いことを確かめます.
 const COMMANDS: &[&str] = &[
     "read_directory",
     "dirs_have_entries",

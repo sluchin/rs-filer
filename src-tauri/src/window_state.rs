@@ -541,5 +541,5 @@ pub fn main_window<M: Manager<tauri::Wry>>(app: &M) -> Option<WebviewWindow> {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/window_state_test.rs"]
+#[path = "../tests/unit/test_window_state.rs"]
 mod tests;

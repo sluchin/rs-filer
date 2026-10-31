@@ -111,5 +111,5 @@ pub fn run() {
 }
 
 #[cfg(test)]
-#[path = "../tests/unit/lib_test.rs"]
+#[path = "../tests/unit/test_lib.rs"]
 mod tests;

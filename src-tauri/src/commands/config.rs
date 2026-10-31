@@ -475,5 +475,5 @@ pub fn store_window_state_to(config_dir: Option<&Path>, state: &WindowState) {
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/commands/config_test.rs"]
+#[path = "../../tests/unit/commands/test_config.rs"]
 mod tests;

@@ -426,5 +426,5 @@ fn drives_from(candidates: Vec<String>, exists: impl Fn(&str) -> bool) -> Vec<St
 }
 
 #[cfg(test)]
-#[path = "../../tests/unit/commands/fs_test.rs"]
+#[path = "../../tests/unit/commands/test_fs.rs"]
 mod tests;
