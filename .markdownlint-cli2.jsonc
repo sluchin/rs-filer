@@ -15,6 +15,9 @@
     "**/*.md"
   ],
   "ignores": [
+    "docs/fe/**",
+    "docs/be/**",
+    "docs/html/**",
     ".git/**",
     ".claude/**",
     ".github/**",

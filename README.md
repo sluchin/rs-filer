@@ -22,11 +22,11 @@ GitHub の [Releases](../../releases) から、お使いの OS 向けのパッ�
 | Linux (その他) | `.AppImage` (実行権限を付けてそのまま起動) または `.rpm` |
 | macOS | `.dmg` |
 
-詳しい手順や、ソースからのビルド方法は [INSTALL.md](./INSTALL.md) を参照してください。
+詳しい手順や、ソースからのビルド方法は [INSTALL.md](docs/fe/media/INSTALL.md) を参照してください。
 
 ## クイックスタート (開発)
 
-詳細な環境構築手順や設計方針については [SETUP.md](./SETUP.md) を参照してください。
+詳細な環境構築手順や設計方針については [SETUP.md](docs/fe/media/SETUP.md) を参照してください。
 
 ```bash
 # 依存関係のインストール
@@ -41,7 +41,7 @@ npm run tauri dev
 
 ## 基本操作
 
-2 ペイン (左右) のファイラです。Emacs の Dired (dired-mode) のキーバインドを参考にしています。キーバインドの一覧は [KEYBINDINGS.md](./KEYBINDINGS.md) を参照してください。
+2 ペイン (左右) のファイラです。Emacs の Dired (dired-mode) のキーバインドを参考にしています。キーバインドの一覧は [KEYBINDINGS.md](docs/keybindings.md) を参照してください。
 
 一覧とツリーの行頭には、ファイルの種類 (画像、動画、音声、圧縮、PDF、文書、表計算、プレゼンテーション、ソースコード、スクリプト、実行ファイル、設定、テキスト、フォント) ごとのアイコンを出します。種類は拡張子 (`Makefile` や `README` などの決まった名前も) で決めます。
 
