@@ -26,7 +26,7 @@ GitHub の [Releases](../../releases) から、お使いの OS 向けのパッ�
 
 ## クイックスタート (開発)
 
-詳細な環境構築手順や設計方針については [SETUP.md](docs/fe/media/SETUP.md) を参照してください。
+詳細な環境構築手順や設計方針については [SETUP.md](docs/fe/media/SETUP.md) を参照してください。ロードマップや今後の予定については [TODO.md](TODO.md) を参照してください。
 
 ```bash
 # 依存関係のインストール
