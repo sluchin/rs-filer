@@ -25,7 +25,6 @@
     "build/**",
     "build-*/**",
     ".venv/**",
-    "docs/**",
     "coverage/**",
     "shared/**",
     "plugins/**",
