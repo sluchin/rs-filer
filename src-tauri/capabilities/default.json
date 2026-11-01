@@ -9,6 +9,8 @@
     "core:default",
     "allow-read-directory",
     "allow-dirs-have-entries",
+    "allow-search-directory",
+    "allow-search-contents",
     "allow-get-item-info",
     "allow-dir-stats",
     "allow-get-home-dir",

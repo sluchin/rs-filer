@@ -8,6 +8,8 @@
 const COMMANDS: &[&str] = &[
     "read_directory",
     "dirs_have_entries",
+    "search_directory",
+    "search_contents",
     "get_item_info",
     "dir_stats",
     "get_home_dir",

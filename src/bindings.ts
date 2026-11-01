@@ -37,6 +37,44 @@ export const commands = {
 	 */
 	dirsHaveEntries: (paths: string[], showHidden: boolean) => __TAURI_INVOKE<boolean[]>("dirs_have_entries", { paths, showHidden }),
 	/**
+	 *  ディレクトリの下を再帰的に探して, 名前が合うエントリの一覧を返します.
+	 * 
+	 *  走査 (ディスク I/O) はブロッキング用のスレッドで実行し, IPC を処理するスレッドを塞ぎません.
+	 * 
+	 *  # Arguments
+	 * 
+	 *  * `path` - 探し始めるディレクトリの絶対パス文字列.
+	 *  * `query` - 名前の一部か, ワイルドカード (`*.txt` など). 大文字小文字を区別しない.
+	 *  * `show_hidden` - `true` の場合は隠しファイルも探します.
+	 *  * `max_results` - 集める件数の上限.
+	 * 
+	 *  # Returns
+	 * 
+	 *  成功した場合は [`SearchResult`] を包んだ [`Ok`] を返し,
+	 *  ディレクトリを読めない場合や, 走査のスレッドが異常終了した場合はエラー文字列を含む [`Err`] を返します.
+	 */
+	searchDirectory: (path: string, query: string, showHidden: boolean, maxResults: number) => __TAURI_INVOKE<SearchResult_Serialize>("search_directory", { path, query, showHidden, maxResults }),
+	/**
+	 *  ディレクトリの下のファイルを再帰的に探して, 中身が正規表現に合うファイルの一覧を返します.
+	 * 
+	 *  走査とファイルの読み込み (ディスク I/O) はブロッキング用のスレッドで実行します.
+	 *  10 MiB より大きいファイルと, バイナリのファイルは飛ばします.
+	 * 
+	 *  # Arguments
+	 * 
+	 *  * `path` - 探し始めるディレクトリの絶対パス文字列.
+	 *  * `pattern` - 正規表現.
+	 *  * `show_hidden` - `true` の場合は隠しファイルも探します.
+	 *  * `max_results` - 集める件数の上限.
+	 * 
+	 *  # Returns
+	 * 
+	 *  成功した場合は [`SearchResult`] を包んだ [`Ok`] を返し,
+	 *  正規表現が不正な場合, ディレクトリを読めない場合, 走査のスレッドが異常終了した場合はエラー文字列を含む
+	 *  [`Err`] を返します.
+	 */
+	searchContents: (path: string, pattern: string, showHidden: boolean, maxResults: number) => __TAURI_INVOKE<SearchResult_Serialize>("search_contents", { path, pattern, showHidden, maxResults }),
+	/**
 	 *  項目の詳細を取得します (IPC コマンド). 走査 (ディスク I/O) は, ブロッキング用のスレッドで実行します.
 	 * 
 	 *  # Arguments
@@ -792,6 +830,25 @@ export type Preview_Serialize = {
 	/**  テキスト, またはバイナリの 16 進ダンプ. 画像では `None`. */
 	text: string | null,
 	/**  先頭部分だけを読み込んだ場合は `true`. */
+	truncated: boolean,
+};
+
+/**  再帰検索の結果. */
+export type SearchResult = SearchResult_Serialize | SearchResult_Deserialize;
+
+/**  再帰検索の結果. */
+export type SearchResult_Deserialize = {
+	/**  名前が合ったエントリ. `name` は, 検索を始めたディレクトリからの相対パス (区切りは `/`). */
+	entries: FileEntry_Deserialize[],
+	/**  件数の上限に達して, 探すのを打ち切った場合は `true`. */
+	truncated: boolean,
+};
+
+/**  再帰検索の結果. */
+export type SearchResult_Serialize = {
+	/**  名前が合ったエントリ. `name` は, 検索を始めたディレクトリからの相対パス (区切りは `/`). */
+	entries: FileEntry_Serialize[],
+	/**  件数の上限に達して, 探すのを打ち切った場合は `true`. */
 	truncated: boolean,
 };
 

@@ -24,6 +24,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .commands(tauri_specta::collect_commands![
             commands::fs::read_directory,
             commands::fs::dirs_have_entries,
+            commands::fs::search_directory,
+            commands::fs::search_contents,
             commands::info::get_item_info,
             commands::info::dir_stats,
             commands::fs::get_home_dir,

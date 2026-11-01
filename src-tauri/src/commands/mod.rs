@@ -51,7 +51,7 @@ pub use exec::run_external_command;
 pub use frontend_log::{log_frontend_message, FrontendLogEntry, LogLevel};
 pub use fs::{
     complete_path, dirs_have_entries, get_disk_space, get_home_dir, list_drives, read_directory,
-    DiskSpace, FileEntry,
+    search_contents, search_directory, DiskSpace, FileEntry, SearchResult,
 };
 pub use history::{
     history_path, load_history_from, retain_existing, save_history_to, PaneHistory,

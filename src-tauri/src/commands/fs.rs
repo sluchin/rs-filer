@@ -2,12 +2,13 @@
 
 use serde::Serialize;
 use specta::Type;
+use std::collections::VecDeque;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 /// ファイルシステム上の 1 つのエントリ（ファイルまたはディレクトリ）を表す構造体.
-#[derive(Serialize, Type)]
+#[derive(Debug, Serialize, Type)]
 pub struct FileEntry {
     /// ファイルまたはディレクトリの名前.
     pub name: String,
@@ -206,6 +207,297 @@ pub async fn dirs_have_entries(paths: Vec<String>, show_hidden: bool) -> Result<
     })
     .await
     .map_err(|e| e.to_string())
+}
+
+/// 再帰検索の結果.
+#[derive(Debug, Serialize, Type)]
+pub struct SearchResult {
+    /// 名前が合ったエントリ. `name` は, 検索を始めたディレクトリからの相対パス (区切りは `/`).
+    pub entries: Vec<FileEntry>,
+    /// 件数の上限に達して, 探すのを打ち切った場合は `true`.
+    pub truncated: bool,
+}
+
+/// 名前が, 検索の入力に合うかを調べます.
+///
+/// `*` か `?` を含む入力は, ワイルドカードとして, 名前の全体に合うかを調べます (`*.txt` など).
+/// 含まない入力は, 名前の一部に合うかを調べます. どちらも, 大文字小文字を区別しません.
+///
+/// # Arguments
+///
+/// * `query` - 検索の入力.
+/// * `name` - エントリの名前.
+///
+/// # Returns
+///
+/// 合えば `true`.
+fn name_matches(query: &str, name: &str) -> bool {
+    let query: Vec<char> = query.to_lowercase().chars().collect();
+    let name = name.to_lowercase();
+    if query.iter().any(|c| matches!(c, '*' | '?')) {
+        let name: Vec<char> = name.chars().collect();
+        glob_matches(&query, &name)
+    } else {
+        name.contains(&query.iter().collect::<String>())
+    }
+}
+
+/// ワイルドカード (`*` は 0 文字以上, `?` は 1 文字) が, 名前の全体に合うかを調べます.
+///
+/// # Arguments
+///
+/// * `pattern` - パターンの文字列.
+/// * `name` - 名前の文字列.
+///
+/// # Returns
+///
+/// 合えば `true`.
+fn glob_matches(pattern: &[char], name: &[char]) -> bool {
+    match pattern.split_first() {
+        None => name.is_empty(),
+        Some(('*', rest)) => (0..=name.len()).any(|skip| glob_matches(rest, &name[skip..])),
+        Some((c, rest)) => name
+            .split_first()
+            .is_some_and(|(n, tail)| (*c == '?' || c == n) && glob_matches(rest, tail)),
+    }
+}
+
+/// ディレクトリの下を, 浅い階層から順に歩いて, 条件に合うエントリを集めます.
+///
+/// 隠しファイルを除くときは, 隠しディレクトリの中にも入りません. シンボリックリンクは, 項目としては
+/// 調べますが, リンク先には入りません (輪になったリンクで終わらなくなるのを防ぐため).
+/// 読めないサブディレクトリは, 飛ばします.
+///
+/// # Arguments
+///
+/// * `root` - 歩き始めるディレクトリの絶対パス文字列.
+/// * `show_hidden` - `true` の場合は隠しファイルも歩く.
+/// * `max_results` - 集める件数の上限.
+/// * `accept` - エントリ (名前, パス, ディレクトリか) が条件に合うかを返す関数.
+///
+/// # Returns
+///
+/// 結果を包んだ [`Ok`]. `name` は, `root` からの相対パス (区切りは `/`). `root` を読めない場合はエラー文字列を
+/// 含む [`Err`].
+fn walk_tree(
+    root: &str,
+    show_hidden: bool,
+    max_results: usize,
+    mut accept: impl FnMut(&str, &Path, bool) -> bool,
+) -> Result<SearchResult, String> {
+    let root_path = Path::new(root);
+    // 最初のディレクトリが読めないときは, エラーにする (サブディレクトリは, 読めなければ飛ばす)
+    let mut queue = VecDeque::from([root_path.to_path_buf()]);
+    let mut entries = Vec::new();
+    let mut first = true;
+    while let Some(dir) = queue.pop_front() {
+        let read = match fs::read_dir(&dir) {
+            Ok(read) => read,
+            Err(e) if first => return Err(e.to_string()),
+            Err(_) => continue,
+        };
+        first = false;
+        for entry in read.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let own = entry.metadata().ok();
+            let hidden = own.as_ref().is_some_and(|m| is_hidden(&name, m));
+            if hidden && !show_hidden {
+                continue;
+            }
+            let path = entry.path();
+            let metadata = fs::metadata(&path).ok().or_else(|| own.clone());
+            let is_dir = metadata.as_ref().is_some_and(|m| m.is_dir());
+            let is_link = entry.file_type().is_ok_and(|t| t.is_symlink());
+            if is_dir && !is_link {
+                queue.push_back(path.clone());
+            }
+            if !accept(&name, &path, is_dir) {
+                continue;
+            }
+            if entries.len() >= max_results {
+                return Ok(SearchResult {
+                    entries,
+                    truncated: true,
+                });
+            }
+            let relative = path
+                .strip_prefix(root_path)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            entries.push(FileEntry {
+                path: path.to_string_lossy().into_owned(),
+                is_dir,
+                size: metadata.as_ref().map_or(0, |m| m.len()),
+                modified: metadata.as_ref().and_then(modified_secs),
+                readonly: metadata
+                    .as_ref()
+                    .is_some_and(|m| m.permissions().readonly()),
+                hidden,
+                name: relative,
+            });
+        }
+    }
+    Ok(SearchResult {
+        entries,
+        truncated: false,
+    })
+}
+
+/// ディレクトリの下から, 名前が合うエントリを集めます (`find-name-dired`).
+///
+/// # Arguments
+///
+/// * `root` - 探し始めるディレクトリの絶対パス文字列.
+/// * `query` - 名前の一部か, ワイルドカード (`name_matches` を参照). 空文字列なら, すべてに合う.
+/// * `show_hidden` - `true` の場合は隠しファイルも探す.
+/// * `max_results` - 集める件数の上限.
+///
+/// # Returns
+///
+/// 結果を包んだ [`Ok`]. `root` を読めない場合はエラー文字列を含む [`Err`].
+fn search_tree(
+    root: &str,
+    query: &str,
+    show_hidden: bool,
+    max_results: usize,
+) -> Result<SearchResult, String> {
+    walk_tree(root, show_hidden, max_results, |name, _, _| {
+        name_matches(query, name)
+    })
+}
+
+/// 内容を調べるファイルの大きさの上限 (バイト). これより大きいファイルは飛ばす.
+const GREP_MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
+
+/// バイナリかを見分けるために読む先頭のバイト数.
+const BINARY_SNIFF_BYTES: usize = 8000;
+
+/// ファイルの中身が, 正規表現に合うかを調べます. 読めないファイル, 大きすぎるファイル, バイナリは, 合わないものとします.
+///
+/// # Arguments
+///
+/// * `path` - ファイルのパス.
+/// * `regex` - 正規表現.
+///
+/// # Returns
+///
+/// 合えば `true`.
+fn file_contains(path: &Path, regex: &regex::Regex) -> bool {
+    let too_big = fs::metadata(path).map_or(true, |m| m.len() > GREP_MAX_FILE_SIZE);
+    if too_big {
+        return false;
+    }
+    let Ok(bytes) = fs::read(path) else {
+        return false;
+    };
+    // 先頭に NUL バイトがあるものは, バイナリとして飛ばす
+    if bytes.iter().take(BINARY_SNIFF_BYTES).any(|b| *b == 0) {
+        return false;
+    }
+    regex.is_match(&String::from_utf8_lossy(&bytes))
+}
+
+/// ディレクトリの下のファイルから, 中身が正規表現に合うものを集めます (`find-grep-dired`).
+///
+/// 大文字小文字は区別します (正規表現の中で `(?i)` を付ければ区別しません).
+///
+/// # Arguments
+///
+/// * `root` - 探し始めるディレクトリの絶対パス文字列.
+/// * `pattern` - 正規表現.
+/// * `show_hidden` - `true` の場合は隠しファイルも探す.
+/// * `max_results` - 集める件数の上限.
+///
+/// # Returns
+///
+/// 結果を包んだ [`Ok`]. 正規表現が不正な場合と, `root` を読めない場合はエラー文字列を含む [`Err`].
+fn grep_tree(
+    root: &str,
+    pattern: &str,
+    show_hidden: bool,
+    max_results: usize,
+) -> Result<SearchResult, String> {
+    let regex = regex::Regex::new(pattern).map_err(|e| e.to_string())?;
+    walk_tree(root, show_hidden, max_results, |_, path, is_dir| {
+        !is_dir && file_contains(path, &regex)
+    })
+}
+
+/// ディレクトリの下を再帰的に探して, 名前が合うエントリの一覧を返します.
+///
+/// 走査 (ディスク I/O) はブロッキング用のスレッドで実行し, IPC を処理するスレッドを塞ぎません.
+///
+/// # Arguments
+///
+/// * `path` - 探し始めるディレクトリの絶対パス文字列.
+/// * `query` - 名前の一部か, ワイルドカード (`*.txt` など). 大文字小文字を区別しない.
+/// * `show_hidden` - `true` の場合は隠しファイルも探します.
+/// * `max_results` - 集める件数の上限.
+///
+/// # Returns
+///
+/// 成功した場合は [`SearchResult`] を包んだ [`Ok`] を返し,
+/// ディレクトリを読めない場合や, 走査のスレッドが異常終了した場合はエラー文字列を含む [`Err`] を返します.
+#[tauri::command]
+#[specta::specta]
+pub async fn search_directory(
+    path: String,
+    query: String,
+    show_hidden: bool,
+    max_results: u32,
+) -> Result<SearchResult, String> {
+    log::debug!("再帰検索開始: {} ({})", path, query);
+    let target = path.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        search_tree(&path, &query, show_hidden, max_results as usize)
+    })
+    .await
+    .map_err(|e| format!("再帰検索のスレッドが異常終了: {e}"))?;
+    match &result {
+        Ok(r) => log::debug!("再帰検索完了: {} ({} 件)", target, r.entries.len()),
+        Err(e) => log::error!("再帰検索失敗: {} ({})", target, e),
+    }
+    result
+}
+
+/// ディレクトリの下のファイルを再帰的に探して, 中身が正規表現に合うファイルの一覧を返します.
+///
+/// 走査とファイルの読み込み (ディスク I/O) はブロッキング用のスレッドで実行します.
+/// 10 MiB より大きいファイルと, バイナリのファイルは飛ばします.
+///
+/// # Arguments
+///
+/// * `path` - 探し始めるディレクトリの絶対パス文字列.
+/// * `pattern` - 正規表現.
+/// * `show_hidden` - `true` の場合は隠しファイルも探します.
+/// * `max_results` - 集める件数の上限.
+///
+/// # Returns
+///
+/// 成功した場合は [`SearchResult`] を包んだ [`Ok`] を返し,
+/// 正規表現が不正な場合, ディレクトリを読めない場合, 走査のスレッドが異常終了した場合はエラー文字列を含む
+/// [`Err`] を返します.
+#[tauri::command]
+#[specta::specta]
+pub async fn search_contents(
+    path: String,
+    pattern: String,
+    show_hidden: bool,
+    max_results: u32,
+) -> Result<SearchResult, String> {
+    log::debug!("内容の検索開始: {} ({})", path, pattern);
+    let target = path.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        grep_tree(&path, &pattern, show_hidden, max_results as usize)
+    })
+    .await
+    .map_err(|e| format!("内容の検索のスレッドが異常終了: {e}"))?;
+    match &result {
+        Ok(r) => log::debug!("内容の検索完了: {} ({} 件)", target, r.entries.len()),
+        Err(e) => log::error!("内容の検索失敗: {} ({})", target, e),
+    }
+    result
 }
 
 /// 実行環境におけるユーザーのホームディレクトリの絶対パスを取得します.

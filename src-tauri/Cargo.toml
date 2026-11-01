@@ -30,6 +30,7 @@ open = "5.4.4"
 fs4 = "1.1.0"
 encoding_rs = "0.8.42"
 chardetng = "1.0.0"
+regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "unicode-case", "unicode-gencat", "perf"] }
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 arboard = "3.7.0"
 specta = { version = "=2.0.0-rc.26", features = ["derive"] }

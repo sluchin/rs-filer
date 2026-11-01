@@ -2852,6 +2852,7 @@ dependencies = [
  "libc",
  "log",
  "open",
+ "regex",
  "serde",
  "serde_json",
  "specta",
