@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -19,6 +19,15 @@ const PROGRESS_INTERVAL: Duration = Duration::from_millis(50);
 
 /// 1 回にコピーするバイト数 (中断を確認する間隔).
 const CHUNK_SIZE: usize = 8 * 1024 * 1024;
+
+/// 並列にコピーする, 小さいファイルの大きさの上限 (バイト). これ以上のファイルは, 1 つずつコピーする.
+const SMALL_FILE_SIZE: u64 = 1024 * 1024;
+
+/// 並列にコピーする, 1 つのディレクトリ内の小さいファイルの最小の数. これより少ないと, スレッドを作る費用の方が大きい.
+const PARALLEL_MIN_FILES: usize = 8;
+
+/// 並列にコピーするスレッドの最大の数.
+const MAX_WORKERS: usize = 8;
 
 /// 実行する操作の種類.
 #[derive(Deserialize, Type, Debug, Clone, Copy, PartialEq, Eq)]
@@ -255,12 +264,14 @@ fn temp_path_of(dst: &Path) -> PathBuf {
 
 /// 1 つのファイルを, 進捗と中断を確認しながらコピーします.
 ///
-/// 一時ファイルに書き込み, 書き終えてから名前の変更でコピー先に置き換えます. 途中で中断・失敗しても,
-/// 既にあるコピー先は元のまま残り, 一時ファイルは消します. コピー先がハードリンクでも, リンク先の中身は
-/// 書き換えません. 更新日時と権限も, コピー元に合わせます.
+/// 上書きしない場合は, コピー先を新しく作って (既にあれば失敗する) 直接書き込みます. 途中で中断・失敗したら,
+/// 書きかけのコピー先を消します. 確認の後に作られた同名のファイルを上書きすることはありません.
 ///
-/// 上書きしない場合は, 置き換えるときにもコピー先が無いことを確かめます (確認の後に作られた同名の
-/// ファイルを上書きしないため).
+/// 上書きする場合は, 一時ファイルに書き込み, 書き終えてから名前の変更でコピー先に置き換えます. 途中で
+/// 中断・失敗しても, 既にあるコピー先は元のまま残り, 一時ファイルは消します. コピー先がハードリンクでも,
+/// リンク先の中身は書き換えません.
+///
+/// どちらも, 更新日時と権限をコピー元に合わせます.
 ///
 /// # Arguments
 ///
@@ -273,73 +284,137 @@ fn temp_path_of(dst: &Path) -> PathBuf {
 ///
 /// 成功した場合は [`Ok`]. 中断・失敗した場合, 上書きしない場合にコピー先が既にあるときは [`Stop`].
 fn copy_file(src: &Path, dst: &Path, overwrite: bool, progress: &mut Progress) -> Result<(), Stop> {
+    let name = file_name_of(src);
+    let cancel = progress.cancel;
+    copy_file_with(src, dst, overwrite, cancel, &mut |n| {
+        progress.advance(n, &name)
+    })
+}
+
+/// [`copy_file`] の本体. 進捗の窓口の代わりに, 中断の旗と, 書いたバイト数の通知を受け取る (別のスレッドから呼べる).
+///
+/// # Arguments
+///
+/// * `src` - コピー元のファイル.
+/// * `dst` - コピー先のファイル.
+/// * `overwrite` - true の場合, 既にあるコピー先を上書きする.
+/// * `cancel` - true になったら中断する旗.
+/// * `advance` - 書いたバイト数を受け取る関数.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
+fn copy_file_with(
+    src: &Path,
+    dst: &Path,
+    overwrite: bool,
+    cancel: &AtomicBool,
+    advance: &mut dyn FnMut(u64),
+) -> Result<(), Stop> {
+    if !overwrite {
+        return write_copy(src, dst, true, cancel, advance);
+    }
     let temp = temp_path_of(dst);
-    let result = write_copy(src, &temp, progress).and_then(|()| place_temp(&temp, dst, overwrite));
+    let result = write_copy(src, &temp, false, cancel, advance)
+        .and_then(|()| fs::rename(&temp, dst).map_err(at("rename", dst)));
     if result.is_err() {
         let _ = fs::remove_file(&temp);
     }
     result
 }
 
-/// 書き終えた一時ファイルを, 名前の変更でコピー先に置きます.
-///
-/// # Arguments
-///
-/// * `temp` - 書き終えた一時ファイル.
-/// * `dst` - コピー先のファイル.
-/// * `overwrite` - true の場合, 既にあるコピー先を置き換える. false の場合は, 置き換えない.
-///
-/// # Returns
-///
-/// 成功した場合は [`Ok`]. 上書きしない場合にコピー先が既にあるとき, 失敗したときは [`Stop::Failed`].
-fn place_temp(temp: &Path, dst: &Path, overwrite: bool) -> Result<(), Stop> {
-    if overwrite {
-        return fs::rename(temp, dst).map_err(at("rename", dst));
-    }
-    rename_noreplace(temp, dst).map_err(|e| {
-        if e.kind() == std::io::ErrorKind::AlreadyExists {
-            Stop::Failed(format!("Already exists: {}", dst.display()))
-        } else {
-            at("rename", dst)(e)
-        }
-    })
-}
-
-/// コピー元の中身を, 進捗と中断を確認しながら書き込み, 更新日時と権限をコピー元に合わせます.
+/// コピー元の中身を, 中断を確認しながら書き込み, 更新日時と権限をコピー元に合わせます.
 ///
 /// # Arguments
 ///
 /// * `src` - コピー元のファイル.
-/// * `dst` - 書き込むファイル (一時ファイル).
-/// * `progress` - 進捗の窓口.
+/// * `dst` - 書き込むファイル.
+/// * `exclusive` - true の場合, `dst` を新しく作る (既にあれば失敗する). 途中で失敗したら `dst` を消す.
+/// * `cancel` - true になったら中断する旗.
+/// * `advance` - 書いたバイト数を受け取る関数.
 ///
 /// # Returns
 ///
 /// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
-fn write_copy(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop> {
-    let name = file_name_of(src);
+fn write_copy(
+    src: &Path,
+    dst: &Path,
+    exclusive: bool,
+    cancel: &AtomicBool,
+    advance: &mut dyn FnMut(u64),
+) -> Result<(), Stop> {
     let mut reader = fs::File::open(src).map_err(at("open", src))?;
     let meta = reader.metadata().map_err(at("stat", src))?;
-    let mut writer = fs::File::create(dst).map_err(at("create", dst))?;
-    loop {
-        progress.check()?;
-        // OS が対応していれば, カーネル内でコピーされる (Linux の copy_file_range など).
-        let n = std::io::copy(&mut (&mut reader).take(CHUNK_SIZE as u64), &mut writer)
-            .map_err(at("copy", src))?;
-        if n == 0 {
-            // コピーした量が 0 バイトはファイル末尾.
-            break;
-        }
-        progress.advance(n, &name);
+    let mut options = fs::OpenOptions::new();
+    options.write(true);
+    if exclusive {
+        options.create_new(true);
+    } else {
+        options.create(true).truncate(true);
     }
+    let mut writer = options.open(dst).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::AlreadyExists {
+            Stop::Failed(format!("Already exists: {}", dst.display()))
+        } else {
+            at("create", dst)(e)
+        }
+    })?;
+    let result = pump(&mut reader, &mut writer, src, cancel, advance);
     // 更新日時と権限は, 失敗しても (対応していないファイルシステムなど) コピー自体は成功として扱う.
-    if let Ok(modified) = meta.modified() {
-        let _ = writer.set_modified(modified);
+    if result.is_ok() {
+        if let Ok(modified) = meta.modified() {
+            let _ = writer.set_modified(modified);
+        }
     }
     // 書き込み中のハンドルを閉じてから, 権限を変える (読み取り専用にすると, 書けなくなるため).
     drop(writer);
-    let _ = fs::set_permissions(dst, meta.permissions());
-    Ok(())
+    match result {
+        Ok(()) => {
+            let _ = fs::set_permissions(dst, meta.permissions());
+            Ok(())
+        }
+        Err(e) => {
+            if exclusive {
+                let _ = fs::remove_file(dst);
+            }
+            Err(e)
+        }
+    }
+}
+
+/// 読み手の中身を最後まで書き手に写します. 1 回に [`CHUNK_SIZE`] ずつ, 中断の旗を確認します.
+///
+/// # Arguments
+///
+/// * `reader` - コピー元.
+/// * `writer` - コピー先.
+/// * `src` - コピー元のパス (エラーの表示用).
+/// * `cancel` - true になったら中断する旗.
+/// * `advance` - 書いたバイト数を受け取る関数.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
+fn pump(
+    reader: &mut fs::File,
+    writer: &mut fs::File,
+    src: &Path,
+    cancel: &AtomicBool,
+    advance: &mut dyn FnMut(u64),
+) -> Result<(), Stop> {
+    loop {
+        if cancel.load(Ordering::SeqCst) {
+            return Err(Stop::Cancelled);
+        }
+        // OS が対応していれば, カーネル内でコピーされる (Linux の copy_file_range など).
+        let n =
+            std::io::copy(&mut reader.take(CHUNK_SIZE as u64), writer).map_err(at("copy", src))?;
+        if n == 0 {
+            // コピーした量が 0 バイトはファイル末尾.
+            return Ok(());
+        }
+        advance(n);
+    }
 }
 
 /// シンボリックリンクを複製します.
@@ -472,17 +547,7 @@ fn copy_tree(src: &Path, dst: &Path, overwrite: bool, progress: &mut Progress) -
         // (中は全て, このコピーで作ったものなので)
         let created = fs::symlink_metadata(dst).is_err();
         fs::create_dir_all(dst).map_err(at("mkdir", dst))?;
-        let result = fs::read_dir(src)
-            .map_err(at("readdir", src))?
-            .try_for_each(|entry| {
-                let entry = entry.map_err(at("readdir", src))?;
-                copy_tree(
-                    &entry.path(),
-                    &dst.join(entry.file_name()),
-                    overwrite,
-                    progress,
-                )
-            });
+        let result = copy_children(src, dst, overwrite, progress);
         if result.is_err() && created {
             let _ = fs::remove_dir_all(dst);
         }
@@ -490,6 +555,112 @@ fn copy_tree(src: &Path, dst: &Path, overwrite: bool, progress: &mut Progress) -
     } else {
         copy_file(src, dst, overwrite, progress)
     }
+}
+
+/// ディレクトリの中身をコピーします. 小さいファイルが多いときは, 並列にコピーします.
+///
+/// # Arguments
+///
+/// * `src` - コピー元のディレクトリ.
+/// * `dst` - コピー先のディレクトリ (作成済み).
+/// * `overwrite` - true の場合, 既にあるものを上書きする.
+/// * `progress` - 進捗の窓口.
+///
+/// # Returns
+///
+/// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
+fn copy_children(
+    src: &Path,
+    dst: &Path,
+    overwrite: bool,
+    progress: &mut Progress,
+) -> Result<(), Stop> {
+    let mut small = Vec::new();
+    let mut rest = Vec::new();
+    for entry in fs::read_dir(src).map_err(at("readdir", src))? {
+        let entry = entry.map_err(at("readdir", src))?;
+        let pair = (entry.path(), dst.join(entry.file_name()));
+        let is_small = !progress.skip.contains(&pair.0)
+            && entry
+                .metadata()
+                .is_ok_and(|m| m.is_file() && m.len() < SMALL_FILE_SIZE);
+        if is_small {
+            small.push(pair);
+        } else {
+            rest.push(pair);
+        }
+    }
+    if small.len() < PARALLEL_MIN_FILES {
+        rest.append(&mut small);
+    }
+    for (from, to) in &rest {
+        copy_tree(from, to, overwrite, progress)?;
+    }
+    if small.is_empty() {
+        return Ok(());
+    }
+    copy_parallel(&small, overwrite, progress)
+}
+
+/// 小さいファイルを, 複数のスレッドで並列にコピーします.
+///
+/// 進捗の通知は, 呼び出したスレッドが, 各スレッドの結果を受け取りながら行います. 1 つが失敗または中断したら,
+/// 残りは始めずに, 最初のエラーを返します.
+///
+/// # Arguments
+///
+/// * `files` - コピー元とコピー先の組.
+/// * `overwrite` - true の場合, 既にあるものを上書きする.
+/// * `progress` - 進捗の窓口.
+///
+/// # Returns
+///
+/// 全て成功した場合は [`Ok`]. 失敗・中断した場合は最初の [`Stop`].
+fn copy_parallel(
+    files: &[(PathBuf, PathBuf)],
+    overwrite: bool,
+    progress: &mut Progress,
+) -> Result<(), Stop> {
+    let workers = std::thread::available_parallelism()
+        .map_or(4, |n| n.get())
+        .min(MAX_WORKERS)
+        .min(files.len());
+    let cancel = progress.cancel;
+    let next = AtomicUsize::new(0);
+    let abort = AtomicBool::new(false);
+    let (next_ref, abort_ref) = (&next, &abort);
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<(u64, String), Stop>>();
+    let mut failure = None;
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            let sender = sender.clone();
+            scope.spawn(move || {
+                while !abort_ref.load(Ordering::SeqCst) {
+                    let Some((src, dst)) = files.get(next_ref.fetch_add(1, Ordering::SeqCst))
+                    else {
+                        break;
+                    };
+                    let mut bytes = 0;
+                    let result = copy_file_with(src, dst, overwrite, cancel, &mut |n| bytes += n)
+                        .map(|()| (bytes, file_name_of(src)));
+                    // 受け手は, 全てのスレッドが終わるまで生きているので, 送れなくなることはない.
+                    let _ = sender.send(result);
+                }
+            });
+        }
+        drop(sender);
+        for message in receiver {
+            match message {
+                Ok((bytes, name)) => progress.advance(bytes, &name),
+                Err(e) if failure.is_none() => {
+                    failure = Some(e);
+                    abort.store(true, Ordering::SeqCst);
+                }
+                Err(_) => {}
+            }
+        }
+    });
+    failure.map_or(Ok(()), Err)
 }
 
 /// パスの最後の名前を文字列で返します.

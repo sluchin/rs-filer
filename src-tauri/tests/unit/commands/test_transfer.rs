@@ -1286,15 +1286,172 @@ fn test_copy_file_without_overwrite_keeps_destination_created_after_the_check() 
 }
 
 #[test]
-fn test_place_temp_without_overwrite_reports_other_errors() {
+fn test_copy_file_without_overwrite_reports_other_create_errors() {
     let dir = tempdir().unwrap();
-    let temp = dir.path().join("temp");
-    fs::write(&temp, "x").unwrap();
+    let src = dir.path().join("a.txt");
+    fs::write(&src, "x").unwrap();
 
-    // 置く先のディレクトリが無い.
-    let result = place_temp(&temp, &dir.path().join("none").join("a.txt"), false);
+    // 書き込む先のディレクトリが無い.
+    let result =
+        with_progress(|p| copy_file(&src, &dir.path().join("none").join("a.txt"), false, p));
 
-    assert!(matches!(result, Err(Stop::Failed(m)) if !m.starts_with("Already exists")));
+    assert!(matches!(result, Err(Stop::Failed(m)) if m.starts_with("create: ")));
+}
+
+#[test]
+fn test_copy_file_without_overwrite_writes_directly() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("a.txt");
+    fs::write(&src, "hello").unwrap();
+    let dst = dir.path().join("b.txt");
+
+    let mut seen = 0;
+    let cancel = AtomicBool::new(false);
+    let result = copy_file_with(&src, &dst, false, &cancel, &mut |n| seen += n);
+
+    assert!(result.is_ok());
+    assert_eq!(seen, 5);
+    assert_eq!(fs::read_to_string(&dst).unwrap(), "hello");
+    assert!(!temp_path_of(&dst).exists());
+}
+
+#[test]
+fn test_copy_file_without_overwrite_removes_partial_destination_on_cancel() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("a.txt");
+    fs::write(&src, "hello").unwrap();
+    let dst = dir.path().join("b.txt");
+
+    let cancel = AtomicBool::new(true);
+    let result = copy_file_with(&src, &dst, false, &cancel, &mut |_| {});
+
+    assert!(matches!(result, Err(Stop::Cancelled)));
+    assert!(!dst.exists());
+}
+
+fn make_small_files(dir: &Path, count: usize) {
+    fs::create_dir_all(dir).unwrap();
+    for i in 0..count {
+        fs::write(dir.join(format!("f{i}")), format!("data{i}")).unwrap();
+    }
+}
+
+#[test]
+fn test_copy_tree_copies_many_small_files_in_parallel() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("src");
+    make_small_files(&src, 50);
+    // 並列にしない大きさのファイルも混ぜる.
+    fs::write(src.join("big"), vec![b'x'; SMALL_FILE_SIZE as usize]).unwrap();
+    let dst = dir.path().join("dst");
+
+    let mut total = 0;
+    let cancel = AtomicBool::new(false);
+    let skip = HashSet::new();
+    let mut on_progress = |p: TransferProgress| total = p.done;
+    let mut progress = Progress {
+        cancel: &cancel,
+        skip: &skip,
+        on_progress: &mut on_progress,
+        done: 0,
+        total: tree_size(&src, &mut HashMap::new()),
+        last_sent: None,
+        sizes: HashMap::new(),
+    };
+    let result = copy_tree(&src, &dst, false, &mut progress);
+
+    assert!(result.is_ok());
+    for i in 0..50 {
+        assert_eq!(
+            fs::read_to_string(dst.join(format!("f{i}"))).unwrap(),
+            format!("data{i}")
+        );
+    }
+    assert_eq!(
+        fs::metadata(dst.join("big")).unwrap().len(),
+        SMALL_FILE_SIZE
+    );
+    assert_eq!(total, tree_size(&src, &mut HashMap::new()));
+}
+
+#[test]
+fn test_copy_tree_parallel_skips_files_answered_no() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("src");
+    make_small_files(&src, 20);
+    let dst = dir.path().join("dst");
+
+    let cancel = AtomicBool::new(false);
+    let skip: HashSet<PathBuf> = [src.join("f3")].into_iter().collect();
+    let mut progress = Progress {
+        cancel: &cancel,
+        skip: &skip,
+        on_progress: &mut |_| {},
+        done: 0,
+        total: 0,
+        last_sent: None,
+        sizes: HashMap::new(),
+    };
+    let result = copy_tree(&src, &dst, true, &mut progress);
+
+    assert!(result.is_ok());
+    assert!(!dst.join("f3").exists());
+    assert!(dst.join("f4").exists());
+}
+
+#[test]
+fn test_copy_tree_parallel_overwrites_existing_files() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("src");
+    make_small_files(&src, 20);
+    let dst = dir.path().join("dst");
+    fs::create_dir(&dst).unwrap();
+    fs::write(dst.join("f1"), "old").unwrap();
+
+    let result = with_progress(|p| copy_tree(&src, &dst, true, p));
+
+    assert!(result.is_ok());
+    assert_eq!(fs::read_to_string(dst.join("f1")).unwrap(), "data1");
+}
+
+#[test]
+fn test_copy_tree_parallel_failure_returns_first_error() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("src");
+    make_small_files(&src, 40);
+    let dst = dir.path().join("dst");
+    // コピー先に, ファイルがある (上書きしない) ので, 失敗する. コピー先のディレクトリは既にあるので消さない.
+    fs::create_dir(&dst).unwrap();
+    fs::write(dst.join("f7"), "other").unwrap();
+
+    let result = with_progress(|p| copy_tree(&src, &dst, false, p));
+
+    assert!(matches!(result, Err(Stop::Failed(m)) if m.starts_with("Already exists")));
+    assert_eq!(fs::read_to_string(dst.join("f7")).unwrap(), "other");
+}
+
+#[test]
+fn test_copy_tree_parallel_cancelled() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("src");
+    make_small_files(&src, 30);
+    let dst = dir.path().join("dst");
+    fs::create_dir(&dst).unwrap();
+
+    let cancel = AtomicBool::new(true);
+    let skip = HashSet::new();
+    let mut progress = Progress {
+        cancel: &cancel,
+        skip: &skip,
+        on_progress: &mut |_| {},
+        done: 0,
+        total: 0,
+        last_sent: None,
+        sizes: HashMap::new(),
+    };
+    let result = copy_children(&src, &dst, false, &mut progress);
+
+    assert!(matches!(result, Err(Stop::Cancelled)));
 }
 
 #[cfg(unix)]
@@ -1372,24 +1529,17 @@ fn test_write_copy_read_error_names_operation_and_path() {
     let src = dir.path().join("src");
     fs::create_dir(&src).unwrap();
     let cancel = AtomicBool::new(false);
-    let skip = HashSet::new();
-    let mut progress = Progress {
-        cancel: &cancel,
-        skip: &skip,
-        on_progress: &mut |_| {},
-        done: 0,
-        total: 0,
-        last_sent: None,
-        sizes: HashMap::new(),
-    };
+    let dst = dir.path().join("dst");
 
-    let result = write_copy(&src, &dir.path().join("dst"), &mut progress);
+    let result = write_copy(&src, &dst, true, &cancel, &mut |_| {});
 
     let Err(Stop::Failed(message)) = result else {
         panic!("expected a failure");
     };
     assert!(message.starts_with("copy: "), "{message}");
     assert!(message.contains(&src.display().to_string()), "{message}");
+    // 新しく作った書きかけのコピー先は消える.
+    assert!(!dst.exists());
 }
 
 #[cfg(unix)]
