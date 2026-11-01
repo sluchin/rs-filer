@@ -5122,15 +5122,16 @@ describe("App (タブ)", () => {
     vi.clearAllMocks();
   });
 
-  it("正常系: タブが 1 つのときはタブの一覧を出さず、C-x t 2 で新しいタブが同じ場所で開くこと", async () => {
+  it("正常系: タブが 1 つのときも一覧を出し(閉じるボタンは出さない)、C-x t 2 で新しいタブが同じ場所で開くこと", async () => {
     mockHome();
     const user = await renderLoaded();
-    expect(tabLabels()).toEqual([]);
+    expect(tabLabels()).toEqual(["home"]);
+    expect(screen.queryByRole("button", { name: /^タブを閉じる/ })).toBeNull();
 
     await user.keyboard("{Control>}x{/Control}t2");
 
-    expect(tabLabels()).toEqual(["1: home", "2: home"]);
-    expect(screen.getByRole("tab", { name: "2: home" })).toHaveAttribute(
+    expect(tabLabels()).toEqual(["home", "home"]);
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -5143,11 +5144,11 @@ describe("App (タブ)", () => {
     await user.keyboard("{Control>}x{/Control}t2");
     await user.keyboard("{Enter}");
     expect(await paneOf("left").findByText("in.txt")).toBeInTheDocument();
-    expect(tabLabels()).toEqual(["1: home", "2: FolderA"]);
+    expect(tabLabels()).toEqual(["home", "FolderA"]);
 
     await user.keyboard("{Control>}x{/Control}to");
     expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "1: home" })).toHaveAttribute(
+    expect(screen.getAllByRole("tab")[0]).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -5167,8 +5168,8 @@ describe("App (タブ)", () => {
 
     await user.keyboard("{Control>}x{/Control}t2");
 
-    expect(tabLabels()).toEqual(["1: home", "2: home", "3: FolderA"]);
-    expect(screen.getByRole("tab", { name: "2: home" })).toHaveAttribute(
+    expect(tabLabels()).toEqual(["home", "home", "FolderA"]);
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -5194,12 +5195,12 @@ describe("App (タブ)", () => {
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
 
-    await user.click(screen.getByRole("tab", { name: "1: home" }));
+    await user.click(screen.getAllByRole("tab")[0]);
 
     expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
   });
 
-  it("正常系: C-x t 0 で今のタブを閉じて隣のタブへ替わり、1 つになるとタブの一覧は消えること", async () => {
+  it("正常系: C-x t 0 で今のタブを閉じて隣のタブへ替わること", async () => {
     mockHome();
     const user = await renderLoaded();
     await user.keyboard("{Control>}x{/Control}t2");
@@ -5209,7 +5210,78 @@ describe("App (タブ)", () => {
     await user.keyboard("{Control>}x{/Control}t0");
 
     expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
-    expect(tabLabels()).toEqual([]);
+    expect(tabLabels()).toEqual(["home"]);
+  });
+
+  it("正常系: タブのツールチップに、左右のペインのディレクトリが出ること", async () => {
+    mockHome();
+    await renderLoaded();
+
+    const title = screen.getAllByRole("tab")[0].getAttribute("title") ?? "";
+
+    expect(title).toMatch(/^左: .*home \/ 右: .*home$/);
+  });
+
+  it("正常系: + を押すと、一番右に新しいタブができて、そのタブに替わること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}t2");
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("{Control>}x{/Control}to");
+    await paneOf("left").findByText("b.txt");
+
+    await user.click(screen.getByRole("button", { name: "新しいタブ" }));
+
+    expect(tabLabels()).toEqual(["home", "FolderA", "home"]);
+    expect(screen.getAllByRole("tab")[2]).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("正常系: × を押すと、そのタブが閉じること (表示していないタブを閉じても、表示は変わらない)", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}t2");
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("{Control>}x{/Control}t2");
+    expect(tabLabels()).toEqual(["home", "FolderA", "FolderA"]);
+
+    // 表示していない 1 番目を閉じる. 表示は 3 番目のまま (番号が 2 番目になる)
+    await user.click(
+      screen.getByRole("button", { name: "タブを閉じる: home" }),
+    );
+    expect(tabLabels()).toEqual(["FolderA", "FolderA"]);
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    // 表示している 2 番目を閉じる. 1 番目へ替わる
+    await user.click(
+      screen.getAllByRole("button", { name: "タブを閉じる: FolderA" })[1],
+    );
+    expect(tabLabels()).toEqual(["FolderA"]);
+    expect(await paneOf("left").findByText("in.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: 表示しているタブより右にあるタブを閉じても、表示は変わらないこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}t2");
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("{Control>}x{/Control}to");
+    await paneOf("left").findByText("b.txt");
+
+    await user.click(
+      screen.getByRole("button", { name: "タブを閉じる: FolderA" }),
+    );
+
+    expect(tabLabels()).toEqual(["home"]);
+    expect(paneOf("left").getByText("b.txt")).toBeInTheDocument();
   });
 
   it("異常系: タブが 1 つのとき C-x t 0 は閉じず、知らせること", async () => {

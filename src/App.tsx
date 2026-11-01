@@ -440,9 +440,12 @@ export default function App(): ReactElement {
       data-theme={settings.config.theme}
       data-font-size={settings.config.font_size}
     >
-      {tabs.tabs.length > 1 && (
-        <TabBar tabs={tabs.tabs} onSelect={tabs.selectTab} />
-      )}
+      <TabBar
+        tabs={tabs.tabs}
+        onSelect={tabs.selectTab}
+        onClose={tabs.closeTab}
+        onNew={() => tabs.newTab(true)}
+      />
       <div className="app-body">
         <DualPaneContainer
           activePane={activePane}

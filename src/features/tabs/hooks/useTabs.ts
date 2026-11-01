@@ -18,8 +18,10 @@ export interface TabSnapshot {
  * タブの表示用の情報.
  */
 export interface TabInfo {
-  /** タブに出す名前 (`1: ディレクトリ名` の形). */
+  /** タブに出す名前 (左ペインのディレクトリ名). */
   label: string;
+  /** 左右のペインのディレクトリ (ツールチップ用. `左: パス / 右: パス`). */
+  title: string;
   /** そのタブが, 今表示しているタブかどうか. */
   active: boolean;
 }
@@ -120,10 +122,12 @@ export function useTabs({
     selectTab((active + delta + saved.length) % saved.length);
 
   /**
-   * 今のタブの右に, 新しいタブを作って替える. 新しいタブは, 今のタブと同じディレクトリを開く
+   * 新しいタブを作って替える. 新しいタブは, 今のタブと同じディレクトリを開く
    * (マーク, 絞り込み, 検索の結果は引き継がない).
+   *
+   * @param atEnd - true の場合は一番右に, そうでなければ今のタブの右に作る.
    */
-  const newTab = (): void => {
+  const newTab = (atEnd = false): void => {
     const current = live();
     const fresh = (pane: PaneState): PaneState => ({
       ...pane,
@@ -133,9 +137,10 @@ export function useTabs({
     });
     const next = { ...current, left: fresh(leftPane), right: fresh(rightPane) };
     const tabs = saved.map((tab, i) => (i === active ? current : tab));
-    tabs.splice(active + 1, 0, next);
+    const at = atEnd ? tabs.length : active + 1;
+    tabs.splice(at, 0, next);
     setSaved(tabs);
-    setActive(active + 1);
+    setActive(at);
     updatePane("left", fresh);
     updatePane("right", fresh);
     // 検索の結果の表示は引き継げないので、ディレクトリを読み直す
@@ -147,14 +152,22 @@ export function useTabs({
   };
 
   /**
-   * 今のタブを閉じて, 隣のタブへ替える. タブが 1 つしか無いときは閉じない.
+   * タブを閉じる. 今のタブを閉じたときは, 隣のタブへ替える. タブが 1 つしか無いときは閉じない.
+   *
+   * @param index - 閉じるタブの番号 (0 から). 省略した場合は, 今のタブ.
    */
-  const closeTab = (): void => {
+  const closeTab = (index = active): void => {
     if (saved.length === 1) {
       notify("最後のタブは閉じられません");
       return;
     }
-    const rest = saved.filter((_, i) => i !== active);
+    const rest = saved.filter((_, i) => i !== index);
+    if (index !== active) {
+      // 表示していないタブを閉じる. 表示は変えず, 番号だけ詰める.
+      setSaved(rest);
+      setActive(index < active ? active - 1 : active);
+      return;
+    }
     const target = Math.min(active, rest.length - 1);
     setSaved(rest);
     setActive(target);
@@ -163,9 +176,10 @@ export function useTabs({
 
   const tabs: TabInfo[] = saved.map((tab, i) => {
     const snapshot = i === active ? live() : tab;
-    const path = snapshot[snapshot.activePane].currentPath;
+    const path = snapshot.left.currentPath;
     return {
-      label: `${i + 1}: ${getBaseName(path) || path}`,
+      label: getBaseName(path) || path,
+      title: `左: ${path} / 右: ${snapshot.right.currentPath}`,
       active: i === active,
     };
   });
