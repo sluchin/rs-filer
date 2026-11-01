@@ -30,6 +30,7 @@ const pane = (files: FileEntry[], selectedIndex = 0): PaneState => ({
   showDetails: true,
   sort: { key: "name", desc: false },
   filter: null,
+  search: null,
   history: [],
   historyIndex: -1,
 });

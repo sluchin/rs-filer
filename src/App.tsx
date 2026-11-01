@@ -14,6 +14,7 @@ import { useNavigation } from "./features/explorer/hooks/useNavigation";
 import DriveSelector from "./features/explorer/components/DriveSelector";
 import type { FileEntry, PaneId } from "./features/explorer/types";
 import { sortLabel } from "./features/explorer/view";
+import { getBaseName, getParentPath } from "./utils/path";
 import CommandPalette from "./features/keybindings/components/CommandPalette";
 import HelpDialog from "./features/keybindings/components/HelpDialog";
 import { resolveCommandName } from "./features/keybindings/commandNames";
@@ -37,6 +38,8 @@ import { useSettings } from "./hooks/useSettings";
 import { useDialogs } from "./hooks/useDialogs";
 import { useStableCallback } from "./hooks/useStableCallback";
 import OperationDialog from "./features/operations/components/OperationDialog";
+import TabBar from "./features/tabs/components/TabBar";
+import { useTabs } from "./features/tabs/hooks/useTabs";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
 import { installLogForwarding } from "./services/logForwarder";
 import TreePane from "./features/tree/components/TreePane";
@@ -124,6 +127,8 @@ export default function App(): ReactElement {
     setError,
     updatePane,
     loadDirectory,
+    invalidateLoads,
+    searchPane,
     setView,
     moveCursor,
   } = useFileList(logError);
@@ -137,6 +142,16 @@ export default function App(): ReactElement {
     },
     [setError, logError],
   );
+  const tabs = useTabs({
+    leftPane,
+    rightPane,
+    activePane,
+    setActivePane,
+    updatePane,
+    loadDirectory,
+    invalidateLoads,
+    notify,
+  });
   const paneDeps = {
     activePane,
     leftPane,
@@ -161,19 +176,25 @@ export default function App(): ReactElement {
 
   /**
    * 指定したペインのカーソル位置の項目を開く. ディレクトリなら入り, ファイルなら外部アプリで開く.
+   * 再帰検索の結果の中のファイルは, 開かずに, そのファイルのあるディレクトリを開いて, ファイルにカーソルを合わせる.
    */
   const openEntry = useCallback(
     (pane: PaneId, file: FileEntry | undefined): void => {
       if (!file) {
         return;
       }
+      const searching =
+        (pane === "left" ? leftPane : rightPane).search !== null;
+      const parent = getParentPath(file.path);
       if (file.is_dir) {
         handleEnter(pane, file);
+      } else if (searching && parent !== null) {
+        loadDirectory(pane, parent, { selectName: getBaseName(file.path) });
       } else {
         openExternal();
       }
     },
-    [handleEnter, openExternal],
+    [leftPane, rightPane, handleEnter, loadDirectory, openExternal],
   );
 
   /**
@@ -199,13 +220,14 @@ export default function App(): ReactElement {
     leftPane,
     rightPane,
     switchPane,
-    fileList: { moveCursor, loadDirectory, setView },
+    fileList: { moveCursor, loadDirectory, searchPane, setView },
     navigation,
     operations,
     transfer,
     marks,
     settings,
     bookmarks,
+    tabs,
     panels: dialogs,
     pathInputs,
     filterInputs,
@@ -418,6 +440,9 @@ export default function App(): ReactElement {
       data-theme={settings.config.theme}
       data-font-size={settings.config.font_size}
     >
+      {tabs.tabs.length > 1 && (
+        <TabBar tabs={tabs.tabs} onSelect={tabs.selectTab} />
+      )}
       <div className="app-body">
         <DualPaneContainer
           activePane={activePane}

@@ -6,10 +6,12 @@ import {
   loadHistory,
   readDirectory,
   saveHistory,
+  searchContents,
+  searchDirectory,
   saveLastPaths,
 } from "../../../services/tauriApi";
 import { DEFAULT_HISTORY_LIMIT } from "../../settings/types";
-import type { FileEntry, PaneId, PaneState } from "../types";
+import type { FileEntry, PaneId, PaneState, SearchKind } from "../types";
 import {
   getParentPath,
   toNativePath,
@@ -33,9 +35,13 @@ const INITIAL_PANE: PaneState = {
   showDetails: true,
   sort: { key: "name", desc: false },
   filter: null,
+  search: null,
   history: [],
   historyIndex: -1,
 };
+
+/** 再帰検索で集める件数の上限. */
+export const SEARCH_LIMIT = 5000;
 
 /**
  * ディレクトリ読み込み時のオプション.
@@ -130,6 +136,15 @@ export function useFileList(onError: (message: string) => void) {
   });
 
   /**
+   * 読み込み中のもの (ディレクトリの読み込みと検索) があれば, その結果を捨てるようにします.
+   * タブを替えるとき, 前のタブの読み込みの結果が, 替えたあとのタブに混ざらないようにするために使います.
+   */
+  const invalidateLoads = useCallback((): void => {
+    latestLoadId.current.left += 1;
+    latestLoadId.current.right += 1;
+  }, []);
+
+  /**
    * 指定したペインの状態を更新します.
    *
    * @param pane - 更新対象のペイン識別子.
@@ -198,6 +213,7 @@ export function useFileList(onError: (message: string) => void) {
             allFiles: result,
             files,
             filter,
+            search: null,
             marks: moved ? [] : prev.marks.filter((m) => existing.has(m)),
             flags: moved ? [] : prev.flags.filter((m) => existing.has(m)),
             selectedIndex: cursorAfterLoad(
@@ -243,6 +259,56 @@ export function useFileList(onError: (message: string) => void) {
       await tryLoadDirectory(pane, targetPath, options);
     },
     [tryLoadDirectory],
+  );
+
+  /**
+   * ペインのディレクトリの下を再帰的に探して, 結果を一覧に出します (一覧は検索の結果に替わり, 各項目の名前は
+   * ディレクトリからの相対パスになります). 検索をやめるには, ディレクトリを読み込み直します.
+   *
+   * @param pane - 対象のペイン識別子.
+   * @param root - 探し始めるディレクトリの絶対パス.
+   * @param kind - 検索の種類 (名前で探すか, ファイルの中身で探すか).
+   * @param query - 名前の一部かワイルドカード (名前の検索), または正規表現 (中身の検索).
+   * @param showHidden - 隠しファイルも探すかどうか.
+   */
+  const searchPane = useCallback(
+    async (
+      pane: PaneId,
+      root: string,
+      kind: SearchKind,
+      query: string,
+      showHidden: boolean,
+    ): Promise<void> => {
+      const loadId = ++latestLoadId.current[pane];
+      try {
+        setError(null);
+        log.debug(`${pane}ペイン 再帰検索:`, root, query);
+        const search = kind === "name" ? searchDirectory : searchContents;
+        const result = await search(root, query, showHidden, SEARCH_LIMIT);
+        if (latestLoadId.current[pane] !== loadId) {
+          return;
+        }
+        updatePane(pane, (prev) => ({
+          ...prev,
+          allFiles: result.entries,
+          files: deriveFiles(result.entries, { ...prev, filter: null }),
+          filter: null,
+          marks: [],
+          flags: [],
+          selectedIndex: 0,
+          search: { kind, query, truncated: result.truncated },
+        }));
+        log.info(`${pane}ペイン 検索完了: ${result.entries.length} 件`);
+      } catch (e) {
+        if (latestLoadId.current[pane] !== loadId) {
+          return;
+        }
+        log.error(`${pane}ペイン 検索失敗:`, e);
+        setError(String(e));
+        onError(String(e));
+      }
+    },
+    [updatePane, onError],
   );
 
   /**
@@ -376,6 +442,8 @@ export function useFileList(onError: (message: string) => void) {
     setError,
     updatePane,
     loadDirectory,
+    invalidateLoads,
+    searchPane,
     setView,
     moveCursor,
   };

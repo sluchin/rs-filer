@@ -28,7 +28,7 @@ const ALL_NAMES = commandNames();
 /**
  * ミニバッファのコマンドパレット (`M-x` / `:`). コマンド名を入力して実行します.
  *
- * 候補の一覧は表示しません. `Tab` で, 前方一致する名前の共通する先頭部分まで補完し,
+ * `Tab` で, 前方一致する名前の共通する先頭部分まで補完し, 候補が複数あれば一覧を出します.
  * `Enter` で, 一致が 1 つならそれを, 入力そのものが名前として存在すればそれを実行します.
  * `↑` `↓` `M-p` `M-n` で, 過去に実行した名前を参照できます. コマンドの一覧は `help` (`?` キー) で見られます.
  *
@@ -43,6 +43,8 @@ export default function CommandPalette({
   onClose,
 }: CommandPaletteProps): ReactElement {
   const [message, setMessage] = useState<string | null>(null);
+  /** `Tab` を押したときに出す, 候補の一覧. 入力が変わると消える. */
+  const [candidates, setCandidates] = useState<string[]>([]);
 
   const matches = ALL_NAMES.filter((name) =>
     name.toLowerCase().startsWith(value.trim().toLowerCase()),
@@ -83,6 +85,7 @@ export default function CommandPalette({
         onChange={(e) => {
           onChange(e.target.value);
           setMessage(null);
+          setCandidates([]);
         }}
         onKeyDown={(e) => {
           if (e.key === "Tab") {
@@ -91,6 +94,8 @@ export default function CommandPalette({
             if (prefix.length > value.length) {
               onChange(prefix);
             }
+            // 候補が 2 つ以上のときは, 何があるか見えるように, 一覧を出す
+            setCandidates(matches.length > 1 ? matches : []);
           } else if (e.key === "Enter") {
             e.preventDefault();
             submit();
@@ -104,6 +109,13 @@ export default function CommandPalette({
         }}
         style={{ width: "100%", boxSizing: "border-box" }}
       />
+      {candidates.length > 0 && (
+        <ul className="palette-candidates" aria-label="候補">
+          {candidates.map((name) => (
+            <li key={name}>{name}</li>
+          ))}
+        </ul>
+      )}
       {message && <p className="palette-message">{message}</p>}
     </Minibuffer>
   );

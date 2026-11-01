@@ -48,6 +48,7 @@ const pane = (
   showDetails: true,
   sort: { key: "name", desc: false },
   filter: null,
+  search: null,
   history: [],
   historyIndex: -1,
 });

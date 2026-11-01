@@ -50,6 +50,13 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   cycleSort: "ソートの切り替え",
   toggleDetails: "詳細列の表示 / 非表示",
   filter: "ファイル名の絞り込み",
+  findNameDired:
+    "サブディレクトリも含めて、名前 (部分一致かワイルドカード) で検索",
+  findGrepDired: "サブディレクトリも含めて、ファイルの中身 (正規表現) で検索",
+  newTab: "新しいタブ",
+  closeTab: "タブを閉じる",
+  nextTab: "次のタブ",
+  previousTab: "前のタブ",
   cancel: "キャンセル",
   historyBack: "履歴を戻る",
   historyForward: "履歴を進む",
@@ -73,6 +80,8 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
 const ALIASES: Record<string, Command> = {
   refresh: "reload",
   find: "filter",
+  "find-name-dired": "findNameDired",
+  "find-grep-dired": "findGrepDired",
   up: "parent",
   copy_as: "duplicate",
   exit: "quit",

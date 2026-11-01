@@ -4882,3 +4882,383 @@ describe("App (移動履歴の保存と復元)", () => {
     ).toEqual(["/mock/home", "/mock/home/FolderA現在地"]);
   });
 });
+
+/** 検索の結果の 1 件. */
+const hit = (name: string, path: string, isDir = false) => ({
+  name,
+  path,
+  is_dir: isDir,
+  size: 0,
+  modified: null,
+  readonly: false,
+  hidden: false,
+});
+
+/** `search_directory` が返す結果を設定した, ホームのモック. */
+function mockSearch(truncated = false): void {
+  mockHome((cmd) =>
+    cmd === "search_directory"
+      ? Promise.resolve({
+          entries: [
+            hit("FolderA/in.txt", "/mock/home/FolderA/in.txt"),
+            hit("FolderA/deep", "/mock/home/FolderA/deep", true),
+          ],
+          truncated,
+        })
+      : undefined,
+  );
+}
+
+describe("App (再帰検索)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: M-x find-name-dired で名前を聞いて再帰検索し, 結果と件数が出て, Esc で元の一覧に戻ること", async () => {
+    mockSearch();
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}x{/Alt}find-name-dired{Enter}");
+    expect(
+      screen.getByRole("dialog", { name: /find-name-dired/ }),
+    ).toBeInTheDocument();
+    await user.keyboard("in{Enter}");
+
+    expect(mockedInvoke).toHaveBeenCalledWith("search_directory", {
+      path: "/mock/home",
+      query: "in",
+      showHidden: false,
+      maxResults: 5000,
+    });
+    expect(
+      await paneOf("left").findByText("FolderA/in.txt"),
+    ).toBeInTheDocument();
+    expect(
+      paneOf("left").getByText("名前の検索: in (2 件) — Esc で戻る"),
+    ).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(
+        paneOf("left").queryByText(/^(名前|内容)の検索:/),
+      ).not.toBeInTheDocument(),
+    );
+    expect(paneOf("left").getByText("b.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: ワイルドカードの検索の文字列は、そのまま Rust 側へ渡ること", async () => {
+    mockSearch();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}find-name-dired{Enter}*.txt{Enter}");
+    await paneOf("left").findByText("FolderA/in.txt");
+    expect(mockedInvoke).toHaveBeenCalledWith("search_directory", {
+      path: "/mock/home",
+      query: "*.txt",
+      showHidden: false,
+      maxResults: 5000,
+    });
+  });
+
+  it("正常系: M-x find-grep-dired でファイルの中身を探し、案内に「内容の検索」と出ること", async () => {
+    mockHome((cmd) =>
+      cmd === "search_contents"
+        ? Promise.resolve({
+            entries: [hit("FolderA/in.txt", "/mock/home/FolderA/in.txt")],
+            truncated: false,
+          })
+        : undefined,
+    );
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}x{/Alt}find-grep-dired{Enter}TODO{Enter}");
+
+    expect(mockedInvoke).toHaveBeenCalledWith("search_contents", {
+      path: "/mock/home",
+      pattern: "TODO",
+      showHidden: false,
+      maxResults: 5000,
+    });
+    expect(
+      await paneOf("left").findByText("内容の検索: TODO (1 件) — Esc で戻る"),
+    ).toBeInTheDocument();
+
+    // 隠しファイルの切り替えで、同じ種類 (内容) の検索を探し直す
+    await user.keyboard(".");
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("search_contents", {
+        path: "/mock/home",
+        pattern: "TODO",
+        showHidden: true,
+        maxResults: 5000,
+      }),
+    );
+  });
+
+  it("正常系: M-x で find- と入力して Tab を押すと、候補の一覧が出て、続きを入力すると消えること", async () => {
+    mockSearch();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}find-");
+    await user.keyboard("{Tab}");
+
+    expect(screen.getByLabelText("コマンド名")).toHaveValue("find-");
+    const candidates = within(screen.getByRole("list", { name: "候補" }));
+    expect(candidates.getByText("find-grep-dired")).toBeInTheDocument();
+    expect(candidates.getByText("find-name-dired")).toBeInTheDocument();
+
+    // 入力が変わると、候補の一覧は消える
+    await user.keyboard("n");
+    expect(
+      screen.queryByRole("list", { name: "候補" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("正常系: 候補が 1 つに決まる Tab では、候補の一覧を出さないこと", async () => {
+    mockSearch();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}find-n{Tab}");
+    expect(screen.getByLabelText("コマンド名")).toHaveValue("find-name-dired");
+    expect(
+      screen.queryByRole("list", { name: "候補" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("正常系: M-s は割り当てていないこと", async () => {
+    mockSearch();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}s{/Alt}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: 件数の上限で打ち切ったときは, 案内に出ること", async () => {
+    mockSearch(true);
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}find-name-dired{Enter}in{Enter}");
+    expect(
+      await paneOf("left").findByText(
+        "名前の検索: in (2 件, 上限で打ち切り) — Esc で戻る",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: 結果のディレクトリで Enter を押すと、そこへ入って検索の表示は終わること", async () => {
+    mockSearch();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}find-name-dired{Enter}in{Enter}");
+    await paneOf("left").findByText("FolderA/in.txt");
+
+    // 一覧は名前順で, ディレクトリ (FolderA/deep) が先頭
+    await user.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("read_directory", {
+        path: "/mock/home/FolderA/deep",
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        paneOf("left").queryByText(/^(名前|内容)の検索:/),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("正常系: 結果のファイルで Enter を押すと、開かずに、そのファイルのあるディレクトリを開いてカーソルを合わせること", async () => {
+    mockSearch();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}find-name-dired{Enter}in{Enter}");
+    await paneOf("left").findByText("FolderA/in.txt");
+
+    await user.keyboard("j{Enter}");
+
+    expect(await paneOf("left").findByText("in.txt")).toBeInTheDocument();
+    expect(cursorNames()).toEqual(["in.txt"]);
+    expect(
+      paneOf("left").queryByText(/^(名前|内容)の検索:/),
+    ).not.toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "open_item",
+      expect.anything(),
+    );
+  });
+
+  it("正常系: 検索の結果の表示中に . を押すと、隠しファイルを含めて探し直すこと", async () => {
+    mockSearch();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}find-name-dired{Enter}in{Enter}");
+    await paneOf("left").findByText("FolderA/in.txt");
+
+    await user.keyboard(".");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("search_directory", {
+        path: "/mock/home",
+        query: "in",
+        showHidden: true,
+        maxResults: 5000,
+      }),
+    );
+  });
+
+  it("異常系: 検索に失敗したらエラーが表示され、一覧はそのままであること", async () => {
+    mockHome((cmd) =>
+      cmd === "search_directory" ? Promise.reject("検索できません") : undefined,
+    );
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}x{/Alt}find-name-dired{Enter}in{Enter}");
+
+    expect(
+      await screen.findByText("エラー: 検索できません"),
+    ).toBeInTheDocument();
+    expect(paneOf("left").getByText("b.txt")).toBeInTheDocument();
+  });
+});
+
+/** タブの一覧に出ている名前を返す. */
+const tabLabels = (): string[] =>
+  screen.queryAllByRole("tab").map((tab) => tab.textContent ?? "");
+
+describe("App (タブ)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: タブが 1 つのときはタブの一覧を出さず、C-x t 2 で新しいタブが同じ場所で開くこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    expect(tabLabels()).toEqual([]);
+
+    await user.keyboard("{Control>}x{/Control}t2");
+
+    expect(tabLabels()).toEqual(["1: home", "2: home"]);
+    expect(screen.getByRole("tab", { name: "2: home" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
+  });
+
+  it("正常系: タブごとにディレクトリを持ち、C-x t o と C-x t O で替えると元の場所に戻ること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}t2");
+    await user.keyboard("{Enter}");
+    expect(await paneOf("left").findByText("in.txt")).toBeInTheDocument();
+    expect(tabLabels()).toEqual(["1: home", "2: FolderA"]);
+
+    await user.keyboard("{Control>}x{/Control}to");
+    expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "1: home" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await user.keyboard("{Control>}x{/Control}tO");
+    expect(await paneOf("left").findByText("in.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: 新しいタブは、今のタブの右隣に入ること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}t2");
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("{Control>}x{/Control}to");
+    await paneOf("left").findByText("b.txt");
+
+    await user.keyboard("{Control>}x{/Control}t2");
+
+    expect(tabLabels()).toEqual(["1: home", "2: home", "3: FolderA"]);
+    expect(screen.getByRole("tab", { name: "2: home" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("正常系: Ctrl+Tab と Ctrl+Shift+Tab で、タブを次と前に替え、端からは反対の端へ回ること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}t2");
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await user.keyboard("{Control>}{Tab}{/Control}");
+    expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
+    await user.keyboard("{Control>}{Shift>}{Tab}{/Shift}{/Control}");
+    expect(await paneOf("left").findByText("in.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: タブの名前を押すと、そのタブへ替わること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}t2");
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await user.click(screen.getByRole("tab", { name: "1: home" }));
+
+    expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: C-x t 0 で今のタブを閉じて隣のタブへ替わり、1 つになるとタブの一覧は消えること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}t2");
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await user.keyboard("{Control>}x{/Control}t0");
+
+    expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
+    expect(tabLabels()).toEqual([]);
+  });
+
+  it("異常系: タブが 1 つのとき C-x t 0 は閉じず、知らせること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("{Control>}x{/Control}t0");
+
+    expect(
+      await screen.findByText("最後のタブは閉じられません"),
+    ).toBeInTheDocument();
+    expect(paneOf("left").getByText("b.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: タブを 1 つしか持たないとき、次と前のタブへ替えても何も起きないこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}{Tab}{/Control}");
+    expect(paneOf("left").getByText("b.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: 検索の結果の表示中に新しいタブを作ると、新しいタブは元の一覧に戻り、元のタブは検索の結果のままであること", async () => {
+    mockSearch();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}find-name-dired{Enter}in{Enter}");
+    await paneOf("left").findByText("FolderA/in.txt");
+
+    await user.keyboard("{Control>}x{/Control}t2");
+
+    expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
+    expect(
+      paneOf("left").queryByText(/^(名前|内容)の検索:/),
+    ).not.toBeInTheDocument();
+    await user.keyboard("{Control>}x{/Control}to");
+    expect(
+      await paneOf("left").findByText("FolderA/in.txt"),
+    ).toBeInTheDocument();
+  });
+
+  it("正常系: 右ペインをアクティブにしたタブは、替えて戻ってもアクティブなペインが右のままであること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Tab}");
+    await user.keyboard("{Control>}x{/Control}t2");
+    await user.keyboard("{Control>}x{/Control}to");
+    await user.keyboard("{Control>}x{/Control}to");
+    expect(screen.getByRole("region", { name: "right pane" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+  });
+});

@@ -1,6 +1,10 @@
 import { Channel, convertFileSrc } from "@tauri-apps/api/core";
 import { commands } from "../bindings";
-import type { DiskSpace, FileEntry } from "../features/explorer/types";
+import type {
+  DiskSpace,
+  FileEntry,
+  SearchResult,
+} from "../features/explorer/types";
 import type { DirStats, ItemInfo } from "../features/info/types";
 import type {
   NestedConflict,
@@ -27,6 +31,44 @@ export type { FrontendLogEntry, LogLevel } from "../bindings";
  */
 export function readDirectory(path: string): Promise<FileEntry[]> {
   return commands.readDirectory(path);
+}
+
+/**
+ * ディレクトリの下を再帰的に探して, 名前に `query` を含む (大文字小文字を区別しない) エントリを返します.
+ * 各エントリの `name` は, `path` で指定したディレクトリからの相対パスです.
+ *
+ * @param path - 探し始めるディレクトリの絶対パス.
+ * @param query - 名前の一部.
+ * @param showHidden - 隠しファイルも探すかどうか.
+ * @param maxResults - 集める件数の上限.
+ * @returns 見つかったエントリと, 上限で打ち切ったかどうか.
+ */
+export function searchDirectory(
+  path: string,
+  query: string,
+  showHidden: boolean,
+  maxResults: number,
+): Promise<SearchResult> {
+  return commands.searchDirectory(path, query, showHidden, maxResults);
+}
+
+/**
+ * ディレクトリの下のファイルを再帰的に探して, 中身が正規表現に合うファイルを返します (10 MiB より大きいファイルと
+ * バイナリは飛ばします). 各エントリの `name` は, `path` で指定したディレクトリからの相対パスです.
+ *
+ * @param path - 探し始めるディレクトリの絶対パス.
+ * @param pattern - 正規表現 (大文字小文字を区別する).
+ * @param showHidden - 隠しファイルも探すかどうか.
+ * @param maxResults - 集める件数の上限.
+ * @returns 見つかったファイルと, 上限で打ち切ったかどうか.
+ */
+export function searchContents(
+  path: string,
+  pattern: string,
+  showHidden: boolean,
+  maxResults: number,
+): Promise<SearchResult> {
+  return commands.searchContents(path, pattern, showHidden, maxResults);
 }
 
 /**

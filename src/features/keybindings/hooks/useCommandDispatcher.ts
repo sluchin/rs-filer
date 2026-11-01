@@ -8,6 +8,7 @@ import type { useNavigation } from "../../explorer/hooks/useNavigation";
 import type { FileEntry, PaneId, PaneState } from "../../explorer/types";
 import { nextSort } from "../../explorer/view";
 import type { useFileOperations } from "../../operations/hooks/useFileOperations";
+import type { useTabs } from "../../tabs/hooks/useTabs";
 import {
   targetsOf,
   type useTransfer,
@@ -71,7 +72,7 @@ export interface CommandDispatcherDeps {
   /** 一覧の操作 (`useFileList`). */
   fileList: Pick<
     ReturnType<typeof useFileList>,
-    "moveCursor" | "loadDirectory" | "setView"
+    "moveCursor" | "loadDirectory" | "searchPane" | "setView"
   >;
   /** ディレクトリの移動 (`useNavigation`). */
   navigation: ReturnType<typeof useNavigation>;
@@ -85,6 +86,11 @@ export interface CommandDispatcherDeps {
   settings: ReturnType<typeof useSettings>;
   /** ブックマーク (`useBookmarks`). */
   bookmarks: Pick<ReturnType<typeof useBookmarks>, "toggleBookmark">;
+  /** タブの操作 (`useTabs`). */
+  tabs: Pick<
+    ReturnType<typeof useTabs>,
+    "newTab" | "closeTab" | "nextTab" | "previousTab"
+  >;
   /** ペインの表示の差し替えとダイアログ. */
   panels: PanelActions;
   /** ペインごとのパスの入力欄. */
@@ -113,13 +119,14 @@ export function useCommandDispatcher(
     leftPane,
     rightPane,
     switchPane,
-    fileList: { moveCursor, loadDirectory, setView },
+    fileList: { moveCursor, loadDirectory, searchPane, setView },
     navigation,
     operations,
     transfer,
     marks,
     settings,
     bookmarks,
+    tabs,
     panels,
     pathInputs,
     filterInputs,
@@ -301,6 +308,44 @@ export function useCommandDispatcher(
         break;
       case "toggleHidden":
         setView(activePane, { showHidden: !active.showHidden });
+        if (active.search !== null) {
+          // 検索の結果は, 隠しファイルを含むかが探すときに決まるので, 探し直す
+          searchPane(
+            activePane,
+            active.currentPath,
+            active.search.kind,
+            active.search.query,
+            !active.showHidden,
+          );
+        }
+        break;
+      case "findNameDired":
+        operations.openPrompt(
+          "find-name-dired (名前の一部か、ワイルドカード *.txt)",
+          (query) =>
+            searchPane(
+              activePane,
+              active.currentPath,
+              "name",
+              query,
+              active.showHidden,
+            ),
+          active.search?.kind === "name" ? active.search.query : undefined,
+        );
+        break;
+      case "findGrepDired":
+        operations.openPrompt(
+          "find-grep-dired (ファイルの中身の正規表現)",
+          (query) =>
+            searchPane(
+              activePane,
+              active.currentPath,
+              "content",
+              query,
+              active.showHidden,
+            ),
+          active.search?.kind === "content" ? active.search.query : undefined,
+        );
         break;
       case "cycleSort":
         setView(activePane, { sort: nextSort(active.sort) });
@@ -313,9 +358,12 @@ export function useCommandDispatcher(
         filterInputs.current[activePane]?.focus();
         break;
       case "cancel":
-        // 絞り込み中でなければ, キャンセルできるものが無いので何もしない.
+        // 絞り込み中は解除する. 再帰検索の結果の表示中は, 元のディレクトリの一覧に戻す.
+        // どちらでもなければ, キャンセルできるものが無いので何もしない.
         if (active.filter !== null) {
           setView(activePane, { filter: null });
+        } else if (active.search !== null) {
+          loadDirectory(activePane, active.currentPath);
         }
         break;
       case "historyBack":
@@ -375,6 +423,18 @@ export function useCommandDispatcher(
         break;
       case "toggleTree":
         panels.toggleTree(activePane);
+        break;
+      case "newTab":
+        tabs.newTab();
+        break;
+      case "closeTab":
+        tabs.closeTab();
+        break;
+      case "nextTab":
+        tabs.nextTab();
+        break;
+      case "previousTab":
+        tabs.previousTab();
         break;
       case "quit":
         quitApp().catch((e) => log.warn("終了に失敗:", e));

@@ -98,6 +98,15 @@ function Pane({
           label={`${paneId} filter`}
         />
       )}
+      {state.search !== null && (
+        <div className="search-banner" role="status">
+          {`${state.search.kind === "name" ? "名前の検索" : "内容の検索"}: ${
+            state.search.query
+          } (${state.files.length} 件${
+            state.search.truncated ? ", 上限で打ち切り" : ""
+          }) — Esc で戻る`}
+        </div>
+      )}
       <FileList
         files={state.files}
         selectedIndex={state.selectedIndex}
