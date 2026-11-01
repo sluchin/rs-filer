@@ -76,7 +76,11 @@ fn load_keymap_from(config_dir: Option<&Path>) -> Result<HashMap<String, Option<
 #[specta::specta]
 pub fn load_keymap() -> Result<HashMap<String, Option<String>>, String> {
     load_keymap_from(dirs::config_dir().as_deref()).inspect_err(|e| {
-        log::error!("キーマップ設定読み込み失敗: {}", e);
+        log::error!(
+            "キーマップ設定読み込み失敗: {} ({:?})",
+            e,
+            dirs::config_dir()
+        );
     })
 }
 
@@ -405,7 +409,11 @@ fn save_last_paths_to(config_dir: Option<&Path>, paths: &LastPaths) -> Result<()
 #[specta::specta]
 pub fn save_last_paths(paths: LastPaths) -> Result<(), String> {
     save_last_paths_to(dirs::config_dir().as_deref(), &paths).inspect_err(|e| {
-        log::error!("前回のディレクトリ書き込み失敗: {}", e);
+        log::error!(
+            "前回のディレクトリ書き込み失敗: {} ({:?})",
+            e,
+            dirs::config_dir()
+        );
     })
 }
 
@@ -420,7 +428,7 @@ pub fn save_last_paths(paths: LastPaths) -> Result<(), String> {
 #[specta::specta]
 pub fn load_config() -> Result<AppConfig, String> {
     load_config_from(dirs::config_dir().as_deref()).inspect_err(|e| {
-        log::error!("アプリ設定読み込み失敗: {}", e);
+        log::error!("アプリ設定読み込み失敗: {} ({:?})", e, dirs::config_dir());
     })
 }
 
@@ -439,7 +447,7 @@ pub fn load_config() -> Result<AppConfig, String> {
 #[specta::specta]
 pub fn save_config(config: AppConfig) -> Result<(), String> {
     save_config_to(dirs::config_dir().as_deref(), &config).inspect_err(|e| {
-        log::error!("アプリ設定書き込み失敗: {}", e);
+        log::error!("アプリ設定書き込み失敗: {} ({:?})", e, dirs::config_dir());
     })?;
     log::info!("アプリ設定書き込み完了");
     Ok(())

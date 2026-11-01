@@ -121,3 +121,22 @@ fn test_rename_item_rename_failure() {
         assert!(src.exists());
     }
 }
+
+#[test]
+fn test_verbatim_path_drive() {
+    assert_eq!(verbatim_path(r"C:\a\b"), r"\\?\C:\a\b");
+    assert_eq!(verbatim_path("C:/a/b"), r"\\?\C:\a\b");
+}
+
+#[test]
+fn test_verbatim_path_unc() {
+    assert_eq!(verbatim_path(r"\\srv\share\a"), r"\\?\UNC\srv\share\a");
+}
+
+#[test]
+fn test_verbatim_path_unchanged() {
+    assert_eq!(verbatim_path(r"\\?\C:\a"), r"\\?\C:\a");
+    assert_eq!(verbatim_path(r"\\.\COM1"), r"\\.\COM1");
+    assert_eq!(verbatim_path("rel/a"), r"rel\a");
+    assert_eq!(verbatim_path("C:"), "C:");
+}

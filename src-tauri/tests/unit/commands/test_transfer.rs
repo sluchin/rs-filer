@@ -558,7 +558,9 @@ fn test_transfer_delete_trash_uses_trasher() {
         &|_| Err("trash failed".to_string()),
         &mut |_| {},
     );
-    assert_eq!(failed.unwrap_err(), "trash failed");
+    let message = failed.unwrap_err();
+    assert!(message.starts_with("trash: "), "{message}");
+    assert!(message.ends_with("trash failed"), "{message}");
 }
 
 #[test]
@@ -1360,4 +1362,62 @@ fn test_copy_tree_cancel_keeps_existing_directory() {
     // 既にあったディレクトリと中身は残し, このコピーで作った `sub` は消す.
     assert_eq!(fs::read_to_string(dst.join("keep.txt")).unwrap(), "keep");
     assert!(!dst.join("sub").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn test_write_copy_read_error_names_operation_and_path() {
+    // ディレクトリは開けるが読めないので, コピーの途中の失敗になる.
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("src");
+    fs::create_dir(&src).unwrap();
+    let cancel = AtomicBool::new(false);
+    let skip = HashSet::new();
+    let mut progress = Progress {
+        cancel: &cancel,
+        skip: &skip,
+        on_progress: &mut |_| {},
+        done: 0,
+        total: 0,
+        last_sent: None,
+        sizes: HashMap::new(),
+    };
+
+    let result = write_copy(&src, &dir.path().join("dst"), &mut progress);
+
+    let Err(Stop::Failed(message)) = result else {
+        panic!("expected a failure");
+    };
+    assert!(message.starts_with("copy: "), "{message}");
+    assert!(message.contains(&src.display().to_string()), "{message}");
+}
+
+#[cfg(unix)]
+#[test]
+fn test_copy_tree_unreadable_directory_names_path() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("src");
+    fs::create_dir(&src).unwrap();
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o000)).unwrap();
+    let cancel = AtomicBool::new(false);
+    let skip = HashSet::new();
+    let mut progress = Progress {
+        cancel: &cancel,
+        skip: &skip,
+        on_progress: &mut |_| {},
+        done: 0,
+        total: 0,
+        last_sent: None,
+        sizes: HashMap::new(),
+    };
+
+    let result = copy_tree(&src, &dir.path().join("dst"), false, &mut progress);
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o755)).unwrap();
+
+    // root では権限が効かず読めるので, 失敗した場合だけ内容を確かめる.
+    if let Err(Stop::Failed(message)) = result {
+        assert!(message.starts_with("readdir: "), "{message}");
+        assert!(message.contains(&src.display().to_string()), "{message}");
+    }
 }

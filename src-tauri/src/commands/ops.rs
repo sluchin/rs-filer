@@ -242,6 +242,34 @@ fn atomic_rename(_src: &Path, _dest: &Path) -> std::io::Result<()> {
     Err(std::io::ErrorKind::Unsupported.into())
 }
 
+/// Windows の長いパスを扱えるように, `\\?\` 付きのパスに直します.
+///
+/// 既に `\\?\` で始まるもの, 相対パス, ドライブ文字の無いパスはそのまま返します.
+/// `/` は `\` に直します (`\\?\` 付きのパスでは `/` が区切りにならないため).
+///
+/// # Arguments
+///
+/// * `path` - 元のパス.
+///
+/// # Returns
+///
+/// `\\?\C:\...` や `\\?\UNC\server\share\...` の形のパス.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn verbatim_path(path: &str) -> String {
+    if path.starts_with(r"\\?\") || path.starts_with(r"\\.\") {
+        return path.to_string();
+    }
+    let path = path.replace('/', r"\");
+    if let Some(unc) = path.strip_prefix(r"\\") {
+        return format!(r"\\?\UNC\{unc}");
+    }
+    let bytes = path.as_bytes();
+    if bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && bytes[2] == b'\\' {
+        return format!(r"\\?\{path}");
+    }
+    path
+}
+
 /// 上書きをせずに名前を変更します (Windows の `MoveFileExW`. `MOVEFILE_REPLACE_EXISTING` を付けない).
 ///
 /// # Arguments
@@ -272,7 +300,15 @@ fn atomic_rename(src: &Path, dest: &Path) -> std::io::Result<()> {
         fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
     }
 
-    let wide = |p: &Path| -> Vec<u16> { p.as_os_str().encode_wide().chain([0]).collect() };
+    // MoveFileExW は MAX_PATH (260 文字) を超えるパスを, `\\?\` 付きでないと
+    // ERROR_PATH_NOT_FOUND (3) にする. 標準ライブラリ経由の操作は自動で付けるので, ここでも付ける.
+    let wide = |p: &Path| -> Vec<u16> {
+        let verbatim = verbatim_path(&p.to_string_lossy());
+        std::ffi::OsStr::new(&verbatim)
+            .encode_wide()
+            .chain([0])
+            .collect()
+    };
     let (src, dest) = (wide(src), wide(dest));
     // SAFETY: どちらも, NUL で終わる有効な UTF-16 の文字列を指す.
     if unsafe { MoveFileExW(src.as_ptr(), dest.as_ptr(), 0) } != 0 {

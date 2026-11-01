@@ -288,15 +288,37 @@ pub fn init_logging() {
     // RUST_LOG があれば, 既定のレベルを上書きする
     builder.parse_env(env_logger::Env::default());
     builder.format(|buf, record| write_record(buf, record, &Local, Utc::now()));
+    let mut log_file = None;
+    let mut open_error = None;
     if let Some(path) = default_log_path() {
-        if let Ok(file) = RotatingFile::open(&path, MAX_LOG_BYTES, MAX_BACKUPS) {
-            builder.target(env_logger::Target::Pipe(Box::new(Tee {
-                first: io::stderr() as Stderr,
-                second: file,
-            })));
+        match RotatingFile::open(&path, MAX_LOG_BYTES, MAX_BACKUPS) {
+            Ok(file) => {
+                builder.target(env_logger::Target::Pipe(Box::new(Tee {
+                    first: io::stderr() as Stderr,
+                    second: file,
+                })));
+                log_file = Some(path);
+            }
+            Err(e) => open_error = Some((path, e)),
         }
     }
     builder.init();
+    // 問題を調べるときに, どの版の, どの環境の, どのログかが分かるようにする.
+    log::info!(
+        "起動: rsfiler {} {}/{} ログ={:?} レベル={}",
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        log_file,
+        log::max_level()
+    );
+    if let Some((path, e)) = open_error {
+        log::warn!(
+            "ログファイルを開けない (標準エラーだけに出す): {:?} ({})",
+            path,
+            e
+        );
+    }
 }
 
 #[cfg(test)]

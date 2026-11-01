@@ -336,11 +336,12 @@ fn tally_entry(stats: &mut DirStats, pending: &mut Vec<PathBuf>, entry: io::Resu
 #[tauri::command]
 #[specta::specta]
 pub async fn get_item_info(path: String) -> Result<ItemInfo, String> {
+    let path_for_log = path.clone();
     let result = tauri::async_runtime::spawn_blocking(move || read_item_info(&path))
         .await
         .map_err(|e| e.to_string())?;
     if let Err(e) = &result {
-        log::warn!("詳細の取得失敗: {}", e);
+        log::warn!("詳細の取得失敗: {} ({})", path_for_log, e);
     }
     result
 }

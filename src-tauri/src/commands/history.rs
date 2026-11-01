@@ -122,7 +122,7 @@ fn load_history_with_limit(config_dir: Option<&Path>) -> Result<PaneHistory, Str
         .map(|config| config.history_limit)
         .unwrap_or(DEFAULT_HISTORY_LIMIT);
     load_history_from(config_dir, limit).inspect_err(|e| {
-        log::error!("移動履歴の読み込み失敗: {}", e);
+        log::error!("移動履歴の読み込み失敗: {} ({:?})", e, dirs::config_dir());
     })
 }
 
@@ -157,7 +157,7 @@ pub async fn load_history() -> Result<PaneHistory, String> {
 #[specta::specta]
 pub async fn save_history(history: PaneHistory) -> Result<(), String> {
     save_history_to(dirs::config_dir().as_deref(), &history).inspect_err(|e| {
-        log::error!("移動履歴の書き込み失敗: {}", e);
+        log::error!("移動履歴の書き込み失敗: {} ({:?})", e, dirs::config_dir());
     })
 }
 

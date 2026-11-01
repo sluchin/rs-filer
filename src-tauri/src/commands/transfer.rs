@@ -119,10 +119,18 @@ enum Stop {
     Failed(String),
 }
 
-impl From<std::io::Error> for Stop {
-    fn from(e: std::io::Error) -> Self {
-        Stop::Failed(e.to_string())
-    }
+/// 失敗の原因に, 操作とパスを添える変換を返します (どこで何に失敗したかを, ログとメッセージに残すため).
+///
+/// # Arguments
+///
+/// * `op` - 失敗した操作の名前 (例: `open`).
+/// * `path` - 操作の対象のパス.
+///
+/// # Returns
+///
+/// [`std::io::Error`] を `op: path: 原因` の [`Stop::Failed`] にする関数.
+fn at<'a>(op: &'a str, path: &'a Path) -> impl Fn(std::io::Error) -> Stop + 'a {
+    move |e| Stop::Failed(format!("{op}: {}: {e}", path.display()))
 }
 
 /// 処理の進み具合と, 中断・通知の窓口.
@@ -286,13 +294,13 @@ fn copy_file(src: &Path, dst: &Path, overwrite: bool, progress: &mut Progress) -
 /// 成功した場合は [`Ok`]. 上書きしない場合にコピー先が既にあるとき, 失敗したときは [`Stop::Failed`].
 fn place_temp(temp: &Path, dst: &Path, overwrite: bool) -> Result<(), Stop> {
     if overwrite {
-        return fs::rename(temp, dst).map_err(Stop::from);
+        return fs::rename(temp, dst).map_err(at("rename", dst));
     }
     rename_noreplace(temp, dst).map_err(|e| {
         if e.kind() == std::io::ErrorKind::AlreadyExists {
             Stop::Failed(format!("Already exists: {}", dst.display()))
         } else {
-            Stop::from(e)
+            at("rename", dst)(e)
         }
     })
 }
@@ -310,13 +318,14 @@ fn place_temp(temp: &Path, dst: &Path, overwrite: bool) -> Result<(), Stop> {
 /// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
 fn write_copy(src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop> {
     let name = file_name_of(src);
-    let mut reader = fs::File::open(src)?;
-    let meta = reader.metadata()?;
-    let mut writer = fs::File::create(dst)?;
+    let mut reader = fs::File::open(src).map_err(at("open", src))?;
+    let meta = reader.metadata().map_err(at("stat", src))?;
+    let mut writer = fs::File::create(dst).map_err(at("create", dst))?;
     loop {
         progress.check()?;
         // OS が対応していれば, カーネル内でコピーされる (Linux の copy_file_range など).
-        let n = std::io::copy(&mut (&mut reader).take(CHUNK_SIZE as u64), &mut writer)?;
+        let n = std::io::copy(&mut (&mut reader).take(CHUNK_SIZE as u64), &mut writer)
+            .map_err(at("copy", src))?;
         if n == 0 {
             // コピーした量が 0 バイトはファイル末尾.
             break;
@@ -439,7 +448,7 @@ fn copy_tree(src: &Path, dst: &Path, overwrite: bool, progress: &mut Progress) -
         progress.advance(size, &file_name_of(src));
         return Ok(());
     }
-    let meta = fs::symlink_metadata(src)?;
+    let meta = fs::symlink_metadata(src).map_err(at("stat", src))?;
     if meta.file_type().is_symlink() {
         // 既にあるファイル・リンクは, 上書きする場合だけ置き換える. ディレクトリは, リンクで置き換えない
         // (中身を失うため)
@@ -453,25 +462,27 @@ fn copy_tree(src: &Path, dst: &Path, overwrite: bool, progress: &mut Progress) -
                     dst.display()
                 )));
             }
-            remove_entry(dst)?;
+            remove_entry(dst).map_err(at("remove", dst))?;
         }
-        copy_symlink(src, dst)?;
+        copy_symlink(src, dst).map_err(at("symlink", dst))?;
         progress.advance(meta.len(), &file_name_of(src));
         Ok(())
     } else if meta.is_dir() {
         // 既にあるディレクトリには統合する. 無ければ作り, 途中で中断・失敗したら, 作った分を消す
         // (中は全て, このコピーで作ったものなので)
         let created = fs::symlink_metadata(dst).is_err();
-        fs::create_dir_all(dst)?;
-        let result = fs::read_dir(src)?.try_for_each(|entry| {
-            let entry = entry?;
-            copy_tree(
-                &entry.path(),
-                &dst.join(entry.file_name()),
-                overwrite,
-                progress,
-            )
-        });
+        fs::create_dir_all(dst).map_err(at("mkdir", dst))?;
+        let result = fs::read_dir(src)
+            .map_err(at("readdir", src))?
+            .try_for_each(|entry| {
+                let entry = entry.map_err(at("readdir", src))?;
+                copy_tree(
+                    &entry.path(),
+                    &dst.join(entry.file_name()),
+                    overwrite,
+                    progress,
+                )
+            });
         if result.is_err() && created {
             let _ = fs::remove_dir_all(dst);
         }
@@ -872,7 +883,7 @@ fn move_one(
             return Err(Stop::Failed(format!("Already exists: {}", dst.display())));
         }
         if meta.is_dir() {
-            let src_is_dir = fs::symlink_metadata(src)?.is_dir();
+            let src_is_dir = fs::symlink_metadata(src).map_err(at("stat", src))?.is_dir();
             if !src_is_dir {
                 return Err(Stop::Failed(format!(
                     "Destination directory already exists: {}",
@@ -881,7 +892,7 @@ fn move_one(
             }
             return merge_directory(src, dst, overwrite, renamer, progress);
         }
-        remove_entry(dst)?;
+        remove_entry(dst).map_err(at("remove", dst))?;
     }
     let size = progress.size_of(src);
     match renamer(src, dst) {
@@ -902,9 +913,9 @@ fn move_one(
         .map(|m| m.is_dir())
         .unwrap_or(false);
     if is_dir {
-        fs::remove_dir_all(src)?;
+        fs::remove_dir_all(src).map_err(at("remove", src))?;
     } else {
-        remove_entry(src)?;
+        remove_entry(src).map_err(at("remove", src))?;
     }
     Ok(())
 }
@@ -932,8 +943,8 @@ fn merge_directory(
     renamer: &dyn Fn(&Path, &Path) -> std::io::Result<()>,
     progress: &mut Progress,
 ) -> Result<(), Stop> {
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
+    for entry in fs::read_dir(src).map_err(at("readdir", src))? {
+        let entry = entry.map_err(at("readdir", src))?;
         progress.check()?;
         move_one(
             &entry.path(),
@@ -944,8 +955,12 @@ fn merge_directory(
         )?;
     }
     // 上書きしないと答えたファイルが残っている間は, 移動元のディレクトリを消さない.
-    if fs::read_dir(src)?.next().is_none() {
-        fs::remove_dir(src)?;
+    if fs::read_dir(src)
+        .map_err(at("readdir", src))?
+        .next()
+        .is_none()
+    {
+        fs::remove_dir(src).map_err(at("rmdir", src))?;
     }
     Ok(())
 }
@@ -975,7 +990,16 @@ pub fn transfer_with(
         log::error!("{}", message);
         return Err(message);
     }
-    log::info!("{:?} 開始: {} 件", request.kind, request.sources.len());
+    log::info!(
+        "{:?} 開始: {} 件 sources={:?} dest_dir={:?} overwrite={} permanent={}",
+        request.kind,
+        request.sources.len(),
+        request.sources,
+        request.dest_dir,
+        request.overwrite,
+        request.permanent
+    );
+    let started = std::time::Instant::now();
     let skip: HashSet<PathBuf> = request.skip.iter().map(PathBuf::from).collect();
     let mut processed = 0;
     // 削除は件数, コピー・移動はバイト数で進捗を数えるため, 種類ごとに全体量の求め方が異なる.
@@ -1029,7 +1053,12 @@ pub fn transfer_with(
     // 中断は呼び出し側の想定内の結果として Ok で返し, それ以外の失敗だけをエラーにする.
     match result {
         Ok(()) => {
-            log::info!("{:?} 完了: {} 件", request.kind, processed);
+            log::info!(
+                "{:?} 完了: {} 件 ({} ms)",
+                request.kind,
+                processed,
+                started.elapsed().as_millis()
+            );
             Ok(TransferSummary {
                 processed,
                 cancelled: false,
@@ -1043,7 +1072,14 @@ pub fn transfer_with(
             })
         }
         Err(Stop::Failed(message)) => {
-            log::error!("{:?} 失敗: {}", request.kind, message);
+            log::error!(
+                "{:?} 失敗: {} (処理済み {} 件, sources={:?}, dest_dir={:?})",
+                request.kind,
+                message,
+                processed,
+                request.sources,
+                request.dest_dir
+            );
             Err(message)
         }
     }
@@ -1068,12 +1104,12 @@ fn delete_one(
     let metadata = fs::symlink_metadata(path)
         .map_err(|_| Stop::Failed(format!("Path does not exist: {}", path.display())))?;
     if !permanent {
-        return trasher(path).map_err(Stop::Failed);
+        return trasher(path).map_err(|e| Stop::Failed(format!("trash: {}: {e}", path.display())));
     }
     if metadata.is_dir() {
-        fs::remove_dir_all(path)?;
+        fs::remove_dir_all(path).map_err(at("remove", path))?;
     } else {
-        remove_entry(path)?;
+        remove_entry(path).map_err(at("remove", path))?;
     }
     Ok(())
 }
