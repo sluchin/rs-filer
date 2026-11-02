@@ -66,6 +66,23 @@ export interface TransferDeps extends PaneDeps {
   openChoice: (title: string, message: string, choices: ChoiceOption[]) => void;
 }
 
+/** 操作のお知らせに載せる, 元の項目の最大の数 (残りは「ほか N 件」にする). */
+const SHOWN_SOURCES = 3;
+
+/**
+ * 操作の元と先を, お知らせ (操作ログ) に載せる文字列にします.
+ *
+ * @param request - 実行した操作.
+ * @returns `(元: a, b ほか 2 件 → 先: /dest)` の形. 先が無い操作 (削除) では, 元だけ.
+ */
+export function describeTransfer(request: TransferRequest): string {
+  const shown = request.sources.slice(0, SHOWN_SOURCES).join(", ");
+  const rest = request.sources.length - SHOWN_SOURCES;
+  const sources = rest > 0 ? `${shown} ほか ${rest} 件` : shown;
+  const dest = request.dest_dir ? ` → 先: ${request.dest_dir}` : "";
+  return `(元: ${sources}${dest})`;
+}
+
 /**
  * コピー・移動・削除を, 進捗の表示と中断に対応して実行するフック.
  *
@@ -131,13 +148,14 @@ export function useTransfer({
           setTask((t) => (t ? { ...t, ...progress } : t)),
         );
         const count = request.sources.length;
+        const where = describeTransfer(request);
         notify(
           summary.cancelled
-            ? `${label}を中断しました (${summary.processed}/${count} 件処理済み)`
-            : `${label}しました: ${summary.processed} 件`,
+            ? `${label}を中断しました (${summary.processed}/${count} 件処理済み) ${where}`
+            : `${label}しました: ${summary.processed} 件 ${where}`,
         );
       } catch (e) {
-        log.error(`${label} 失敗:`, e);
+        log.error(`${label} 失敗: ${describeTransfer(request)}`, e);
         failure = String(e);
       }
       setTask(null);

@@ -1,7 +1,10 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FileEntry, PaneState } from "@/features/explorer/types";
-import { useTransfer } from "@/features/operations/hooks/useTransfer";
+import {
+  describeTransfer,
+  useTransfer,
+} from "@/features/operations/hooks/useTransfer";
 import {
   checkConflicts,
   checkNestedConflicts,
@@ -359,5 +362,31 @@ describe("useTransfer", () => {
         updater(pane("/src", files, ["/src/a.txt", "/src/b.txt"])).marks,
       ).toEqual(["/src/b.txt"]);
     });
+  });
+});
+
+describe("describeTransfer", () => {
+  const request = (sources: string[], dest_dir: string | null) => ({
+    kind: "copy" as const,
+    sources,
+    dest_dir,
+    overwrite: false,
+    permanent: false,
+  });
+
+  it("正常系: 元と先が出ること", () => {
+    expect(describeTransfer(request(["/a", "/b"], "/dest"))).toBe(
+      "(元: /a, /b → 先: /dest)",
+    );
+  });
+
+  it("正常系: 元が 4 件以上のときは, 3 件までを出して, 残りは件数にすること", () => {
+    expect(
+      describeTransfer(request(["/a", "/b", "/c", "/d", "/e"], "/x")),
+    ).toBe("(元: /a, /b, /c ほか 2 件 → 先: /x)");
+  });
+
+  it("境界: 先が無い操作 (削除) では, 元だけが出ること", () => {
+    expect(describeTransfer(request(["/a"], null))).toBe("(元: /a)");
   });
 });

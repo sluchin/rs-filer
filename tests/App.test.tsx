@@ -2541,7 +2541,11 @@ describe("App (コピー・移動・削除の実行)", () => {
         onProgress: expect.anything(),
       }),
     );
-    expect(await screen.findByText("移動しました: 1 件")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "移動しました: 1 件 (元: /mock/home/b.txt → 先: /mock/home/FolderA)",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("正常系: c の完了で通知が表示され, 両ペインが再読み込みされること", async () => {
@@ -2551,7 +2555,11 @@ describe("App (コピー・移動・削除の実行)", () => {
 
     await user.keyboard("c");
 
-    expect(await screen.findByText("コピーしました: 1 件")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "コピーしました: 1 件 (元: /mock/home/FolderA → 先: /mock/home/FolderA)",
+      ),
+    ).toBeInTheDocument();
     expect(mockedInvoke).toHaveBeenCalledWith("read_directory", {
       path: "/mock/home",
     });
@@ -3084,7 +3092,11 @@ describe("App (コピー・移動・削除の実行)", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
-    expect(screen.getByText("コピーしました: 1 件")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "コピーしました: 1 件 (元: /mock/home/b.txt → 先: /mock/home/FolderA)",
+      ),
+    ).toBeInTheDocument();
 
     act(() => transfer.emit({ done: 9, total: 10, current: "late" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -3129,7 +3141,9 @@ describe("App (コピー・移動・削除の実行)", () => {
         transfer.resolve({ processed: 0, cancelled: true }),
       );
       expect(
-        await screen.findByText("移動を中断しました (0/1 件処理済み)"),
+        await screen.findByText(
+          "移動を中断しました (0/1 件処理済み) (元: /mock/home/b.txt → 先: /mock/home/FolderA)",
+        ),
       ).toBeInTheDocument();
     },
   );
@@ -3197,7 +3211,9 @@ describe("App (コピー・移動・削除の実行)", () => {
     await user.click(screen.getByRole("button", { name: "中断 (C-g)" }));
     await act(async () => transfer.resolve({ processed: 1, cancelled: false }));
 
-    expect(await screen.findByText("削除しました: 1 件")).toBeInTheDocument();
+    expect(
+      await screen.findByText("削除しました: 1 件 (元: /mock/home/b.txt)"),
+    ).toBeInTheDocument();
   });
 
   it("異常系: 実行中に失敗すると, 進捗ダイアログが閉じてエラーが表示されること", async () => {
@@ -3256,7 +3272,9 @@ describe("App (操作ログ)", () => {
     );
     const user = await renderTwoDirs();
     await user.keyboard("c");
-    await screen.findByText("コピーしました: 1 件");
+    await screen.findByText(
+      "コピーしました: 1 件 (元: /mock/home/FolderA → 先: /mock/home/FolderA)",
+    );
     await user.keyboard("Nx{Enter}");
     await screen.findByText("エラー: 作成できません");
 
@@ -3265,7 +3283,9 @@ describe("App (操作ログ)", () => {
     expect(items).toHaveLength(2);
     expect(items[0]).toHaveTextContent("作成できません");
     expect(items[0]).toHaveAttribute("data-level", "error");
-    expect(items[1]).toHaveTextContent("コピーしました: 1 件");
+    expect(items[1]).toHaveTextContent(
+      "コピーしました: 1 件 (元: /mock/home/FolderA → 先: /mock/home/FolderA)",
+    );
     expect(items[1]).toHaveAttribute("data-level", "info");
     expect(items[1].textContent).toMatch(/^\d{2}:\d{2}:\d{2} /);
 
