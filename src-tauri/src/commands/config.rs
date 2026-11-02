@@ -152,13 +152,29 @@ pub struct WindowState {
     pub maximized: bool,
 }
 
-/// 前回終了時の, 左右のペインのディレクトリ (起動時に復元する).
+/// 1 つのタブの, 左右のペインのディレクトリ.
 #[derive(Serialize, Deserialize, Type, Clone, PartialEq, Debug, Default)]
-pub struct LastPaths {
+pub struct TabPaths {
     /// 左ペインのディレクトリ.
     pub left: String,
     /// 右ペインのディレクトリ.
     pub right: String,
+}
+
+/// 前回終了時の, 左右のペインのディレクトリと, タブ (起動時に復元する).
+#[derive(Serialize, Deserialize, Type, Clone, PartialEq, Debug, Default)]
+pub struct LastPaths {
+    /// 今のタブの左ペインのディレクトリ.
+    pub left: String,
+    /// 今のタブの右ペインのディレクトリ.
+    pub right: String,
+    /// 全てのタブの, 左右のペインのディレクトリ (左から順). タブを保存しない書き込みでは `None`
+    /// (保存されている値を残す).
+    #[serde(default)]
+    pub tabs: Option<Vec<TabPaths>>,
+    /// 今のタブの番号 (0 から). `tabs` と一緒に保存する.
+    #[serde(default)]
+    pub active_tab: Option<u32>,
 }
 
 /// アプリケーションの設定.
@@ -390,7 +406,15 @@ fn save_last_paths_to(config_dir: Option<&Path>, paths: &LastPaths) -> Result<()
     let dir = config_dir.ok_or_else(|| "Config directory is not available".to_string())?;
     let path = config_path(dir);
     let mut config = read_config(&path)?;
-    config.last_paths = Some(paths.clone());
+    let mut paths = paths.clone();
+    if paths.tabs.is_none() {
+        // ディレクトリだけの書き込み (タブの一覧を知らない側) は, 保存されているタブを残す.
+        if let Some(old) = &config.last_paths {
+            paths.tabs = old.tabs.clone();
+            paths.active_tab = old.active_tab;
+        }
+    }
+    config.last_paths = Some(paths);
     write_config(&path, &config)
 }
 

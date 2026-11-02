@@ -42,7 +42,12 @@ describe("useFileList 競合状態（Race Condition）の防止", () => {
     vi.clearAllMocks();
     vi.mocked(loadConfig).mockResolvedValue({
       ...DEFAULT_CONFIG,
-      last_paths: { left: "/initial", right: "/initial" },
+      last_paths: {
+        left: "/initial",
+        right: "/initial",
+        tabs: null,
+        active_tab: null,
+      },
     });
     vi.mocked(loadHistory).mockResolvedValue({ left: [], right: [] });
     vi.mocked(getHomeDir).mockResolvedValue("/home");
@@ -169,7 +174,12 @@ describe("useFileList 再帰検索", () => {
     vi.clearAllMocks();
     vi.mocked(loadConfig).mockResolvedValue({
       ...DEFAULT_CONFIG,
-      last_paths: { left: "/initial", right: "/initial" },
+      last_paths: {
+        left: "/initial",
+        right: "/initial",
+        tabs: null,
+        active_tab: null,
+      },
     });
     vi.mocked(loadHistory).mockResolvedValue({ left: [], right: [] });
     vi.mocked(getHomeDir).mockResolvedValue("/home");

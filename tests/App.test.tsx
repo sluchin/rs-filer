@@ -5213,6 +5213,234 @@ describe("App (タブ)", () => {
     expect(tabLabels()).toEqual(["home"]);
   });
 
+  it("正常系: ディレクトリとタブの一覧が保存されること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("{Control>}x{/Control}t2");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("save_last_paths", {
+        paths: {
+          left: "/mock/home",
+          right: "/mock/home",
+          tabs: [
+            { left: "/mock/home", right: "/mock/home" },
+            { left: "/mock/home", right: "/mock/home" },
+          ],
+          active_tab: 1,
+        },
+      }),
+    );
+  });
+
+  it("異常系: タブの保存に失敗しても、操作を続けられること", async () => {
+    mockHome((cmd) =>
+      cmd === "save_last_paths" ? Promise.reject("保存失敗") : undefined,
+    );
+    const user = await renderLoaded();
+
+    await user.keyboard("{Control>}x{/Control}t2");
+
+    expect(tabLabels()).toEqual(["home", "home"]);
+  });
+
+  const restoredTabs = () =>
+    mockHome((cmd) =>
+      cmd === "load_config"
+        ? Promise.resolve({
+            theme: "classic",
+            font_size: "medium",
+            editor: null,
+            terminal: null,
+            last_paths: {
+              left: "/mock/home/FolderA",
+              right: "/mock/home",
+              tabs: [
+                { left: "/mock/home", right: "/mock/home" },
+                { left: "/mock/home/FolderA", right: "/mock/home" },
+              ],
+              active_tab: 1,
+            },
+          })
+        : undefined,
+    );
+
+  it("正常系: 前回のタブを復元し、表示していないタブは表示するときにディレクトリを読み込むこと", async () => {
+    restoredTabs();
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await paneOf("left").findByText("in.txt")).toBeInTheDocument();
+    expect(tabLabels()).toEqual(["home", "FolderA"]);
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await user.click(screen.getAllByRole("tab")[0]);
+
+    expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
+    expect(await paneOf("right").findByText("b.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: 復元しただけのタブへ、今のタブを閉じて替わるときも、ディレクトリを読み込むこと", async () => {
+    restoredTabs();
+    const user = userEvent.setup();
+    render(<App />);
+    await paneOf("left").findByText("in.txt");
+
+    await user.click(
+      screen.getByRole("button", { name: "タブを閉じる: FolderA" }),
+    );
+
+    expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
+    expect(tabLabels()).toEqual(["home"]);
+  });
+
+  /** 3 つのタブ (home, FolderA, FolderA) を作る. 今のタブは 3 番目. */
+  const threeTabs = async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}t2");
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("{Control>}x{/Control}t2");
+    expect(tabLabels()).toEqual(["home", "FolderA", "FolderA"]);
+    return user;
+  };
+
+  /** 指定した番号のタブの右クリックのメニューから, 項目を選ぶ. */
+  const chooseFromTabMenu = async (
+    user: ReturnType<typeof userEvent.setup>,
+    index: number,
+    name: string,
+  ) => {
+    fireEvent.contextMenu(screen.getAllByRole("tab")[index]);
+    await user.click(screen.getByRole("menuitem", { name }));
+  };
+
+  it("正常系: 右クリックの「右のタブを全て閉じる」で、そのタブより右が閉じ、今のタブが閉じたときはそのタブへ替わること", async () => {
+    const user = await threeTabs();
+
+    await chooseFromTabMenu(user, 0, "右のタブを全て閉じる");
+
+    expect(tabLabels()).toEqual(["home"]);
+    expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: 「右のタブを全て閉じる」は、今のタブが残るなら表示を変えず、右にタブが無ければ何も起きないこと", async () => {
+    const user = await threeTabs();
+
+    await chooseFromTabMenu(user, 2, "右のタブを全て閉じる");
+    expect(tabLabels()).toEqual(["home", "FolderA", "FolderA"]);
+
+    await user.keyboard("{Control>}x{/Control}tO");
+    await paneOf("left").findByText("in.txt");
+    await chooseFromTabMenu(user, 1, "右のタブを全て閉じる");
+    expect(tabLabels()).toEqual(["home", "FolderA"]);
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("正常系: 右クリックの「他のタブを全て閉じる」で、そのタブだけが残って表示されること", async () => {
+    const user = await threeTabs();
+
+    await chooseFromTabMenu(user, 0, "他のタブを全て閉じる");
+
+    expect(tabLabels()).toEqual(["home"]);
+    expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: 今のタブを右クリックして「他のタブを全て閉じる」と、今のタブが残ること", async () => {
+    const user = await threeTabs();
+
+    await chooseFromTabMenu(user, 2, "他のタブを全て閉じる");
+
+    expect(tabLabels()).toEqual(["FolderA"]);
+    expect(paneOf("left").getByText("in.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: 右クリックの「このタブを閉じる」で、そのタブが閉じること", async () => {
+    const user = await threeTabs();
+
+    await chooseFromTabMenu(user, 0, "このタブを閉じる");
+
+    expect(tabLabels()).toEqual(["FolderA", "FolderA"]);
+  });
+
+  it("正常系: タブの上でホイールを回すと、タブの一覧が横へ動くこと", async () => {
+    mockHome();
+    await renderLoaded();
+    const list = screen.getByRole("tablist");
+
+    fireEvent.wheel(list, { deltaY: 40 });
+
+    expect(list.scrollLeft).toBe(40);
+  });
+
+  it("正常系: 画面を閉じたあとに前回のタブの読み込みが終わっても、何も起きないこと", async () => {
+    mockHome();
+    const { unmount } = render(<App />);
+
+    unmount();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+
+  it("正常系: 前回のタブが 1 つだけなら復元せず、今のタブの番号が無ければ最初のタブを開くこと", async () => {
+    mockHome((cmd) =>
+      cmd === "load_config"
+        ? Promise.resolve({
+            theme: "classic",
+            font_size: "medium",
+            editor: null,
+            terminal: null,
+            last_paths: {
+              left: "/mock/home",
+              right: "/mock/home",
+              tabs: [{ left: "/mock/home", right: "/mock/home" }],
+              active_tab: null,
+            },
+          })
+        : undefined,
+    );
+    render(<App />);
+    await screen.findAllByText("FolderA");
+    expect(tabLabels()).toEqual(["home"]);
+  });
+
+  it("正常系: 前回のタブに今のタブの番号が無ければ、最初のタブが今のタブになること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_config"
+        ? Promise.resolve({
+            theme: "classic",
+            font_size: "medium",
+            editor: null,
+            terminal: null,
+            last_paths: {
+              left: "/mock/home",
+              right: "/mock/home",
+              tabs: [
+                { left: "/mock/home", right: "/mock/home" },
+                { left: "/mock/home/FolderA", right: "/mock/home" },
+              ],
+              active_tab: null,
+            },
+          })
+        : undefined,
+    );
+    render(<App />);
+    await screen.findAllByText("FolderA");
+    expect(tabLabels()).toEqual(["home", "FolderA"]);
+    expect(screen.getAllByRole("tab")[0]).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
   it("正常系: タブのツールチップに、左右のペインのディレクトリが出ること", async () => {
     mockHome();
     await renderLoaded();

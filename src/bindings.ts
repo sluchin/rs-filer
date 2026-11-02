@@ -218,7 +218,7 @@ export const commands = {
 	 * 
 	 *  成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
 	 */
-	saveLastPaths: (paths: LastPaths) => __TAURI_INVOKE<null>("save_last_paths", { paths }),
+	saveLastPaths: (paths: LastPaths_Deserialize) => __TAURI_INVOKE<null>("save_last_paths", { paths }),
 	/**
 	 *  入力途中のパスを補完する候補を返します (IPC コマンド).
 	 * 
@@ -492,7 +492,7 @@ export type AppConfig_Deserialize = {
 	 *  前回終了時の, 左右のペインのディレクトリ. 保存されていない場合は `None`.
 	 *  `save_last_paths` が書き込む. `save_config` では上書きしない.
 	 */
-	last_paths?: LastPaths | null,
+	last_paths?: LastPaths_Deserialize | null,
 	/**
 	 *  ディレクトリの移動履歴の, ペインごとの件数の上限 (既定は 1000). 超えたら, 古い方から捨てる.
 	 *  利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
@@ -526,7 +526,7 @@ export type AppConfig_Serialize = {
 	 *  前回終了時の, 左右のペインのディレクトリ. 保存されていない場合は `None`.
 	 *  `save_last_paths` が書き込む. `save_config` では上書きしない.
 	 */
-	last_paths?: LastPaths,
+	last_paths?: LastPaths_Serialize,
 	/**
 	 *  ディレクトリの移動履歴の, ペインごとの件数の上限 (既定は 1000). 超えたら, 古い方から捨てる.
 	 *  利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
@@ -726,12 +726,37 @@ export type ItemKind =
 /**  そのほか (デバイス・ソケットなど). */
 "other";
 
-/**  前回終了時の, 左右のペインのディレクトリ (起動時に復元する). */
-export type LastPaths = {
-	/**  左ペインのディレクトリ. */
+/**  前回終了時の, 左右のペインのディレクトリと, タブ (起動時に復元する). */
+export type LastPaths = LastPaths_Serialize | LastPaths_Deserialize;
+
+/**  前回終了時の, 左右のペインのディレクトリと, タブ (起動時に復元する). */
+export type LastPaths_Deserialize = {
+	/**  今のタブの左ペインのディレクトリ. */
 	left: string,
-	/**  右ペインのディレクトリ. */
+	/**  今のタブの右ペインのディレクトリ. */
 	right: string,
+	/**
+	 *  全てのタブの, 左右のペインのディレクトリ (左から順). タブを保存しない書き込みでは `None`
+	 *  (保存されている値を残す).
+	 */
+	tabs?: TabPaths[] | null,
+	/**  今のタブの番号 (0 から). `tabs` と一緒に保存する. */
+	active_tab?: number | null,
+};
+
+/**  前回終了時の, 左右のペインのディレクトリと, タブ (起動時に復元する). */
+export type LastPaths_Serialize = {
+	/**  今のタブの左ペインのディレクトリ. */
+	left: string,
+	/**  今のタブの右ペインのディレクトリ. */
+	right: string,
+	/**
+	 *  全てのタブの, 左右のペインのディレクトリ (左から順). タブを保存しない書き込みでは `None`
+	 *  (保存されている値を残す).
+	 */
+	tabs: TabPaths[] | null,
+	/**  今のタブの番号 (0 から). `tabs` と一緒に保存する. */
+	active_tab: number | null,
 };
 
 /**  フロントエンドから送られる, ログの重大度. */
@@ -850,6 +875,14 @@ export type SearchResult_Serialize = {
 	entries: FileEntry_Serialize[],
 	/**  件数の上限に達して, 探すのを打ち切った場合は `true`. */
 	truncated: boolean,
+};
+
+/**  1 つのタブの, 左右のペインのディレクトリ. */
+export type TabPaths = {
+	/**  左ペインのディレクトリ. */
+	left: string,
+	/**  右ペインのディレクトリ. */
+	right: string,
 };
 
 /**  テーマ (配色). */

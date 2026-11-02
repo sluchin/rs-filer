@@ -272,6 +272,7 @@ fn test_save_last_paths_to_keeps_other_settings_and_survives_save_config() {
     let paths = LastPaths {
         left: "/a".to_string(),
         right: "/b".to_string(),
+        ..LastPaths::default()
     };
 
     save_last_paths_to(Some(dir.path()), &paths).unwrap();
@@ -280,6 +281,63 @@ fn test_save_last_paths_to_keeps_other_settings_and_survives_save_config() {
     let loaded = load_config_from(Some(dir.path())).unwrap();
     assert_eq!(loaded.last_paths, Some(paths));
     assert_eq!(loaded.editor.as_deref(), Some("vim"));
+}
+
+#[test]
+fn test_save_last_paths_to_keeps_saved_tabs_when_none_given() {
+    let dir = tempdir().unwrap();
+    let tab = |left: &str, right: &str| TabPaths {
+        left: left.to_string(),
+        right: right.to_string(),
+    };
+    let with_tabs = LastPaths {
+        left: "/a".to_string(),
+        right: "/b".to_string(),
+        tabs: Some(vec![tab("/a", "/b"), tab("/c", "/d")]),
+        active_tab: Some(1),
+    };
+    save_last_paths_to(Some(dir.path()), &with_tabs).unwrap();
+
+    // ディレクトリだけの書き込みでは, タブを残す.
+    let only_dirs = LastPaths {
+        left: "/x".to_string(),
+        right: "/y".to_string(),
+        ..LastPaths::default()
+    };
+    save_last_paths_to(Some(dir.path()), &only_dirs).unwrap();
+    let loaded = load_config_from(Some(dir.path()))
+        .unwrap()
+        .last_paths
+        .unwrap();
+    assert_eq!(loaded.left, "/x");
+    assert_eq!(loaded.tabs, with_tabs.tabs);
+    assert_eq!(loaded.active_tab, Some(1));
+
+    // タブを渡せば置き換える.
+    let one = LastPaths {
+        tabs: Some(vec![tab("/x", "/y")]),
+        active_tab: Some(0),
+        ..only_dirs
+    };
+    save_last_paths_to(Some(dir.path()), &one).unwrap();
+    let loaded = load_config_from(Some(dir.path()))
+        .unwrap()
+        .last_paths
+        .unwrap();
+    assert_eq!(loaded.tabs, one.tabs);
+}
+
+#[test]
+fn test_save_last_paths_to_without_saved_tabs() {
+    let dir = tempdir().unwrap();
+    // 設定ファイルはあるが, 前回のディレクトリが無い.
+    save_config_to(Some(dir.path()), &AppConfig::default()).unwrap();
+    save_last_paths_to(Some(dir.path()), &LastPaths::default()).unwrap();
+    let loaded = load_config_from(Some(dir.path()))
+        .unwrap()
+        .last_paths
+        .unwrap();
+    assert_eq!(loaded.tabs, None);
 }
 
 #[test]

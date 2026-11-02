@@ -578,13 +578,29 @@ body,
   display: flex;
   align-items: flex-end;
   gap: 2px;
+}
+
+/* タブが増えたら, 名前を縮めて並べる. それでも入らなければ, タブの部分だけを横へ動かす (+ は動かない). */
+.tab-list {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
   overflow-x: auto;
+  /* スクロールバーは出さない (操作の邪魔になるため). 動かすには, ホイールか, 今のタブへ替える. */
+  scrollbar-width: none;
+}
+
+.tab-list::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-item {
   display: flex;
   align-items: center;
-  max-width: 200px;
+  flex: 0 1 200px;
+  min-width: 64px;
   border: 1px solid var(--border);
   border-bottom: none;
   border-radius: 6px 6px 0 0;
@@ -612,13 +628,23 @@ body,
 }
 
 .tab {
-  padding: 2px 4px 2px 10px;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 2px 4px 2px 8px;
+  overflow: hidden;
+}
+
+.tab-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .tab-close {
+  flex: none;
   padding: 0 6px;
   border-radius: 4px;
   line-height: 1.4;
@@ -630,6 +656,7 @@ body,
 }
 
 .tab-new {
+  flex: none;
   padding: 0 8px;
   font-size: 1.2em;
   line-height: 1.3;

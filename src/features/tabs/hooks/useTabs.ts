@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import loglevel from "loglevel";
 import type { PaneId, PaneState } from "../../explorer/types";
 import { getBaseName } from "../../../utils/path";
+import { loadConfig, saveLastPaths } from "../../../services/tauriApi";
+
+const log = loglevel.getLogger("tabs");
 
 /**
  * 表示していないタブが保存している状態 (左右のペインと, アクティブなペイン).
@@ -12,6 +16,8 @@ export interface TabSnapshot {
   right: PaneState;
   /** アクティブなペイン. */
   activePane: PaneId;
+  /** 前回の終了時から復元しただけで, まだディレクトリを読み込んでいないタブ. 初めて表示するときに読み込む. */
+  lazy?: boolean;
 }
 
 /**
@@ -73,6 +79,43 @@ export function useTabs({
     { left: leftPane, right: rightPane, activePane },
   ]);
   const [active, setActive] = useState(0);
+  // 復元したタブの元になる, 最初のペインの状態 (並べ方や隠しファイルの設定を引き継ぐ)
+  const [initial] = useState(() => ({ left: leftPane, right: rightPane }));
+  // 前回のタブの復元が終わるまでは, タブを保存しない (1 つのタブで上書きしないため)
+  const [ready, setReady] = useState(false);
+
+  // 起動したとき, 前回のタブを復元する. 今のタブは, 起動時のディレクトリの復元 (`useFileList`) が開くので,
+  // 他のタブは, 表示するときに読み込む.
+  useEffect(() => {
+    let cancelled = false;
+    const restore = async (): Promise<void> => {
+      try {
+        const last = (await loadConfig()).last_paths;
+        const list = last?.tabs;
+        if (!cancelled && last && list && list.length > 1) {
+          const current = Math.min(last.active_tab ?? 0, list.length - 1);
+          setSaved(
+            list.map((paths, i) => ({
+              left: { ...initial.left, currentPath: paths.left },
+              right: { ...initial.right, currentPath: paths.right },
+              activePane: "left" as const,
+              lazy: i !== current,
+            })),
+          );
+          setActive(current);
+        }
+      } catch (e) {
+        log.warn("前回のタブの読み込みに失敗:", e);
+      }
+      if (!cancelled) {
+        setReady(true);
+      }
+    };
+    restore();
+    return () => {
+      cancelled = true;
+    };
+  }, [initial]);
 
   /** 今のタブの状態. */
   const live = (): TabSnapshot => ({
@@ -99,6 +142,19 @@ export function useTabs({
   };
 
   /**
+   * タブを表示する. 復元しただけのタブは, ディレクトリを読み込む.
+   *
+   * @param next - 表示するタブの状態.
+   */
+  const reveal = (next: TabSnapshot): void => {
+    show(next);
+    if (next.lazy) {
+      loadDirectory("left", next.left.currentPath);
+      loadDirectory("right", next.right.currentPath);
+    }
+  };
+
+  /**
    * 指定した番号のタブへ替える. 今のタブか, 範囲の外なら何もしない.
    *
    * @param target - タブの番号 (0 から).
@@ -110,7 +166,7 @@ export function useTabs({
     const next = saved[target];
     setSaved(saved.map((tab, i) => (i === active ? live() : tab)));
     setActive(target);
-    show(next);
+    reveal(next);
   };
 
   /**
@@ -171,8 +227,72 @@ export function useTabs({
     const target = Math.min(active, rest.length - 1);
     setSaved(rest);
     setActive(target);
-    show(rest[target]);
+    reveal(rest[target]);
   };
+
+  // 前回のタブとして保存する (どのタブも, ディレクトリが決まってから).
+  const paths = saved.map((tab, i) => {
+    const snapshot = i === active ? live() : tab;
+    return {
+      left: snapshot.left.currentPath,
+      right: snapshot.right.currentPath,
+    };
+  });
+  const pathsKey = JSON.stringify(paths);
+  useEffect(() => {
+    const list: { left: string; right: string }[] = JSON.parse(pathsKey);
+    if (!ready || list.some((p) => p.left === "" || p.right === "")) {
+      return;
+    }
+    saveLastPaths({
+      left: list[active].left,
+      right: list[active].right,
+      tabs: list,
+      active_tab: active,
+    }).catch((e) => {
+      log.warn("タブの保存に失敗:", e);
+    });
+  }, [ready, pathsKey, active]);
+
+  /**
+   * 条件に合うタブだけを残して, 他を閉じる. 今のタブが閉じるものに入るときは, 指定したタブへ替える.
+   *
+   * @param keep - 残すタブかどうか (タブの番号を渡す).
+   * @param focus - 今のタブが閉じるときに, 替わる先のタブの番号 (残るタブの 1 つ).
+   */
+  const keepTabs = (keep: (index: number) => boolean, focus: number): void => {
+    const all = saved.map((tab, i) => (i === active ? live() : tab));
+    const rest = all.filter((_, i) => keep(i));
+    if (rest.length === all.length) {
+      return;
+    }
+    // 番号が詰まるので, 残るタブの中での位置を数える
+    const positionOf = (index: number): number =>
+      all.slice(0, index).filter((_, i) => keep(i)).length;
+    setSaved(rest);
+    if (keep(active)) {
+      setActive(positionOf(active));
+      return;
+    }
+    setActive(positionOf(focus));
+    reveal(rest[positionOf(focus)]);
+  };
+
+  /**
+   * 指定したタブより右のタブを, 全て閉じる. 今のタブが閉じるときは, 指定したタブへ替える.
+   *
+   * @param index - このタブは残す (0 から).
+   */
+  const closeTabsToRight = (index: number): void =>
+    keepTabs((i) => i <= index, index);
+
+  /**
+   * 指定したタブ以外を, 全て閉じる. 今のタブが閉じるときは, 指定したタブへ替える.
+   *
+   * @param index - このタブは残す (0 から).
+   */
+  const closeOtherTabs = (index: number): void =>
+    keepTabs((i) => i === index, index);
 
   const tabs: TabInfo[] = saved.map((tab, i) => {
     const snapshot = i === active ? live() : tab;
@@ -188,6 +308,8 @@ export function useTabs({
     tabs,
     newTab,
     closeTab,
+    closeTabsToRight,
+    closeOtherTabs,
     nextTab: () => moveTab(1),
     previousTab: () => moveTab(-1),
     selectTab,

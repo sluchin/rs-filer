@@ -444,6 +444,8 @@ export default function App(): ReactElement {
         tabs={tabs.tabs}
         onSelect={tabs.selectTab}
         onClose={tabs.closeTab}
+        onCloseRight={tabs.closeTabsToRight}
+        onCloseOthers={tabs.closeOtherTabs}
         onNew={() => tabs.newTab(true)}
       />
       <div className="app-body">
