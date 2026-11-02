@@ -2070,16 +2070,19 @@ describe("App (表示・ソート・絞り込み)", () => {
     expect(statusText()).toContain("名前 ↓");
     expect(leftNames()).toEqual(["FolderA", "b.md", "a.txt"]);
 
-    await user.keyboard("ss");
-    expect(statusText()).toContain("拡張子 ↓");
+    // 名前の次は更新日時 (よく使うので, 拡張子やサイズより先)
+    await user.keyboard("s");
+    expect(statusText()).toContain("更新日時 ↑");
+    await user.keyboard("s");
+    expect(statusText()).toContain("更新日時 ↓");
+    expect(leftNames()[1]).toBe("b.md");
 
     await user.keyboard("ss");
     expect(statusText()).toContain("サイズ ↓");
     expect(leftNames()).toEqual(["FolderA", "a.txt", "b.md"]);
 
     await user.keyboard("ss");
-    expect(statusText()).toContain("更新日時 ↓");
-    expect(leftNames()[1]).toBe("b.md");
+    expect(statusText()).toContain("拡張子 ↓");
 
     await user.keyboard("s");
     expect(statusText()).toContain("名前 ↑");

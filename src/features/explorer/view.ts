@@ -12,16 +12,16 @@ export interface ViewOptions {
   filter: string | null;
 }
 
-/** `s` キーで順に切り替えるソートの設定. */
+/** `s` キーで順に切り替えるソートの設定 (よく使う名前と更新日時を先に並べる). */
 export const SORT_CYCLE: SortOption[] = [
   { key: "name", desc: false },
   { key: "name", desc: true },
-  { key: "ext", desc: false },
-  { key: "ext", desc: true },
-  { key: "size", desc: false },
-  { key: "size", desc: true },
   { key: "date", desc: false },
   { key: "date", desc: true },
+  { key: "size", desc: false },
+  { key: "size", desc: true },
+  { key: "ext", desc: false },
+  { key: "ext", desc: true },
 ];
 
 /** ソートの基準の表示名. */

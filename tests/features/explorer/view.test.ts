@@ -157,6 +157,13 @@ describe("nextSort / sortLabel", () => {
     expect(nextSort(SORT_CYCLE[SORT_CYCLE.length - 1])).toEqual(SORT_CYCLE[0]);
   });
 
+  it("正常系: 名前 ↓ の次は, 更新日時 ↑ になること", () => {
+    expect(nextSort({ key: "name", desc: true })).toEqual({
+      key: "date",
+      desc: false,
+    });
+  });
+
   it("正常系: 表示用の文字列になること", () => {
     expect(sortLabel({ key: "name", desc: false })).toBe("名前 ↑");
     expect(sortLabel({ key: "date", desc: true })).toBe("更新日時 ↓");
