@@ -5188,6 +5188,19 @@ describe("App (タブ)", () => {
     expect(await paneOf("left").findByText("in.txt")).toBeInTheDocument();
   });
 
+  it("正常系: Ctrl+PageDown と Ctrl+PageUp でも、タブを次と前に替えられること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}t2");
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+
+    await user.keyboard("{Control>}{PageDown}{/Control}");
+    expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
+    await user.keyboard("{Control>}{PageUp}{/Control}");
+    expect(await paneOf("left").findByText("in.txt")).toBeInTheDocument();
+  });
+
   it("正常系: タブの名前を押すと、そのタブへ替わること", async () => {
     mockHome();
     const user = await renderLoaded();

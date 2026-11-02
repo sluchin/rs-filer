@@ -108,6 +108,8 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   "C-x t O": "previousTab",
   "C-Tab": "nextTab",
   "C-S-Tab": "previousTab",
+  "C-PageDown": "nextTab",
+  "C-PageUp": "previousTab",
   Escape: "cancel",
   "C-g": "cancel",
   "M-Left": "historyBack",

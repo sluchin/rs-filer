@@ -588,12 +588,8 @@ body,
   gap: 2px;
   min-width: 0;
   overflow-x: auto;
-  /* スクロールバーは出さない (操作の邪魔になるため). 動かすには, ホイールか, 今のタブへ替える. */
-  scrollbar-width: none;
-}
-
-.tab-list::-webkit-scrollbar {
-  display: none;
+  /* はみ出したときだけ, タブの下にスクロールバーを出す (タブに重ならない). */
+  scrollbar-width: auto;
 }
 
 .tab-item {
