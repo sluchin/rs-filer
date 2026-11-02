@@ -23,8 +23,11 @@ const CHUNK_SIZE: usize = 8 * 1024 * 1024;
 /// 並列にコピーする, 小さいファイルの大きさの上限 (バイト). これ以上のファイルは, 1 つずつコピーする.
 const SMALL_FILE_SIZE: u64 = 1024 * 1024;
 
-/// 並列にコピーする, 1 つのディレクトリ内の小さいファイルの最小の数. これより少ないと, スレッドを作る費用の方が大きい.
+/// 並列にコピーする, 小さいファイルの最小の数. これより少ないと, スレッドを作る費用の方が大きい.
 const PARALLEL_MIN_FILES: usize = 8;
+
+/// 溜めた小さいファイルを, まとめてコピーする件数 (溜めすぎてメモリを使わないため. 進捗も途中で進む).
+const FLUSH_FILES: usize = 4096;
 
 /// 並列にコピーするスレッドの最大の数.
 const MAX_WORKERS: usize = 8;
@@ -505,6 +508,9 @@ fn remove_entry(path: &Path) -> std::io::Result<()> {
 /// シンボリックリンクはリンク先をたどらず, リンクとして複製します (循環リンクによる無限ループを防ぐため).
 /// 途中で中断・失敗した場合は, このコピーで作ったディレクトリを消します (既にあったディレクトリは残します).
 ///
+/// 小さいファイルは, ツリー全体から集めて, 複数のスレッドで並列にコピーします. ディレクトリの作成,
+/// リンク, 大きいファイルは, 呼び出したスレッドで 1 つずつ行います.
+///
 /// # Arguments
 ///
 /// * `src` - コピー元.
@@ -517,18 +523,100 @@ fn remove_entry(path: &Path) -> std::io::Result<()> {
 ///
 /// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
 fn copy_tree(src: &Path, dst: &Path, overwrite: bool, progress: &mut Progress) -> Result<(), Stop> {
-    if progress.skip.contains(src) {
-        // 上書きしないと答えたファイル. 進捗だけ進める.
-        let size = progress.size_of(src);
-        progress.advance(size, &file_name_of(src));
-        return Ok(());
+    let mut walk = TreeWalk {
+        overwrite,
+        queue: Vec::new(),
+        created: Vec::new(),
+    };
+    let result = walk
+        .visit(src, dst, progress)
+        .and_then(|()| walk.flush(progress));
+    if result.is_err() {
+        // 作ったディレクトリは, 中が全て, このコピーで作ったものなので, 消す
+        for dir in &walk.created {
+            let _ = fs::remove_dir_all(dir);
+        }
     }
-    let meta = fs::symlink_metadata(src).map_err(at("stat", src))?;
-    if meta.file_type().is_symlink() {
+    result
+}
+
+/// [`copy_tree`] が歩いている途中の状態.
+struct TreeWalk {
+    /// 既にあるファイル・リンクを上書きするか.
+    overwrite: bool,
+    /// まだコピーしていない小さいファイル (コピー元とコピー先の組).
+    queue: Vec<(PathBuf, PathBuf)>,
+    /// このコピーで新しく作ったディレクトリ.
+    created: Vec<PathBuf>,
+}
+
+impl TreeWalk {
+    /// ファイルまたはディレクトリを歩いて, コピーします. 小さいファイルは, 溜めておく.
+    ///
+    /// # Arguments
+    ///
+    /// * `src` - コピー元.
+    /// * `dst` - コピー先.
+    /// * `progress` - 進捗の窓口.
+    ///
+    /// # Returns
+    ///
+    /// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
+    fn visit(&mut self, src: &Path, dst: &Path, progress: &mut Progress) -> Result<(), Stop> {
+        if progress.skip.contains(src) {
+            // 上書きしないと答えたファイル. 進捗だけ進める.
+            let size = progress.size_of(src);
+            progress.advance(size, &file_name_of(src));
+            return Ok(());
+        }
+        let meta = fs::symlink_metadata(src).map_err(at("stat", src))?;
+        if meta.file_type().is_symlink() {
+            self.copy_link(src, dst, &meta, progress)
+        } else if meta.is_dir() {
+            // 既にあるディレクトリには統合する. 無ければ作る
+            if fs::symlink_metadata(dst).is_err() {
+                self.created.push(dst.to_path_buf());
+            }
+            fs::create_dir_all(dst).map_err(at("mkdir", dst))?;
+            for entry in fs::read_dir(src).map_err(at("readdir", src))? {
+                let entry = entry.map_err(at("readdir", src))?;
+                self.visit(&entry.path(), &dst.join(entry.file_name()), progress)?;
+            }
+            Ok(())
+        } else if meta.len() < SMALL_FILE_SIZE {
+            self.queue.push((src.to_path_buf(), dst.to_path_buf()));
+            if self.queue.len() >= FLUSH_FILES {
+                self.flush(progress)?;
+            }
+            Ok(())
+        } else {
+            copy_file(src, dst, self.overwrite, progress)
+        }
+    }
+
+    /// シンボリックリンクを複製します.
+    ///
+    /// # Arguments
+    ///
+    /// * `src` - コピー元のリンク.
+    /// * `dst` - コピー先.
+    /// * `meta` - コピー元のリンクの情報.
+    /// * `progress` - 進捗の窓口.
+    ///
+    /// # Returns
+    ///
+    /// 成功した場合は [`Ok`]. 失敗した場合は [`Stop`].
+    fn copy_link(
+        &self,
+        src: &Path,
+        dst: &Path,
+        meta: &fs::Metadata,
+        progress: &mut Progress,
+    ) -> Result<(), Stop> {
         // 既にあるファイル・リンクは, 上書きする場合だけ置き換える. ディレクトリは, リンクで置き換えない
         // (中身を失うため)
         if let Ok(existing) = fs::symlink_metadata(dst) {
-            if !overwrite {
+            if !self.overwrite {
                 return Err(Stop::Failed(format!("Already exists: {}", dst.display())));
             }
             if existing.is_dir() {
@@ -542,64 +630,26 @@ fn copy_tree(src: &Path, dst: &Path, overwrite: bool, progress: &mut Progress) -
         copy_symlink(src, dst).map_err(at("symlink", dst))?;
         progress.advance(meta.len(), &file_name_of(src));
         Ok(())
-    } else if meta.is_dir() {
-        // 既にあるディレクトリには統合する. 無ければ作り, 途中で中断・失敗したら, 作った分を消す
-        // (中は全て, このコピーで作ったものなので)
-        let created = fs::symlink_metadata(dst).is_err();
-        fs::create_dir_all(dst).map_err(at("mkdir", dst))?;
-        let result = copy_children(src, dst, overwrite, progress);
-        if result.is_err() && created {
-            let _ = fs::remove_dir_all(dst);
-        }
-        result
-    } else {
-        copy_file(src, dst, overwrite, progress)
     }
-}
 
-/// ディレクトリの中身をコピーします. 小さいファイルが多いときは, 並列にコピーします.
-///
-/// # Arguments
-///
-/// * `src` - コピー元のディレクトリ.
-/// * `dst` - コピー先のディレクトリ (作成済み).
-/// * `overwrite` - true の場合, 既にあるものを上書きする.
-/// * `progress` - 進捗の窓口.
-///
-/// # Returns
-///
-/// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
-fn copy_children(
-    src: &Path,
-    dst: &Path,
-    overwrite: bool,
-    progress: &mut Progress,
-) -> Result<(), Stop> {
-    let mut small = Vec::new();
-    let mut rest = Vec::new();
-    for entry in fs::read_dir(src).map_err(at("readdir", src))? {
-        let entry = entry.map_err(at("readdir", src))?;
-        let pair = (entry.path(), dst.join(entry.file_name()));
-        let is_small = !progress.skip.contains(&pair.0)
-            && entry
-                .metadata()
-                .is_ok_and(|m| m.is_file() && m.len() < SMALL_FILE_SIZE);
-        if is_small {
-            small.push(pair);
-        } else {
-            rest.push(pair);
+    /// 溜めた小さいファイルを, コピーします. 数が少ないときは, 1 つずつ行います.
+    ///
+    /// # Arguments
+    ///
+    /// * `progress` - 進捗の窓口.
+    ///
+    /// # Returns
+    ///
+    /// 成功した場合は [`Ok`]. 中断・失敗した場合は [`Stop`].
+    fn flush(&mut self, progress: &mut Progress) -> Result<(), Stop> {
+        let files = std::mem::take(&mut self.queue);
+        if files.len() < PARALLEL_MIN_FILES {
+            return files
+                .iter()
+                .try_for_each(|(src, dst)| copy_file(src, dst, self.overwrite, progress));
         }
+        copy_parallel(&files, self.overwrite, progress)
     }
-    if small.len() < PARALLEL_MIN_FILES {
-        rest.append(&mut small);
-    }
-    for (from, to) in &rest {
-        copy_tree(from, to, overwrite, progress)?;
-    }
-    if small.is_empty() {
-        return Ok(());
-    }
-    copy_parallel(&small, overwrite, progress)
 }
 
 /// 小さいファイルを, 複数のスレッドで並列にコピーします.

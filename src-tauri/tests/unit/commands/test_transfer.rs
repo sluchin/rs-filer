@@ -1436,7 +1436,6 @@ fn test_copy_tree_parallel_cancelled() {
     let src = dir.path().join("src");
     make_small_files(&src, 30);
     let dst = dir.path().join("dst");
-    fs::create_dir(&dst).unwrap();
 
     let cancel = AtomicBool::new(true);
     let skip = HashSet::new();
@@ -1449,7 +1448,7 @@ fn test_copy_tree_parallel_cancelled() {
         last_sent: None,
         sizes: HashMap::new(),
     };
-    let result = copy_children(&src, &dst, false, &mut progress);
+    let result = copy_tree(&src, &dst, false, &mut progress);
 
     assert!(matches!(result, Err(Stop::Cancelled)));
 }
@@ -1570,4 +1569,83 @@ fn test_copy_tree_unreadable_directory_names_path() {
         assert!(message.starts_with("readdir: "), "{message}");
         assert!(message.contains(&src.display().to_string()), "{message}");
     }
+}
+
+#[test]
+fn test_copy_tree_parallelizes_across_many_small_directories() {
+    // 1 つのディレクトリのファイルが少なくても, ツリー全体で集めて並列にコピーする.
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("src");
+    for d in 0..30 {
+        make_small_files(&src.join(format!("d{d}")), 3);
+    }
+    let dst = dir.path().join("dst");
+
+    let result = with_progress(|p| copy_tree(&src, &dst, false, p));
+
+    assert!(result.is_ok());
+    for d in 0..30 {
+        for f in 0..3 {
+            assert_eq!(
+                fs::read_to_string(dst.join(format!("d{d}")).join(format!("f{f}"))).unwrap(),
+                format!("data{f}")
+            );
+        }
+    }
+}
+
+#[test]
+fn test_copy_tree_flushes_when_many_files_are_queued() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("src");
+    make_small_files(&src, FLUSH_FILES + 10);
+    let dst = dir.path().join("dst");
+
+    let result = with_progress(|p| copy_tree(&src, &dst, false, p));
+
+    assert!(result.is_ok());
+    assert_eq!(fs::read_dir(&dst).unwrap().count(), FLUSH_FILES + 10);
+}
+
+#[test]
+fn test_copy_tree_few_queued_files_are_copied_one_by_one_and_report_errors() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("src");
+    make_small_files(&src.join("sub"), 3);
+    let dst = dir.path().join("dst");
+    fs::create_dir_all(dst.join("sub")).unwrap();
+    fs::write(dst.join("sub").join("f1"), "other").unwrap();
+
+    let result = with_progress(|p| copy_tree(&src, &dst, false, p));
+
+    assert!(matches!(result, Err(Stop::Failed(m)) if m.starts_with("Already exists")));
+    // 既にあったディレクトリは残り, 既にあったファイルは変わらない
+    assert_eq!(
+        fs::read_to_string(dst.join("sub").join("f1")).unwrap(),
+        "other"
+    );
+}
+
+#[test]
+fn test_copy_tree_removes_created_directory_on_cancel() {
+    let dir = tempdir().unwrap();
+    let src = dir.path().join("src");
+    make_small_files(&src.join("sub"), 20);
+    let dst = dir.path().join("dst");
+
+    let cancel = AtomicBool::new(true);
+    let skip = HashSet::new();
+    let mut progress = Progress {
+        cancel: &cancel,
+        skip: &skip,
+        on_progress: &mut |_| {},
+        done: 0,
+        total: 0,
+        last_sent: None,
+        sizes: HashMap::new(),
+    };
+    let result = copy_tree(&src, &dst, false, &mut progress);
+
+    assert!(matches!(result, Err(Stop::Cancelled)));
+    assert!(!dst.exists());
 }
