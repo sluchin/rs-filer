@@ -210,6 +210,10 @@ describe("eventToToken", () => {
     [key(" "), "Space"],
     [key("Delete", { shiftKey: true }), "S-Delete"],
     [key("k", { shiftKey: true }), "k"],
+    [key("Tab", { ctrlKey: true, shiftKey: true }), "C-S-Tab"],
+    // WebKitGTK (Linux) は, Shift+Tab を ISO_Left_Tab で送ってくる (Shift が付かないこともある)
+    [key("ISO_Left_Tab", { ctrlKey: true }), "C-S-Tab"],
+    [key("ISO_Left_Tab", { ctrlKey: true, shiftKey: true }), "C-S-Tab"],
   ])("正常系: イベントがトークン %j になること", (event, expected) => {
     expect(eventToToken(event)).toBe(expected);
   });

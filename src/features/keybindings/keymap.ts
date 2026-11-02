@@ -141,6 +141,8 @@ const KEY_NAMES: Record<string, string> = {
   ArrowLeft: "Left",
   ArrowRight: "Right",
   " ": "Space",
+  // WebKitGTK (Linux) は, Shift+Tab のキーを, この名前で送ってくる.
+  ISO_Left_Tab: "Tab",
 };
 
 /** 名前のあるキー. */
@@ -270,7 +272,7 @@ export function eventToToken(
   return [
     event.ctrlKey ? "C-" : "",
     event.altKey ? "M-" : "",
-    event.shiftKey && named ? "S-" : "",
+    (event.shiftKey || event.key === "ISO_Left_Tab") && named ? "S-" : "",
     key,
   ].join("");
 }

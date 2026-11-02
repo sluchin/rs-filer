@@ -588,8 +588,23 @@ body,
   gap: 2px;
   min-width: 0;
   overflow-x: auto;
-  /* はみ出したときだけ, タブの下にスクロールバーを出す (タブに重ならない). */
-  scrollbar-width: auto;
+  /* 縦には動かさない (選んだタブの下の線が 1px はみ出して, 縦のスクロールバーの四角が出るため). */
+  overflow-y: hidden;
+  /* はみ出したときだけ, タブの下にスクロールバーを出す. 標準のスクロールバーは, タブの上に重ねて出て
+     操作の邪魔になるので, 場所を取る形 (下の ::-webkit-scrollbar) にする. */
+}
+
+.tab-list::-webkit-scrollbar {
+  height: 10px;
+}
+
+.tab-list::-webkit-scrollbar-track {
+  background: var(--border-light);
+}
+
+.tab-list::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 5px;
 }
 
 .tab-item {
