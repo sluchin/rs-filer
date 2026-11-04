@@ -448,7 +448,8 @@ body,
 }
 
 .operation-log li[data-level="error"] {
-  color: var(--error);
+  /* ダイアログの背景は常に白なので, テーマに依らず濃い赤にする. */
+  color: #cc0000;
 }
 
 .palette-candidates {
