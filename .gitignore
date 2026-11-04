@@ -33,3 +33,6 @@ tarpaulin-report.html
 
 # Claude Code のローカル設定
 .claude/settings.local.json
+
+# TypeDoc の出力 (npm run doc:fe)
+/docs/fe/

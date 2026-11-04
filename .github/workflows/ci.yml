@@ -186,7 +186,7 @@ jobs:
               <h1>Rsfiler Documentation</h1>
               <ul>
                   <li><a href="fe/index.html">Frontend Documentation (TypeDoc)</a></li>
-                  <li><a href="be/index.html">Backend Documentation (Cargo Doc)</a></li>
+                  <li><a href="be/rsfiler/index.html">Backend Documentation (Cargo Doc)</a></li>
               </ul>
           </body>
           </html>
