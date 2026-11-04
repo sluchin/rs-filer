@@ -51,6 +51,7 @@ export default function Modal({
         }}
         style={{
           background: "#ffffff",
+          color: "#000000",
           border: "1px solid #999",
           borderRadius: "4px",
           padding: "1rem",
