@@ -265,9 +265,13 @@ export function useTransfer({
    * 1 件の項目を, 新しい名前を尋ねてから, 今のディレクトリへコピーします (名前を付けてコピー).
    *
    * @param items - コピーする項目 (絶対パスと名前). 1 件でなければエラーを表示する.
+   * @param destDir - コピー先のディレクトリ. 省略した場合は, 今のディレクトリ.
    */
   const promptCopyAs = useCallback(
-    (items: { path: string; name: string }[]): void => {
+    (
+      items: { path: string; name: string }[],
+      destDir: string = source.currentPath,
+    ): void => {
       if (items.length !== 1) {
         setError("1 件だけコピーしてください.");
         return;
@@ -279,7 +283,7 @@ export function useTransfer({
           run({
             kind: "copy",
             sources: [item.path],
-            dest_dir: source.currentPath,
+            dest_dir: destDir,
             overwrite: false,
             permanent: false,
             dest_name: newName,
@@ -531,6 +535,18 @@ export function useTransfer({
     promptCopyAs(files);
   }, [source, setError, promptCopyAs]);
 
+  /**
+   * 指定した項目を, 同じディレクトリの中へ, 新しい名前を尋ねてコピーします (右クリックのメニューの「複製」).
+   * ツリー表示の, 今のディレクトリの外の行でも, その項目のあるディレクトリへコピーします.
+   *
+   * @param item - コピーする項目 (絶対パスと名前).
+   */
+  const duplicatePath = useCallback(
+    (item: { path: string; name: string }): void =>
+      promptCopyAs([item], getParentPath(item.path) ?? source.currentPath),
+    [source.currentPath, promptCopyAs],
+  );
+
   return {
     task: running && { ...running, cancelling },
     startCopy: (alwaysConfirm: boolean) => startPlace("copy", alwaysConfirm),
@@ -541,6 +557,7 @@ export function useTransfer({
     copyToClipboard,
     pasteFromClipboard,
     duplicateFile,
+    duplicatePath,
     background,
     sendToBackground,
     cancel,

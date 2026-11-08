@@ -300,6 +300,49 @@ describe("useTransfer", () => {
     });
   });
 
+  describe("duplicatePath", () => {
+    it("正常系: 項目のあるディレクトリへ, 名前を聞いてコピーすること (今のディレクトリの外の項目でも)", async () => {
+      const { result, openPrompt } = renderTransfer(pane("/src"), pane("/dst"));
+
+      act(() =>
+        result.current.duplicatePath({
+          path: "/src/sub/a.txt",
+          name: "a.txt",
+        }),
+      );
+
+      expect(openPrompt).toHaveBeenCalledWith(
+        "名前を付けてコピー",
+        expect.any(Function),
+        "a.txt",
+      );
+      await act(async () => openPrompt.mock.calls[0][1]("copy.txt"));
+      expect(runTransfer).toHaveBeenCalledWith(
+        {
+          kind: "copy",
+          sources: ["/src/sub/a.txt"],
+          dest_dir: "/src/sub",
+          overwrite: false,
+          permanent: false,
+          dest_name: "copy.txt",
+        },
+        expect.any(Function),
+      );
+    });
+
+    it("境界: 親を求められないパスでは, 今のディレクトリへコピーすること", async () => {
+      const { result, openPrompt } = renderTransfer(pane("/src"), pane("/dst"));
+
+      act(() => result.current.duplicatePath({ path: "", name: "x" }));
+
+      await act(async () => openPrompt.mock.calls[0][1]("y"));
+      expect(runTransfer).toHaveBeenCalledWith(
+        expect.objectContaining({ dest_dir: "/src", dest_name: "y" }),
+        expect.any(Function),
+      );
+    });
+  });
+
   describe("再読み込み", () => {
     it("正常系: 終わった時点で, 移動元か送り先を開いているペインだけを, 履歴を変えずに再読み込みすること", async () => {
       const files = [entry("a.txt"), entry("b.txt")];

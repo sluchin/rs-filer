@@ -502,10 +502,16 @@ export default function App(): ReactElement {
         <ContextMenu
           x={copyMenu.x}
           y={copyMenu.y}
-          items={copyChoicesOf(copyMenu.target).map(({ kind, label }) => ({
-            label,
-            onSelect: () => copyText(copyMenu.target, kind),
-          }))}
+          items={[
+            ...copyChoicesOf(copyMenu.target).map(({ kind, label }) => ({
+              label,
+              onSelect: () => copyText(copyMenu.target, kind),
+            })),
+            {
+              label: "複製 (名前を付けてコピー)",
+              onSelect: () => transfer.duplicatePath(copyMenu.target),
+            },
+          ]}
           onClose={dialogs.closeCopyMenu}
         />
       )}

@@ -4672,7 +4672,11 @@ describe("App (右クリックでフルパス・名前のコピー)", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["フルパスをコピー", "ファイル名をコピー"]);
+    ).toEqual([
+      "フルパスをコピー",
+      "ファイル名をコピー",
+      "複製 (名前を付けてコピー)",
+    ]);
     await user.click(within(menu).getByText("フルパスをコピー"));
 
     await waitFor(() => expect(copiedTexts()).toEqual(["/mock/home/b.txt"]));
@@ -4680,6 +4684,28 @@ describe("App (右クリックでフルパス・名前のコピー)", () => {
       await screen.findByText("コピーしました: /mock/home/b.txt"),
     ).toBeInTheDocument();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("正常系: 右クリックのメニューの「複製」で, 同じディレクトリへ, 名前を付けてコピーできること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    fireEvent.contextMenu(leftRow("b.txt"));
+    await user.click(screen.getByText("複製 (名前を付けてコピー)"));
+    expect(await screen.findByText("名前を付けてコピー")).toBeInTheDocument();
+    await user.keyboard("{Control>}a{/Control}copy.txt{Enter}");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {
+        request: expect.objectContaining({
+          kind: "copy",
+          sources: ["/mock/home/b.txt"],
+          dest_dir: "/mock/home",
+          dest_name: "copy.txt",
+        }),
+        onProgress: expect.anything(),
+      }),
+    );
   });
 
   it("正常系: ディレクトリを右クリックすると, ディレクトリ名をコピーできること", async () => {

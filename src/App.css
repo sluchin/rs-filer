@@ -11,6 +11,7 @@
   --border-light: #d5d5d5;
   --header-from: #ffffff;
   --header-to: #e5e5e5;
+  --header-separator: #a0a0a0;
   --muted: #808080;
   --dim: #666666;
   --status-info: #444444;
@@ -36,6 +37,7 @@
   --border-light: #3c3c3c;
   --header-from: #2d2d2d;
   --header-to: #252526;
+  --header-separator: #666666;
   --muted: #9a9a9a;
   --dim: #a0a0a0;
   --status-info: #b0b0b0;
@@ -209,7 +211,7 @@ body,
 }
 
 .file-header-row > span {
-  border-right: 1px solid var(--border-light);
+  border-right: 1px solid var(--header-separator);
   padding: 0 4px;
   box-sizing: border-box;
 }
