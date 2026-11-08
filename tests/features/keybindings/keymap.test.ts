@@ -167,6 +167,21 @@ describe("resolveKey", () => {
     });
   });
 
+  it("正常系: Alt+R と, C-x の後の C-r で, 最近開いたファイルの一覧になること", () => {
+    expect(resolveKey(key("r", { altKey: true }), null)).toEqual({
+      command: "recentFiles",
+    });
+    expect(resolveKey(key("r", { ctrlKey: true }), PREFIX_CTRL_X)).toEqual({
+      command: "recentFiles",
+    });
+  });
+
+  it("正常系: C-x の後に C-d で, パス入力欄へ移る (goto) こと", () => {
+    expect(resolveKey(key("d", { ctrlKey: true }), PREFIX_CTRL_X)).toEqual({
+      command: "goto",
+    });
+  });
+
   it("正常系: C-x の後に C-f で新規ファイル, o でペイン切り替えになること", () => {
     expect(resolveKey(key("x", { ctrlKey: true }), null)).toEqual({
       prefix: PREFIX_CTRL_X,

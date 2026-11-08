@@ -23,7 +23,7 @@ const NO_PANES: PaneFlags = { left: false, right: false };
 
 /**
  * ダイアログ・コマンドパレット・右クリックのメニューの開閉と, ペインの表示の差し替え
- * (プレビュー・詳細・ブックマーク・移動履歴・ツリー) の状態を, まとめて管理します.
+ * (プレビュー・詳細・ブックマーク・移動履歴・最近開いたファイル・ツリー) の状態を, まとめて管理します.
  *
  * 開く・閉じる操作は, 描画のたびに作り直さない (`memo` した子コンポーネントへ渡しても, 描き直しを起こさない).
  *
@@ -32,6 +32,7 @@ const NO_PANES: PaneFlags = { left: false, right: false };
 export function useDialogs() {
   const [bookmarkPanes, setBookmarkPanes] = useState<PaneFlags>(NO_PANES);
   const [historyPanes, setHistoryPanes] = useState<PaneFlags>(NO_PANES);
+  const [recentPanes, setRecentPanes] = useState<PaneFlags>(NO_PANES);
   const [treePanes, setTreePanes] = useState<PaneFlags>(NO_PANES);
   const [logOpen, setLogOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -55,6 +56,8 @@ export function useDialogs() {
       openLog: () => setLogOpen(true),
       openHistoryList: (pane) =>
         setHistoryPanes((p) => ({ ...p, [pane]: true })),
+      openRecentFiles: (pane) =>
+        setRecentPanes((p) => ({ ...p, [pane]: true })),
       openBookmarks: (pane) =>
         setBookmarkPanes((p) => ({ ...p, [pane]: true })),
       toggleTree: (pane) => setTreePanes((p) => ({ ...p, [pane]: !p[pane] })),
@@ -72,6 +75,9 @@ export function useDialogs() {
       /** 指定したペインの, 移動履歴の一覧を閉じる. */
       closeHistoryList: (pane: PaneId) =>
         setHistoryPanes((p) => ({ ...p, [pane]: false })),
+      /** 指定したペインの, 最近開いたファイルの一覧を閉じる. */
+      closeRecentFiles: (pane: PaneId) =>
+        setRecentPanes((p) => ({ ...p, [pane]: false })),
       /** 指定したペインの, ツリー表示を閉じる. */
       closeTree: (pane: PaneId) =>
         setTreePanes((p) => ({ ...p, [pane]: false })),
@@ -100,6 +106,7 @@ export function useDialogs() {
   const isBlocking = (activePane: PaneId): boolean =>
     bookmarkPanes[activePane] ||
     historyPanes[activePane] ||
+    recentPanes[activePane] ||
     treePanes[activePane] ||
     logOpen ||
     paletteOpen ||
@@ -109,6 +116,7 @@ export function useDialogs() {
   return {
     bookmarkPanes,
     historyPanes,
+    recentPanes,
     treePanes,
     logOpen,
     helpOpen,

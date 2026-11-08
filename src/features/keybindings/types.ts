@@ -60,6 +60,7 @@ export const COMMANDS = [
   "historyForward",
   "historyList",
   "bookmarks",
+  "recentFiles",
   "addBookmark",
   "palette",
   "help",

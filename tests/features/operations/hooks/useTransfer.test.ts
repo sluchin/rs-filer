@@ -247,20 +247,20 @@ describe("useTransfer", () => {
   });
 
   describe("duplicateFile", () => {
-    it("正常系: 名前を聞いて, 同じディレクトリに, その名前でコピーすること", async () => {
+    it("正常系: 名前を聞かずに, 同じディレクトリへ, `名前~` でコピーすること", async () => {
       const { result, openPrompt } = renderTransfer(
         pane("/src", [entry("a.txt")]),
         pane("/dst"),
       );
 
-      act(() => result.current.duplicateFile());
+      await act(async () => result.current.duplicateFile());
 
-      expect(openPrompt).toHaveBeenCalledWith(
-        "名前を付けてコピー",
-        expect.any(Function),
-        "a.txt",
+      expect(openPrompt).not.toHaveBeenCalled();
+      expect(checkConflicts).toHaveBeenCalledWith(
+        ["/src/a.txt"],
+        "/src",
+        "a.txt~",
       );
-      await act(async () => openPrompt.mock.calls[0][1]("copy.txt"));
       expect(runTransfer).toHaveBeenCalledWith(
         {
           kind: "copy",
@@ -268,55 +268,92 @@ describe("useTransfer", () => {
           dest_dir: "/src",
           overwrite: false,
           permanent: false,
-          dest_name: "copy.txt",
+          dest_name: "a.txt~",
         },
         expect.any(Function),
       );
     });
 
-    it("境界: 対象が無ければ, エラーにすること", () => {
-      const { result, setError, openPrompt } = renderTransfer(
-        pane("/src"),
+    it("正常系: `名前~` が既にあれば, 番号を進めて空いている名前にすること", async () => {
+      vi.mocked(checkConflicts)
+        .mockResolvedValueOnce(["a.txt"])
+        .mockResolvedValueOnce(["a.txt"])
+        .mockResolvedValue([]);
+      const { result } = renderTransfer(
+        pane("/src", [entry("a.txt")]),
         pane("/dst"),
       );
+
+      await act(async () => result.current.duplicateFile());
+
+      expect(runTransfer).toHaveBeenCalledWith(
+        expect.objectContaining({ dest_name: "a.txt.~2~" }),
+        expect.any(Function),
+      );
+    });
+
+    it("境界: 番号の上限まで埋まっていれば, 最後の名前でコピーを試みること", async () => {
+      vi.mocked(checkConflicts).mockResolvedValue(["a.txt"]);
+      const { result } = renderTransfer(
+        pane("/src", [entry("a.txt")]),
+        pane("/dst"),
+      );
+
+      await act(async () => result.current.duplicateFile());
+
+      expect(runTransfer).toHaveBeenCalledWith(
+        expect.objectContaining({ dest_name: "a.txt.~999~" }),
+        expect.any(Function),
+      );
+    });
+
+    it("異常系: 名前の確認に失敗したら, エラーにしてコピーしないこと", async () => {
+      vi.mocked(checkConflicts).mockRejectedValue("check failed");
+      const { result, setError } = renderTransfer(
+        pane("/src", [entry("a.txt")]),
+        pane("/dst"),
+      );
+
+      await act(async () => result.current.duplicateFile());
+
+      expect(setError).toHaveBeenCalledWith("check failed");
+      expect(runTransfer).not.toHaveBeenCalled();
+    });
+
+    it("境界: 対象が無ければ, エラーにすること", () => {
+      const { result, setError } = renderTransfer(pane("/src"), pane("/dst"));
 
       act(() => result.current.duplicateFile());
 
       expect(setError).toHaveBeenCalledWith("対象の項目が選択されていません.");
-      expect(openPrompt).not.toHaveBeenCalled();
+      expect(runTransfer).not.toHaveBeenCalled();
     });
 
-    it("異常系: 2 件以上なら, エラーにすること", () => {
+    it("異常系: 2 件以上なら, エラーにすること", async () => {
       const files = [entry("a.txt"), entry("b.txt")];
-      const { result, setError, openPrompt } = renderTransfer(
+      const { result, setError } = renderTransfer(
         pane("/src", files, ["/src/a.txt", "/src/b.txt"]),
         pane("/dst"),
       );
 
-      act(() => result.current.duplicateFile());
+      await act(async () => result.current.duplicateFile());
 
       expect(setError).toHaveBeenCalledWith("1 件だけコピーしてください.");
-      expect(openPrompt).not.toHaveBeenCalled();
+      expect(runTransfer).not.toHaveBeenCalled();
     });
   });
 
   describe("duplicatePath", () => {
-    it("正常系: 項目のあるディレクトリへ, 名前を聞いてコピーすること (今のディレクトリの外の項目でも)", async () => {
-      const { result, openPrompt } = renderTransfer(pane("/src"), pane("/dst"));
+    it("正常系: 項目のあるディレクトリへ, `名前~` でコピーすること (今のディレクトリの外の項目でも)", async () => {
+      const { result } = renderTransfer(pane("/src"), pane("/dst"));
 
-      act(() =>
+      await act(async () =>
         result.current.duplicatePath({
           path: "/src/sub/a.txt",
           name: "a.txt",
         }),
       );
 
-      expect(openPrompt).toHaveBeenCalledWith(
-        "名前を付けてコピー",
-        expect.any(Function),
-        "a.txt",
-      );
-      await act(async () => openPrompt.mock.calls[0][1]("copy.txt"));
       expect(runTransfer).toHaveBeenCalledWith(
         {
           kind: "copy",
@@ -324,20 +361,21 @@ describe("useTransfer", () => {
           dest_dir: "/src/sub",
           overwrite: false,
           permanent: false,
-          dest_name: "copy.txt",
+          dest_name: "a.txt~",
         },
         expect.any(Function),
       );
     });
 
     it("境界: 親を求められないパスでは, 今のディレクトリへコピーすること", async () => {
-      const { result, openPrompt } = renderTransfer(pane("/src"), pane("/dst"));
+      const { result } = renderTransfer(pane("/src"), pane("/dst"));
 
-      act(() => result.current.duplicatePath({ path: "", name: "x" }));
+      await act(async () =>
+        result.current.duplicatePath({ path: "", name: "x" }),
+      );
 
-      await act(async () => openPrompt.mock.calls[0][1]("y"));
       expect(runTransfer).toHaveBeenCalledWith(
-        expect.objectContaining({ dest_dir: "/src", dest_name: "y" }),
+        expect.objectContaining({ dest_dir: "/src", dest_name: "x~" }),
         expect.any(Function),
       );
     });

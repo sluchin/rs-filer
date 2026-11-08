@@ -41,6 +41,8 @@ const COMMANDS: &[&str] = &[
     "copy_text_to_clipboard",
     "load_history",
     "save_history",
+    "load_recent_files",
+    "save_recent_files",
     "load_operation_log",
     "save_operation_log",
 ];

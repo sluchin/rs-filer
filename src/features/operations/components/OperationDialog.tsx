@@ -39,6 +39,12 @@ function PromptBody({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onFocus={(e) => e.target.select()}
+        // Tab はフォーカスを動かさない (動かすと, ボタンを経て, パス入力欄へ移ってしまう).
+        onKeyDown={(e) => {
+          if (e.key === "Tab") {
+            e.preventDefault();
+          }
+        }}
         style={{ flex: 1, padding: "0.25rem 0.4rem" }}
       />
       <button type="submit">OK</button>

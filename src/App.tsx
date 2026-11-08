@@ -40,6 +40,7 @@ import { useStableCallback } from "./hooks/useStableCallback";
 import OperationDialog from "./features/operations/components/OperationDialog";
 import TabBar from "./features/tabs/components/TabBar";
 import { useTabs } from "./features/tabs/hooks/useTabs";
+import { useRecentFiles } from "./features/recent/hooks/useRecentFiles";
 import { useFileOperations } from "./features/operations/hooks/useFileOperations";
 import { installLogForwarding } from "./services/logForwarder";
 import TreePane from "./features/tree/components/TreePane";
@@ -84,12 +85,14 @@ export default function App(): ReactElement {
   const {
     bookmarkPanes,
     historyPanes,
+    recentPanes,
     treePanes,
     previewOn,
     infoOn,
     copyMenu,
     closeBookmarks,
     closeHistoryList,
+    closeRecentFiles,
     closeTree,
     openCopyMenu,
   } = dialogs;
@@ -111,6 +114,11 @@ export default function App(): ReactElement {
   const isHistoryListKey = useCallback(
     (e: KeyboardEvent): boolean =>
       resolveKey(e, null, keymap).command === "historyList",
+    [keymap],
+  );
+  const isRecentFilesKey = useCallback(
+    (e: KeyboardEvent): boolean =>
+      resolveKey(e, null, keymap).command === "recentFiles",
     [keymap],
   );
   const isBookmarksKey = useCallback(
@@ -160,7 +168,8 @@ export default function App(): ReactElement {
     setError: reportError,
   };
   const navigation = useNavigation(paneDeps);
-  const operations = useFileOperations(paneDeps);
+  const recentFiles = useRecentFiles(settings.config.recent_files_limit);
+  const operations = useFileOperations(paneDeps, recentFiles.record);
   const transfer = useTransfer({
     ...paneDeps,
     updatePane,
@@ -211,8 +220,10 @@ export default function App(): ReactElement {
   );
 
   /** ペインを切り替える. */
-  const switchPane = (): void =>
-    setActivePane((p) => (p === "left" ? "right" : "left"));
+  const switchPane = useCallback(
+    (): void => setActivePane((p) => (p === "left" ? "right" : "left")),
+    [],
+  );
 
   /** キー入力から解決されたコマンドを実行する. */
   const runCommand = useCommandDispatcher({
@@ -374,6 +385,36 @@ export default function App(): ReactElement {
     );
   });
   (["left", "right"] as const).forEach((paneId) => {
+    if (!recentPanes[paneId]) {
+      return;
+    }
+    paneOverrides[paneId] = (
+      <BookmarkPane
+        paneId={paneId}
+        isActive={activePane === paneId}
+        bookmarks={recentFiles.files}
+        title="最近開いたファイル"
+        emptyText="開いたファイルはありません."
+        onActivate={() => setActivePane(paneId)}
+        onSelect={(path) => {
+          closeRecentFiles(paneId);
+          openPath(path);
+        }}
+        onRemove={recentFiles.remove}
+        onReveal={(path) => {
+          const parent = getParentPath(path);
+          if (parent !== null) {
+            closeRecentFiles(paneId);
+            loadDirectory(paneId, parent, { selectName: getBaseName(path) });
+          }
+        }}
+        onCancel={() => closeRecentFiles(paneId)}
+        onSwitchPane={switchPane}
+        isToggleKey={isRecentFilesKey}
+      />
+    );
+  });
+  (["left", "right"] as const).forEach((paneId) => {
     if (!historyPanes[paneId]) {
       return;
     }
@@ -508,7 +549,7 @@ export default function App(): ReactElement {
               onSelect: () => copyText(copyMenu.target, kind),
             })),
             {
-              label: "複製 (名前を付けてコピー)",
+              label: "複製 (名前~ でコピー)",
               onSelect: () => transfer.duplicatePath(copyMenu.target),
             },
           ]}

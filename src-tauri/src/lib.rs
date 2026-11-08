@@ -57,6 +57,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::clipboard::copy_text_to_clipboard,
             commands::history::load_history,
             commands::history::save_history,
+            commands::recent::load_recent_files,
+            commands::recent::save_recent_files,
             commands::oplog::load_operation_log,
             commands::oplog::save_operation_log
         ])

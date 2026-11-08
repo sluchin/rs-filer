@@ -42,6 +42,12 @@ describe("useDialogs", () => {
     expect(result.current.isBlocking("right")).toBe(true);
     act(() => result.current.closeHistoryList("right"));
 
+    act(() => result.current.openRecentFiles("left"));
+    expect(result.current.recentPanes).toEqual({ left: true, right: false });
+    expect(result.current.isBlocking("left")).toBe(true);
+    expect(result.current.isBlocking("right")).toBe(false);
+    act(() => result.current.closeRecentFiles("left"));
+
     act(() => result.current.toggleTree("left"));
     expect(result.current.treePanes).toEqual({ left: true, right: false });
     act(() => result.current.closeTree("left"));

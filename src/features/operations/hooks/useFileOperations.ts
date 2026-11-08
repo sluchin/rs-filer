@@ -22,15 +22,13 @@ const log = loglevel.getLogger("operations");
  * ファイル操作 (作成・名前変更・外部アプリやエディタで開く) と, その入力・確認のダイアログ状態を扱うフック.
  *
  * @param deps - ペインの状態と操作.
+ * @param onFileOpened - ファイル (ディレクトリは除く) を, 外部アプリかエディタで開けたときに呼ぶ関数 (最近開いたファイルの記録).
  * @returns 表示中のダイアログと, 各操作を開始するハンドラー.
  */
-export function useFileOperations({
-  activePane,
-  leftPane,
-  rightPane,
-  loadDirectory,
-  setError,
-}: PaneDeps) {
+export function useFileOperations(
+  { activePane, leftPane, rightPane, loadDirectory, setError }: PaneDeps,
+  onFileOpened: (path: string) => void,
+) {
   const [dialog, setDialog] = useState<DialogState | null>(null);
 
   /** ダイアログを閉じます. */
@@ -317,9 +315,14 @@ export function useFileOperations({
   const openExternal = useCallback((): void => {
     const file = selectedEntry();
     if (file) {
-      attempt("外部アプリで開く", () => openItem(file.path));
+      attempt("外部アプリで開く", async () => {
+        await openItem(file.path);
+        if (!file.is_dir) {
+          onFileOpened(file.path);
+        }
+      });
     }
-  }, [selectedEntry, attempt]);
+  }, [selectedEntry, attempt, onFileOpened]);
 
   /**
    * 指定したパスを, 関連付けられた外部アプリで開きます (ツリー表示のファイル用).
@@ -328,18 +331,26 @@ export function useFileOperations({
    */
   const openPath = useCallback(
     (path: string): void => {
-      void attempt("外部アプリで開く", () => openItem(path));
+      void attempt("外部アプリで開く", async () => {
+        await openItem(path);
+        onFileOpened(path);
+      });
     },
-    [attempt],
+    [attempt, onFileOpened],
   );
 
   /** カーソル位置の項目を, エディタで開きます. */
   const openEditor = useCallback((): void => {
     const file = selectedEntry();
     if (file) {
-      attempt("エディタで開く", () => openInEditor(file.path));
+      attempt("エディタで開く", async () => {
+        await openInEditor(file.path);
+        if (!file.is_dir) {
+          onFileOpened(file.path);
+        }
+      });
     }
-  }, [selectedEntry, attempt]);
+  }, [selectedEntry, attempt, onFileOpened]);
 
   return {
     dialog,

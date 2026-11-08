@@ -47,6 +47,8 @@ export interface PanelActions {
   openLog: () => void;
   /** 指定したペインに, 移動履歴の一覧を出す. */
   openHistoryList: (pane: PaneId) => void;
+  /** 指定したペインに, 最近開いたファイルの一覧を出す. */
+  openRecentFiles: (pane: PaneId) => void;
   /** 指定したペインに, ブックマークの一覧を出す. */
   openBookmarks: (pane: PaneId) => void;
   /** 指定したペインの, ツリー表示を切り替える. */
@@ -371,6 +373,9 @@ export function useCommandDispatcher(
         break;
       case "historyForward":
         navigation.handleHistory(1);
+        break;
+      case "recentFiles":
+        panels.openRecentFiles(activePane);
         break;
       case "historyList":
         panels.openHistoryList(activePane);

@@ -24,6 +24,12 @@ interface BookmarkPaneProps {
   onSwitchPane: () => void;
   /** 押されたキーが, この一覧を開くキー (既定は `b`) かどうか. そのキーで一覧を閉じる (トグル). */
   isToggleKey: (e: KeyboardEvent) => boolean;
+  /** `o` で, カーソル位置のパスのあるディレクトリを開くハンドラー. 省略した場合は, `o` は何もしない. */
+  onReveal?: (path: string) => void;
+  /** 見出し. 省略した場合は「ブックマーク」. */
+  title?: string;
+  /** 一覧が空のときの表示. 省略した場合は「登録されていません.」. */
+  emptyText?: string;
 }
 
 /**
@@ -36,6 +42,8 @@ interface BookmarkPaneProps {
  * `d` / `u` / `Delete` でカーソル位置のブックマークを解除し (一覧にはとどまる),
  * `Esc` または一覧を開くキー (既定は `b`) で, 何もせず通常のペイン表示に戻ります (トグル). `Tab` では, もう一方のペインへ移り,
  * この一覧は (アクティブでないまま) 表示され続けます.
+ * `onReveal` を渡すと, `o` で, カーソル位置のパスのあるディレクトリを開く (最近開いたファイルの一覧用).
+ * 見出しと, 空のときの表示を変えれば, 最近開いたファイルなど, パスの一覧にも使えます.
  *
  * @param props - コンポーネントのプロパティ.
  * @returns ブックマーク一覧のReact要素.
@@ -50,6 +58,9 @@ export default function BookmarkPane({
   onCancel,
   onSwitchPane,
   isToggleKey,
+  onReveal,
+  title = "ブックマーク",
+  emptyText = "登録されていません.",
 }: BookmarkPaneProps): ReactElement {
   const [rawIndex, setIndex] = useState(0);
   const rowsRef = useRef<HTMLUListElement>(null);
@@ -89,6 +100,11 @@ export default function BookmarkPane({
         if (bookmarks[index]) {
           onRemove(bookmarks[index]);
         }
+      } else if (e.key === "o" && onReveal) {
+        e.preventDefault();
+        if (bookmarks[index]) {
+          onReveal(bookmarks[index]);
+        }
       } else if (e.key === "Escape") {
         e.preventDefault();
         onCancel();
@@ -106,6 +122,7 @@ export default function BookmarkPane({
     index,
     onSelect,
     onRemove,
+    onReveal,
     onCancel,
     onSwitchPane,
     isToggleKey,
@@ -120,12 +137,12 @@ export default function BookmarkPane({
       onClick={onActivate}
     >
       {/* 通常のペインのパス入力欄と高さを揃えるための見出し行. */}
-      <div className="path-bar bookmark-title">ブックマーク</div>
+      <div className="path-bar bookmark-title">{title}</div>
       <div className="file-list">
         <ul ref={rowsRef} className="file-rows path-rows">
           {bookmarks.length === 0 && (
             <li className="file-row">
-              <span className="col-name">登録されていません.</span>
+              <span className="col-name">{emptyText}</span>
             </li>
           )}
           {bookmarks.map((path, i) => (

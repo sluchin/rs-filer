@@ -4,7 +4,7 @@
 //! ファイルの詳細 (`info`), 外部アプリケーションで開く操作 (`open`), コピー・移動・削除 (`transfer`), 外部コマンド実行 (`exec`),
 //! ファイルのプレビュー (`preview`), 設定ファイルの読み書き (`config`), アプリ自体の操作 (`app`),
 //! ファイルクリップボード操作 (`clipboard`), フロントエンドのログの転送 (`frontend_log`),
-//! ディレクトリの移動履歴の保存 (`history`), 操作ログの保存 (`oplog`) の
+//! ディレクトリの移動履歴の保存 (`history`), 操作ログの保存 (`oplog`), 最近開いたファイルの保存 (`recent`) の
 //! サブモジュールへ分けています. 各コマンドは, 呼び出しやすいようにこのモジュールから再エクスポートします.
 //!
 //! ディスクや外部プロセスを使うコマンドは, `#[tauri::command(async)]` (同期の関数) か `async fn` にして,
@@ -38,6 +38,7 @@ pub mod oplog;
 pub mod ops;
 /// ファイルのプレビューを取得するコマンド.
 pub mod preview;
+pub mod recent;
 /// コピー・移動・削除を, 進捗の通知と中断に対応して実行するコマンド.
 pub mod transfer;
 
@@ -75,6 +76,12 @@ pub use oplog::{
 };
 pub use ops::{create_directory, create_file, rename_item};
 pub use preview::{read_preview, Preview, PreviewKind};
+#[cfg(not(tarpaulin_include))]
+pub use recent::{load_recent_files, save_recent_files};
+pub use recent::{
+    load_recent_files_from, load_recent_files_with_limit, recent_files_path, retain_existing_files,
+    save_recent_files_to, DEFAULT_RECENT_FILES_LIMIT,
+};
 pub use transfer::{
     cancel_transfer, check_conflicts, check_nested_conflicts, check_stale_overwrites,
     find_conflicts, find_nested_conflicts, find_stale_overwrites, run_transfer, transfer,

@@ -466,6 +466,26 @@ export const commands = {
 	 */
 	saveHistory: (history: PaneHistory_Deserialize) => __TAURI_INVOKE<null>("save_history", { history }),
 	/**
+	 *  ユーザーの設定から, 最近開いたファイルの一覧を読み込みます.
+	 * 
+	 *  # Returns
+	 * 
+	 *  一覧 (古い順). 保存されていない場合は空. 失敗した場合はエラー文字列を含む [`Err`].
+	 */
+	loadRecentFiles: () => __TAURI_INVOKE<string[]>("load_recent_files"),
+	/**
+	 *  ユーザーの設定へ, 最近開いたファイルの一覧を書き込みます.
+	 * 
+	 *  # Arguments
+	 * 
+	 *  * `paths` - 書き込む一覧 (古い順).
+	 * 
+	 *  # Returns
+	 * 
+	 *  成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
+	 */
+	saveRecentFiles: (paths: string[]) => __TAURI_INVOKE<null>("save_recent_files", { paths }),
+	/**
 	 *  ユーザーの設定から, 操作ログを読み込みます. 30 日より古いものは除きます.
 	 * 
 	 *  # Returns
@@ -519,6 +539,11 @@ export type AppConfig_Deserialize = {
 	 */
 	history_limit?: number,
 	/**
+	 *  最近開いたファイルの件数の上限 (既定は 300). 超えたら, 古い方から捨てる.
+	 *  利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
+	 */
+	recent_files_limit?: number,
+	/**
 	 *  ブックマークしたディレクトリ. 一度も保存していない場合は `None` (以前の版が localStorage に
 	 *  保存したものを, フロントエンドが取り込むため, 空の一覧と区別する).
 	 */
@@ -552,6 +577,11 @@ export type AppConfig_Serialize = {
 	 *  利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
 	 */
 	history_limit: number,
+	/**
+	 *  最近開いたファイルの件数の上限 (既定は 300). 超えたら, 古い方から捨てる.
+	 *  利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
+	 */
+	recent_files_limit: number,
 	/**
 	 *  ブックマークしたディレクトリ. 一度も保存していない場合は `None` (以前の版が localStorage に
 	 *  保存したものを, フロントエンドが取り込むため, 空の一覧と区別する).

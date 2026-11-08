@@ -740,6 +740,18 @@ describe("App (作成・名前変更・削除)", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  it("正常系: 名前の入力欄で Tab を押しても, フォーカスは動かないこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    await user.keyboard("j");
+    await user.keyboard("r");
+    const input = screen.getByLabelText("名前");
+
+    await user.keyboard("{Tab}");
+
+    expect(input).toHaveFocus();
+  });
+
   it("正常系: r で名前を変更でき, 同じ名前ならバックエンドを呼ばないこと", async () => {
     mockHome();
     const user = await renderLoaded();
@@ -2881,15 +2893,18 @@ describe("App (コピー・移動・削除の実行)", () => {
     );
   });
 
-  it("正常系: M-x duplicate で, 名前を付けてコピーを始めること", async () => {
+  it("正常系: M-x duplicate で, 名前を聞かずに, `名前~` でコピーを始めること", async () => {
     mockHome();
     const user = await renderLoaded();
 
     await user.keyboard("{Alt>}x{/Alt}");
     await user.keyboard("duplicate{Enter}");
 
-    expect(await screen.findByText("名前を付けてコピー")).toBeInTheDocument();
-    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(transferRequest()).toEqual(
+        expect.objectContaining({ kind: "copy", dest_name: "FolderA~" }),
+      ),
+    );
   });
 
   it("正常系: C-v で, 今のディレクトリのファイルを貼り付けると, 区切りが \\ のパス (Windows) でも, 名前を付けてコピーすること", async () => {
@@ -4675,7 +4690,7 @@ describe("App (右クリックでフルパス・名前のコピー)", () => {
     ).toEqual([
       "フルパスをコピー",
       "ファイル名をコピー",
-      "複製 (名前を付けてコピー)",
+      "複製 (名前~ でコピー)",
     ]);
     await user.click(within(menu).getByText("フルパスをコピー"));
 
@@ -4686,14 +4701,12 @@ describe("App (右クリックでフルパス・名前のコピー)", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("正常系: 右クリックのメニューの「複製」で, 同じディレクトリへ, 名前を付けてコピーできること", async () => {
+  it("正常系: 右クリックのメニューの「複製」で, 同じディレクトリへ, `名前~` で (名前を聞かずに) コピーできること", async () => {
     mockHome();
     const user = await renderLoaded();
 
     fireEvent.contextMenu(leftRow("b.txt"));
-    await user.click(screen.getByText("複製 (名前を付けてコピー)"));
-    expect(await screen.findByText("名前を付けてコピー")).toBeInTheDocument();
-    await user.keyboard("{Control>}a{/Control}copy.txt{Enter}");
+    await user.click(screen.getByText("複製 (名前~ でコピー)"));
 
     await waitFor(() =>
       expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {
@@ -4701,7 +4714,7 @@ describe("App (右クリックでフルパス・名前のコピー)", () => {
           kind: "copy",
           sources: ["/mock/home/b.txt"],
           dest_dir: "/mock/home",
-          dest_name: "copy.txt",
+          dest_name: "b.txt~",
         }),
         onProgress: expect.anything(),
       }),
@@ -5646,5 +5659,138 @@ describe("App (タブ)", () => {
       "data-active",
       "true",
     );
+  });
+});
+
+describe("App (最近開いたファイル)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: 外部アプリとエディタで開いたファイルが記録され, M-r の一覧から開き直せて, 一覧は保存されること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("j{Enter}");
+    await user.keyboard("{Alt>}r{/Alt}");
+
+    expect(await screen.findByText("最近開いたファイル")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "left pane" })).getByText(
+        "/mock/home/b.txt",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(
+      () =>
+        expect(mockedInvoke).toHaveBeenCalledWith("save_recent_files", {
+          paths: ["/mock/home/b.txt"],
+        }),
+      { timeout: 3000 },
+    );
+
+    mockedInvoke.mockClear();
+    await user.keyboard("{Enter}");
+    expect(mockedInvoke).toHaveBeenCalledWith("open_item", {
+      path: "/mock/home/b.txt",
+    });
+    expect(screen.queryByText("最近開いたファイル")).not.toBeInTheDocument();
+  });
+
+  it("正常系: エディタで開いたファイルも記録され, C-x C-r でも一覧が開いて, Esc で閉じること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("je");
+    await user.keyboard("{Control>}x{/Control}{Control>}r{/Control}");
+
+    expect(await screen.findByText("/mock/home/b.txt")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByText("最近開いたファイル")).not.toBeInTheDocument();
+  });
+
+  it("境界: ディレクトリは記録されず, 一覧が空のときはその旨が表示されること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("W");
+    await user.keyboard("e");
+    await user.keyboard("{Alt>}r{/Alt}");
+
+    expect(
+      await screen.findByText("開いたファイルはありません."),
+    ).toBeInTheDocument();
+    // 一覧のペインをクリックすると, そのペインがアクティブになる.
+    await user.click(
+      within(screen.getByRole("region", { name: "right pane" })).getByText(
+        "FolderA",
+      ),
+    );
+    await user.click(
+      within(screen.getByRole("region", { name: "left pane" })).getByText(
+        "開いたファイルはありません.",
+      ),
+    );
+    expect(screen.getByRole("region", { name: "left pane" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+  });
+
+  it("正常系: o で, そのファイルのあるディレクトリを開いて, ファイルにカーソルを合わせること (親の無いパスは何もしない)", async () => {
+    mockHome((cmd) =>
+      cmd === "load_recent_files"
+        ? Promise.resolve(["/", "/mock/home/b.txt"])
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}r{/Alt}");
+    await screen.findByText("/mock/home/b.txt");
+
+    await user.keyboard("jo");
+    expect(screen.getByText("最近開いたファイル")).toBeInTheDocument();
+    await user.keyboard("ko");
+
+    await waitFor(() =>
+      expect(screen.queryByText("最近開いたファイル")).not.toBeInTheDocument(),
+    );
+    expect(cursorNames()).toEqual(["b.txt"]);
+  });
+
+  it("正常系: 前に保存した一覧が出て, d で一覧から取り除けること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_recent_files"
+        ? Promise.resolve(["/mock/home/old.txt", "/mock/home/b.txt"])
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}r{/Alt}");
+    expect(await screen.findByText("/mock/home/old.txt")).toBeInTheDocument();
+
+    await user.keyboard("d");
+
+    expect(screen.queryByText("/mock/home/b.txt")).not.toBeInTheDocument();
+    expect(screen.getByText("/mock/home/old.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: 設定の recent_files_limit を超えた分は, 古い方から捨てること", async () => {
+    mockHome((cmd) => {
+      if (cmd === "load_recent_files")
+        return Promise.resolve(["/mock/home/a.txt", "/mock/home/c.txt"]);
+      if (cmd === "load_config")
+        return Promise.resolve({
+          theme: "classic",
+          font_size: "medium",
+          editor: null,
+          terminal: null,
+          recent_files_limit: 1,
+        });
+      return undefined;
+    });
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}r{/Alt}");
+
+    expect(await screen.findByText("/mock/home/c.txt")).toBeInTheDocument();
+    expect(screen.queryByText("/mock/home/a.txt")).not.toBeInTheDocument();
   });
 });

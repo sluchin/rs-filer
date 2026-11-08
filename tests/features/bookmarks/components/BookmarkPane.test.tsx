@@ -71,4 +71,40 @@ describe("BookmarkPane", () => {
     expect(handlers.onCancel).toHaveBeenCalledTimes(1);
     expect(handlers.onSelect).not.toHaveBeenCalled();
   });
+
+  it("正常系: onReveal を渡すと, o でカーソル位置のパスを渡すこと. 空の一覧では呼ばないこと", async () => {
+    const user = userEvent.setup();
+    const onReveal = vi.fn();
+    const props = {
+      paneId: "left" as const,
+      isActive: true,
+      onActivate: vi.fn(),
+      onSelect: vi.fn(),
+      onRemove: vi.fn(),
+      onCancel: vi.fn(),
+      onSwitchPane: vi.fn(),
+      isToggleKey: () => false,
+      onReveal,
+    };
+    const { rerender } = render(
+      <BookmarkPane {...props} bookmarks={["/a", "/b"]} />,
+    );
+
+    await user.keyboard("jo");
+    expect(onReveal).toHaveBeenCalledWith("/b");
+
+    onReveal.mockClear();
+    rerender(<BookmarkPane {...props} bookmarks={[]} />);
+    await user.keyboard("o");
+    expect(onReveal).not.toHaveBeenCalled();
+  });
+
+  it("境界: onReveal が無ければ, o は何もしないこと", async () => {
+    const user = userEvent.setup();
+    const { handlers } = renderPane();
+
+    await user.keyboard("o");
+
+    expect(handlers.onSelect).not.toHaveBeenCalled();
+  });
 });

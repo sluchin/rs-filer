@@ -66,6 +66,9 @@ export interface TransferDeps extends PaneDeps {
   openChoice: (title: string, message: string, choices: ChoiceOption[]) => void;
 }
 
+/** 複製の名前に付ける番号 (`名前.~N~`) の上限. */
+const MAX_BACKUP_NUMBER = 999;
+
 /** 操作のお知らせに載せる, 元の項目の最大の数 (残りは「ほか N 件」にする). */
 const SHOWN_SOURCES = 3;
 
@@ -525,26 +528,69 @@ export function useTransfer({
     }
   }, [source.currentPath, setError, promptCopyAs, placeInto]);
 
-  /** ファイルを同じディレクトリ内でコピーします. */
+  /**
+   * 1 件の項目を, 同じ名前に `~` を付けた名前 (Emacs のバックアップファイルと同じ) で, 指定したディレクトリへコピーします.
+   * その名前が既にあれば, `名前.~1~`, `名前.~2~` と番号を進めて, 空いている名前にします.
+   *
+   * @param items - コピーする項目 (絶対パスと名前). 1 件でなければエラーを表示する.
+   * @param destDir - コピー先のディレクトリ.
+   */
+  const backupCopy = useCallback(
+    async (
+      items: { path: string; name: string }[],
+      destDir: string,
+    ): Promise<void> => {
+      if (items.length !== 1) {
+        setError("1 件だけコピーしてください.");
+        return;
+      }
+      const [item] = items;
+      try {
+        let newName = `${item.name}~`;
+        for (let n = 1; n <= MAX_BACKUP_NUMBER; n++) {
+          if (
+            (await checkConflicts([item.path], destDir, newName)).length === 0
+          ) {
+            break;
+          }
+          newName = `${item.name}.~${n}~`;
+        }
+        run({
+          kind: "copy",
+          sources: [item.path],
+          dest_dir: destDir,
+          overwrite: false,
+          permanent: false,
+          dest_name: newName,
+        });
+      } catch (e) {
+        setError(String(e));
+      }
+    },
+    [setError, run],
+  );
+
+  /** 選択した 1 件を, 同じディレクトリの中へ, 自動で付けた名前 (`名前~`) でコピーします. */
   const duplicateFile = useCallback((): void => {
     const files = targetsOf(source);
     if (files.length === 0) {
       setError("対象の項目が選択されていません.");
       return;
     }
-    promptCopyAs(files);
-  }, [source, setError, promptCopyAs]);
+    void backupCopy(files, source.currentPath);
+  }, [source, setError, backupCopy]);
 
   /**
-   * 指定した項目を, 同じディレクトリの中へ, 新しい名前を尋ねてコピーします (右クリックのメニューの「複製」).
+   * 指定した項目を, 同じディレクトリの中へ, 自動で付けた名前 (`名前~`) でコピーします (右クリックのメニューの「複製」).
    * ツリー表示の, 今のディレクトリの外の行でも, その項目のあるディレクトリへコピーします.
    *
    * @param item - コピーする項目 (絶対パスと名前).
    */
   const duplicatePath = useCallback(
-    (item: { path: string; name: string }): void =>
-      promptCopyAs([item], getParentPath(item.path) ?? source.currentPath),
-    [source.currentPath, promptCopyAs],
+    (item: { path: string; name: string }): void => {
+      void backupCopy([item], getParentPath(item.path) ?? source.currentPath);
+    },
+    [source.currentPath, backupCopy],
   );
 
   return {

@@ -47,6 +47,7 @@ function makeDeps(right: PaneState, colName?: number) {
     openLog: vi.fn(),
     openHistoryList: vi.fn(),
     openBookmarks: vi.fn(),
+    openRecentFiles: vi.fn(),
     toggleTree: vi.fn(),
     openPalette: vi.fn(),
     openHelp: vi.fn(),
@@ -97,6 +98,7 @@ describe("useCommandDispatcher", () => {
     run("log");
     run("historyList");
     run("bookmarks");
+    run("recentFiles");
     run("toggleTree");
     run("palette");
     run("help");
@@ -106,6 +108,7 @@ describe("useCommandDispatcher", () => {
     expect(panels.openLog).toHaveBeenCalledTimes(1);
     expect(panels.openHistoryList).toHaveBeenCalledWith("right");
     expect(panels.openBookmarks).toHaveBeenCalledWith("right");
+    expect(panels.openRecentFiles).toHaveBeenCalledWith("right");
     expect(panels.toggleTree).toHaveBeenCalledWith("right");
     expect(panels.openPalette).toHaveBeenCalledTimes(1);
     expect(panels.openHelp).toHaveBeenCalledTimes(1);

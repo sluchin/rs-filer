@@ -28,7 +28,7 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   pasteFromClipboard: "クリップボードから貼り付け",
   copyFullPath: "フルパスを文字としてコピー",
   copyName: "ファイル名 (ディレクトリ名) を文字としてコピー",
-  duplicate: "同じディレクトリ内でコピー",
+  duplicate: "同じディレクトリ内へ名前~ でコピー",
   move: "対向ペインへ移動",
   moveConfirm: "確認してから対向ペインへ移動",
   syncPane: "反対側のペインを同じディレクトリにする",
@@ -62,6 +62,7 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   historyForward: "履歴を進む",
   historyList: "ディレクトリ移動履歴の一覧",
   bookmarks: "ブックマーク一覧",
+  recentFiles: "最近開いたファイルの一覧",
   addBookmark: "ブックマークへ登録 / 解除",
   palette: "コマンドの実行",
   help: "コマンド一覧の表示",
@@ -85,6 +86,7 @@ const ALIASES: Record<string, Command> = {
   up: "parent",
   copy_as: "duplicate",
   exit: "quit",
+  recentf: "recentFiles",
 };
 
 /**

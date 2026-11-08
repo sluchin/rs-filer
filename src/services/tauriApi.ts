@@ -436,6 +436,26 @@ export async function saveHistory(history: PaneHistory): Promise<void> {
 }
 
 /**
+ * 最近開いたファイルの一覧を読み込みます. 今は無いファイルは除かれ, 設定の件数の上限
+ * (`recent_files_limit`) までになっています.
+ *
+ * @returns 最近開いたファイル (古い順). 保存されていない場合は空.
+ */
+export function loadRecentFiles(): Promise<string[]> {
+  return commands.loadRecentFiles();
+}
+
+/**
+ * 最近開いたファイルの一覧を, 保存します.
+ *
+ * @param paths - 書き込む一覧 (古い順).
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
+ */
+export async function saveRecentFiles(paths: string[]): Promise<void> {
+  await commands.saveRecentFiles(paths);
+}
+
+/**
  * 保存してある操作ログを読み込みます. 30 日より古いものは除かれています.
  *
  * @returns 操作ログ (古い順). 保存されていない場合は空.

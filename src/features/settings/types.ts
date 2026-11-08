@@ -28,6 +28,9 @@ export const DEFAULT_NAME_COLUMN_WIDTH = 300;
 /** ディレクトリの移動履歴の, ペインごとの件数の上限の既定値 (バックエンドの `DEFAULT_HISTORY_LIMIT` に合わせる). */
 export const DEFAULT_HISTORY_LIMIT = 1000;
 
+/** 最近開いたファイルの件数の上限の既定値 (バックエンドの `DEFAULT_RECENT_FILES_LIMIT` に合わせる). */
+export const DEFAULT_RECENT_FILES_LIMIT = 300;
+
 /** 既定の設定 (バックエンドの `AppConfig::default()` に合わせる). */
 export const DEFAULT_CONFIG: AppConfig = {
   theme: "classic",
@@ -36,6 +39,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   terminal: null,
   pane_column_widths: { left: {}, right: {} },
   history_limit: DEFAULT_HISTORY_LIMIT,
+  recent_files_limit: DEFAULT_RECENT_FILES_LIMIT,
 };
 
 /** `M-t` でテーマを切り替えるときの順番. */

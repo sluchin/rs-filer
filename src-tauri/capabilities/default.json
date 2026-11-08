@@ -42,6 +42,8 @@
     "allow-copy-text-to-clipboard",
     "allow-load-history",
     "allow-save-history",
+    "allow-load-recent-files",
+    "allow-save-recent-files",
     "allow-load-operation-log",
     "allow-save-operation-log"
   ]
