@@ -82,6 +82,20 @@ describe("deriveFiles", () => {
     expect(by("size", true)[0]).toBe("b.txt");
   });
 
+  it("正常系: 更新日時の順では, ディレクトリ同士も更新日時で並ぶこと (同じなら名前順)", () => {
+    const dirs = [
+      entry("dirA", { is_dir: true, modified: 300 }),
+      entry("dirB", { is_dir: true, modified: 100 }),
+      entry("dirC", { is_dir: true, modified: 200 }),
+      entry("dirD", { is_dir: true, modified: 200 }),
+      entry("f.txt", { modified: 50 }),
+    ];
+    const by = (desc: boolean): string[] =>
+      names(deriveFiles(dirs, { ...view, sort: { key: "date", desc } }));
+    expect(by(false)).toEqual(["dirB", "dirC", "dirD", "dirA", "f.txt"]);
+    expect(by(true).slice(0, 4)).toEqual(["dirA", "dirD", "dirC", "dirB"]);
+  });
+
   it("正常系: サイズや日時が無いエントリも並べ替えできること", () => {
     const missing = [
       { ...entry("x"), size: undefined as never },

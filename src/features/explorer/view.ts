@@ -102,7 +102,7 @@ interface DecoratedEntry {
 
 /**
  * 2 つのエントリを比較します. ディレクトリは常にファイルより上に並びます (昇順・降順に関わらず).
- * ディレクトリ同士は, 基準に関わらず名前で比較します.
+ * ディレクトリ同士は, 更新日時の順のときは更新日時で, それ以外の基準では名前で比較します.
  *
  * @param a - 比べるエントリ.
  * @param b - 比べるエントリ.
@@ -118,13 +118,13 @@ function compareDecorated(
     return a.entry.is_dir ? -1 : 1;
   }
   let result = 0;
-  if (!a.entry.is_dir) {
+  if (sort.key === "date") {
+    result = a.date - b.date;
+  } else if (!a.entry.is_dir) {
     if (sort.key === "ext") {
       result = nameCollator.compare(a.ext, b.ext);
     } else if (sort.key === "size") {
       result = a.size - b.size;
-    } else if (sort.key === "date") {
-      result = a.date - b.date;
     }
   }
   if (result === 0) {
