@@ -2551,7 +2551,7 @@ describe("App (コピー・移動・削除の実行)", () => {
     ).toBeInTheDocument();
   });
 
-  it("正常系: c の完了で通知が表示され, 両ペインが再読み込みされること", async () => {
+  it("正常系: c の完了で通知が表示され, 送り先のペインだけが再読み込みされること (移動元は変わらないので読み直さない)", async () => {
     mockHome();
     const user = await renderTwoDirs();
     mockedInvoke.mockClear();
@@ -2564,10 +2564,10 @@ describe("App (コピー・移動・削除の実行)", () => {
       ),
     ).toBeInTheDocument();
     expect(mockedInvoke).toHaveBeenCalledWith("read_directory", {
-      path: "/mock/home",
-    });
-    expect(mockedInvoke).toHaveBeenCalledWith("read_directory", {
       path: "/mock/home/FolderA",
+    });
+    expect(mockedInvoke).not.toHaveBeenCalledWith("read_directory", {
+      path: "/mock/home",
     });
   });
 
@@ -3267,6 +3267,30 @@ describe("App (操作ログ)", () => {
     expect(screen.getByText("ログはありません.")).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("正常系: 起動前に保存したログが読み込まれ, 新しいログと一緒に保存されること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_operation_log"
+        ? Promise.resolve([
+            { time: 1000, level: "error", message: "前回のエラー" },
+          ])
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("L");
+    expect(
+      within(screen.getByRole("dialog")).getByRole("listitem"),
+    ).toHaveTextContent("前回のエラー");
+    await user.keyboard("{Escape}");
+
+    await waitFor(
+      () =>
+        expect(mockedInvoke).toHaveBeenCalledWith("save_operation_log", {
+          entries: [{ time: 1000, level: "error", message: "前回のエラー" }],
+        }),
+      { timeout: 3000 },
+    );
   });
 
   it("正常系: 完了の通知とエラーが, 新しいものを上にして記録されること", async () => {

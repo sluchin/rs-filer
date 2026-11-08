@@ -122,7 +122,8 @@ export function useTransfer({
    * 操作を実行し, 終わったら対象のマークを解除して, 変更のあったディレクトリを開いているペインを再読み込みします.
    * 途中で失敗しても, 処理済みの分を反映するため再読み込みします.
    *
-   * 再読み込みするのは, 操作が終わった時点で, 移動元か送り先のディレクトリを開いているペインです (バックグラウンドで
+   * 再読み込みするのは, 操作が終わった時点で, 変わったディレクトリ (コピーは送り先, 移動と削除は移動元と送り先) を
+   * 開いているペインです (バックグラウンドで
    * 実行している間に, 別のディレクトリへ移ったペインは, そのままにする).
    */
   const run = useCallback(
@@ -135,7 +136,12 @@ export function useTransfer({
         return;
       }
       const srcPane = activePane;
-      const changed = [source.currentPath, request.dest_dir].filter(
+      // コピーは移動元を変えないので, 送り先だけを読み直す (移動元が大きいディレクトリでも, 待たせないため).
+      const changedDirs =
+        request.kind === "copy"
+          ? [request.dest_dir]
+          : [source.currentPath, request.dest_dir];
+      const changed = changedDirs.filter(
         (p): p is string => p !== null && p !== undefined,
       );
       setCancelling(false);

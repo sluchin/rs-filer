@@ -18,7 +18,7 @@ import type {
   LastPaths,
   PaneHistory,
 } from "../features/settings/types";
-import type { FrontendLogEntry } from "../bindings";
+import type { FrontendLogEntry, LogRecord } from "../bindings";
 
 export { commands };
 export type { FrontendLogEntry, LogLevel } from "../bindings";
@@ -433,6 +433,25 @@ export function loadHistory(): Promise<PaneHistory> {
  */
 export async function saveHistory(history: PaneHistory): Promise<void> {
   await commands.saveHistory(history);
+}
+
+/**
+ * 保存してある操作ログを読み込みます. 30 日より古いものは除かれています.
+ *
+ * @returns 操作ログ (古い順). 保存されていない場合は空.
+ */
+export function loadOperationLog(): Promise<LogRecord[]> {
+  return commands.loadOperationLog();
+}
+
+/**
+ * 操作ログを, ログのファイルへ書き込みます (30 日より古いものは書きません).
+ *
+ * @param entries - 書き込む操作ログ (古い順).
+ * @returns 完了したら解決する Promise. 失敗した場合は, エラーの文字列で拒否する.
+ */
+export async function saveOperationLog(entries: LogRecord[]): Promise<void> {
+  await commands.saveOperationLog(entries);
 }
 
 /**

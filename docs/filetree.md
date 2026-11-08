@@ -161,6 +161,7 @@ src-tauri/src/
 │   ├── preview.rs                      # テキスト(文字コード自動判別)/画像/バイナリのプレビューデータ取得
 │   ├── config.rs                       # 設定ファイルの読み書き (keymap.json / config.json)
 │   ├── history.rs                      # ディレクトリの移動履歴の保存と読み込み (history.json)
+│   ├── oplog.rs                        # 操作ログの保存と読み込み (operation_log.json。30 日分)
 │   └── app.rs                          # 終了 (quit_app)
 │
 └── core/                               # ドメインロジック (OS依存処理・最適化実装)

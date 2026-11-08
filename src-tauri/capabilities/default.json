@@ -41,6 +41,8 @@
     "allow-read-clipboard-files",
     "allow-copy-text-to-clipboard",
     "allow-load-history",
-    "allow-save-history"
+    "allow-save-history",
+    "allow-load-operation-log",
+    "allow-save-operation-log"
   ]
 }

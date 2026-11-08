@@ -4,7 +4,7 @@
 //! ファイルの詳細 (`info`), 外部アプリケーションで開く操作 (`open`), コピー・移動・削除 (`transfer`), 外部コマンド実行 (`exec`),
 //! ファイルのプレビュー (`preview`), 設定ファイルの読み書き (`config`), アプリ自体の操作 (`app`),
 //! ファイルクリップボード操作 (`clipboard`), フロントエンドのログの転送 (`frontend_log`),
-//! ディレクトリの移動履歴の保存 (`history`) の
+//! ディレクトリの移動履歴の保存 (`history`), 操作ログの保存 (`oplog`) の
 //! サブモジュールへ分けています. 各コマンドは, 呼び出しやすいようにこのモジュールから再エクスポートします.
 //!
 //! ディスクや外部プロセスを使うコマンドは, `#[tauri::command(async)]` (同期の関数) か `async fn` にして,
@@ -32,6 +32,8 @@ pub mod history;
 pub mod info;
 /// 関連付けられたアプリケーションまたはエディタで開く, およびターミナルを開くコマンド.
 pub mod open;
+/// 操作ログの保存と, 起動時の読み込みを行うコマンド.
+pub mod oplog;
 /// ファイル・ディレクトリの作成・名前変更を行うコマンド.
 pub mod ops;
 /// ファイルのプレビューを取得するコマンド.
@@ -65,6 +67,12 @@ pub use info::{
     ItemKind, StatsState,
 };
 pub use open::{open_in_editor, open_item, open_terminal};
+#[cfg(not(tarpaulin_include))]
+pub use oplog::{load_operation_log, save_operation_log};
+pub use oplog::{
+    load_operation_log_from, now_millis, operation_log_path, retain_recent, save_operation_log_to,
+    LogRecord, RETENTION_MS,
+};
 pub use ops::{create_directory, create_file, rename_item};
 pub use preview::{read_preview, Preview, PreviewKind};
 pub use transfer::{

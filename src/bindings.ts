@@ -465,6 +465,26 @@ export const commands = {
 	 *  成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
 	 */
 	saveHistory: (history: PaneHistory_Deserialize) => __TAURI_INVOKE<null>("save_history", { history }),
+	/**
+	 *  ユーザーの設定から, 操作ログを読み込みます. 30 日より古いものは除きます.
+	 * 
+	 *  # Returns
+	 * 
+	 *  操作ログ (古い順). 保存されていない場合は空. 失敗した場合はエラー文字列を含む [`Err`].
+	 */
+	loadOperationLog: () => __TAURI_INVOKE<LogRecord[]>("load_operation_log"),
+	/**
+	 *  ユーザーの設定へ, 操作ログを書き込みます.
+	 * 
+	 *  # Arguments
+	 * 
+	 *  * `entries` - 書き込む操作ログ (古い順).
+	 * 
+	 *  # Returns
+	 * 
+	 *  成功した場合は [`Ok(())`], 失敗した場合はエラー文字列を含む [`Err`].
+	 */
+	saveOperationLog: (entries: LogRecord[]) => __TAURI_INVOKE<null>("save_operation_log", { entries }),
 };
 
 /* Types */
@@ -769,6 +789,16 @@ export type LogLevel =
 "warn" | 
 /**  エラー. */
 "error";
+
+/**  操作ログの 1 件. */
+export type LogRecord = {
+	/**  記録した時刻 (UNIX 時刻のミリ秒). */
+	time: number,
+	/**  種類. エラーは `error`, それ以外は `info`. */
+	level: string,
+	/**  メッセージ. */
+	message: string,
+};
 
 /**  同名のディレクトリを統合するときに, 中にある, 同名のファイル 1 件. */
 export type NestedConflict = {
