@@ -4687,11 +4687,7 @@ describe("App (右クリックでフルパス・名前のコピー)", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual([
-      "フルパスをコピー",
-      "ファイル名をコピー",
-      "複製 (名前~ でコピー)",
-    ]);
+    ).toEqual(["フルパスをコピー", "ファイル名をコピー", "複製"]);
     await user.click(within(menu).getByText("フルパスをコピー"));
 
     await waitFor(() => expect(copiedTexts()).toEqual(["/mock/home/b.txt"]));
@@ -4706,7 +4702,7 @@ describe("App (右クリックでフルパス・名前のコピー)", () => {
     const user = await renderLoaded();
 
     fireEvent.contextMenu(leftRow("b.txt"));
-    await user.click(screen.getByText("複製 (名前~ でコピー)"));
+    await user.click(screen.getByText("複製"));
 
     await waitFor(() =>
       expect(mockedInvoke).toHaveBeenCalledWith("run_transfer", {

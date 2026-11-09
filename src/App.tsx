@@ -549,7 +549,7 @@ export default function App(): ReactElement {
               onSelect: () => copyText(copyMenu.target, kind),
             })),
             {
-              label: "複製 (名前~ でコピー)",
+              label: "複製",
               onSelect: () => transfer.duplicatePath(copyMenu.target),
             },
           ]}
