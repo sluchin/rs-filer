@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import loglevel from "loglevel";
 import type { PaneId, PaneState } from "../../explorer/types";
 import { getBaseName } from "../../../utils/path";
+import { NO_OVERLAYS, type PaneOverlays } from "../../../hooks/useDialogs";
 import { loadConfig, saveLastPaths } from "../../../services/tauriApi";
 
 const log = loglevel.getLogger("tabs");
@@ -16,6 +17,8 @@ export interface TabSnapshot {
   right: PaneState;
   /** アクティブなペイン. */
   activePane: PaneId;
+  /** ブックマーク・移動履歴・最近開いたファイルの一覧と, ツリーの表示 (タブごとに持つ). */
+  overlays: PaneOverlays;
   /** 前回の終了時から復元しただけで, まだディレクトリを読み込んでいないタブ. 初めて表示するときに読み込む. */
   lazy?: boolean;
 }
@@ -44,6 +47,10 @@ export interface TabDeps {
   activePane: PaneId;
   /** アクティブなペインを設定する. */
   setActivePane: (pane: PaneId) => void;
+  /** 今のタブの, 一覧 (ブックマーク・移動履歴・最近開いたファイル) とツリーの表示. */
+  overlays: PaneOverlays;
+  /** 一覧の表示を, 指定したものに替える. */
+  setOverlays: (overlays: PaneOverlays) => void;
   /** ペインの状態を更新する. */
   updatePane: (pane: PaneId, updater: (prev: PaneState) => PaneState) => void;
   /** ディレクトリを読み込む. */
@@ -69,6 +76,8 @@ export function useTabs({
   rightPane,
   activePane,
   setActivePane,
+  overlays,
+  setOverlays,
   updatePane,
   loadDirectory,
   invalidateLoads,
@@ -76,7 +85,7 @@ export function useTabs({
 }: TabDeps) {
   // 今のタブの分は, 使わずに (今の状態を見る), タブを替えるときに書き換える
   const [saved, setSaved] = useState<TabSnapshot[]>(() => [
-    { left: leftPane, right: rightPane, activePane },
+    { left: leftPane, right: rightPane, activePane, overlays },
   ]);
   const [active, setActive] = useState(0);
   // 復元したタブの元になる, 最初のペインの状態 (並べ方や隠しファイルの設定を引き継ぐ)
@@ -99,6 +108,7 @@ export function useTabs({
               left: { ...initial.left, currentPath: paths.left },
               right: { ...initial.right, currentPath: paths.right },
               activePane: "left" as const,
+              overlays: NO_OVERLAYS,
               lazy: i !== current,
             })),
           );
@@ -122,6 +132,7 @@ export function useTabs({
     left: leftPane,
     right: rightPane,
     activePane,
+    overlays,
   });
 
   /**
@@ -139,6 +150,7 @@ export function useTabs({
       }));
     });
     setActivePane(next.activePane);
+    setOverlays(next.overlays);
   };
 
   /**
@@ -191,7 +203,13 @@ export function useTabs({
       flags: [],
       filter: null,
     });
-    const next = { ...current, left: fresh(leftPane), right: fresh(rightPane) };
+    // 一覧 (ブックマークなど) とツリーは, そのタブだけのものなので, 新しいタブでは閉じておく
+    const next = {
+      ...current,
+      left: fresh(leftPane),
+      right: fresh(rightPane),
+      overlays: NO_OVERLAYS,
+    };
     const tabs = saved.map((tab, i) => (i === active ? current : tab));
     const at = atEnd ? tabs.length : active + 1;
     tabs.splice(at, 0, next);
@@ -199,6 +217,7 @@ export function useTabs({
     setActive(at);
     updatePane("left", fresh);
     updatePane("right", fresh);
+    setOverlays(NO_OVERLAYS);
     // 検索の結果の表示は引き継げないので、ディレクトリを読み直す
     (["left", "right"] as const).forEach((pane) => {
       if (current[pane].search !== null) {

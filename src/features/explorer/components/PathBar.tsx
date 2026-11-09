@@ -91,7 +91,10 @@ export default function PathBar({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === "Enter") {
+    if (e.ctrlKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === "f") {
+      // WebView の検索窓 (Ctrl+F) を出さない
+      e.preventDefault();
+    } else if (e.key === "Enter") {
       onSubmit(draft);
       closeList();
       e.currentTarget.blur();

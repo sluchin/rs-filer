@@ -13,6 +13,10 @@ export interface CopyMenuState {
   x: number;
   /** メニューを出す y 座標. */
   y: number;
+  /** 「ディレクトリへ移動」の項目の処理 (最近開いたファイルの一覧のとき). 無ければ, その項目は出さない. */
+  onReveal?: () => void;
+  /** 「複製」の項目を出すか (既定は出す). 最近開いたファイルの一覧では出さない. */
+  noDuplicate?: boolean;
 }
 
 /** 左右のペインごとの, 表示するかどうか. */
@@ -20,6 +24,28 @@ type PaneFlags = Record<PaneId, boolean>;
 
 /** どちらのペインにも出していない状態. */
 const NO_PANES: PaneFlags = { left: false, right: false };
+
+/**
+ * タブごとに持つ, ペインの表示の差し替え (ブックマーク・移動履歴・最近開いたファイルの一覧と, ツリー).
+ */
+export interface PaneOverlays {
+  /** ブックマークの一覧を出しているペイン. */
+  bookmarks: PaneFlags;
+  /** 移動履歴の一覧を出しているペイン. */
+  history: PaneFlags;
+  /** 最近開いたファイルの一覧を出しているペイン. */
+  recent: PaneFlags;
+  /** ツリー表示にしているペイン. */
+  tree: PaneFlags;
+}
+
+/** どの一覧も出していない状態 (新しいタブの始まり). */
+export const NO_OVERLAYS: PaneOverlays = {
+  bookmarks: NO_PANES,
+  history: NO_PANES,
+  recent: NO_PANES,
+  tree: NO_PANES,
+};
 
 /**
  * ダイアログ・コマンドパレット・右クリックのメニューの開閉と, ペインの表示の差し替え
@@ -93,6 +119,13 @@ export function useDialogs() {
       openCopyMenu: (menu: CopyMenuState) => setCopyMenu(menu),
       /** 右クリックのメニューを閉じる. */
       closeCopyMenu: () => setCopyMenu(null),
+      /** 一覧の表示を, タブが保存していたものに替える (タブを替えたとき). */
+      setOverlays: (overlays: PaneOverlays) => {
+        setBookmarkPanes(overlays.bookmarks);
+        setHistoryPanes(overlays.history);
+        setRecentPanes(overlays.recent);
+        setTreePanes(overlays.tree);
+      },
     };
   }, []);
 
@@ -113,7 +146,16 @@ export function useDialogs() {
     helpOpen ||
     copyMenu !== null;
 
+  /** 今のタブの, 一覧とツリーの表示 (タブを替えるとき, 保存する). */
+  const overlays: PaneOverlays = {
+    bookmarks: bookmarkPanes,
+    history: historyPanes,
+    recent: recentPanes,
+    tree: treePanes,
+  };
+
   return {
+    overlays,
     bookmarkPanes,
     historyPanes,
     recentPanes,

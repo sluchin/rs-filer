@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import BookmarkPane from "@/features/bookmarks/components/BookmarkPane";
@@ -106,5 +106,39 @@ describe("BookmarkPane", () => {
     await user.keyboard("o");
 
     expect(handlers.onSelect).not.toHaveBeenCalled();
+  });
+
+  it("正常系: onContextMenu を渡すと, 右クリックした行にカーソルを移し, パスと座標を渡すこと", () => {
+    const onContextMenu = vi.fn();
+    render(
+      <BookmarkPane
+        paneId="left"
+        isActive
+        onActivate={vi.fn()}
+        bookmarks={["/a", "/b"]}
+        onSelect={vi.fn()}
+        onRemove={vi.fn()}
+        onCancel={vi.fn()}
+        onSwitchPane={vi.fn()}
+        isToggleKey={() => false}
+        onContextMenu={onContextMenu}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByText("/b"), { clientX: 12, clientY: 34 });
+
+    expect(onContextMenu).toHaveBeenCalledWith("/b", 12, 34);
+    expect(screen.getByText("/b").closest("li")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  it("境界: onContextMenu が無ければ, 右クリックしても何もしないこと (既定のメニューも止めない)", () => {
+    renderPane();
+
+    const notPrevented = fireEvent.contextMenu(screen.getByText("/a"));
+
+    expect(notPrevented).toBe(true);
   });
 });

@@ -220,4 +220,18 @@ describe("PathBar の補完", () => {
     const options = await screen.findAllByRole("option");
     expect(options.map((o) => o.textContent)).toEqual(["aa\\", "ab\\"]);
   });
+
+  it("正常系: Ctrl+F の既定の動作 (WebView の検索窓) を止め, ほかのキーは止めないこと", async () => {
+    const { input } = await renderBar("/h");
+    expect(fireEvent.keyDown(input, { key: "f", ctrlKey: true })).toBe(false);
+    expect(fireEvent.keyDown(input, { key: "F", ctrlKey: true })).toBe(false);
+    // Alt や Meta を伴うとき, Ctrl なしのときは, 止めない
+    expect(
+      fireEvent.keyDown(input, { key: "f", ctrlKey: true, altKey: true }),
+    ).toBe(true);
+    expect(
+      fireEvent.keyDown(input, { key: "f", ctrlKey: true, metaKey: true }),
+    ).toBe(true);
+    expect(fireEvent.keyDown(input, { key: "f" })).toBe(true);
+  });
 });

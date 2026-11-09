@@ -155,6 +155,8 @@ export default function App(): ReactElement {
     rightPane,
     activePane,
     setActivePane,
+    overlays: dialogs.overlays,
+    setOverlays: dialogs.setOverlays,
     updatePane,
     loadDirectory,
     invalidateLoads,
@@ -388,6 +390,14 @@ export default function App(): ReactElement {
     if (!recentPanes[paneId]) {
       return;
     }
+    // ファイルのあるディレクトリへ移り, そのファイルにカーソルを合わせる
+    const revealRecent = (path: string): void => {
+      const parent = getParentPath(path);
+      if (parent !== null) {
+        closeRecentFiles(paneId);
+        loadDirectory(paneId, parent, { selectName: getBaseName(path) });
+      }
+    };
     paneOverrides[paneId] = (
       <BookmarkPane
         paneId={paneId}
@@ -401,12 +411,16 @@ export default function App(): ReactElement {
           openPath(path);
         }}
         onRemove={recentFiles.remove}
-        onReveal={(path) => {
-          const parent = getParentPath(path);
-          if (parent !== null) {
-            closeRecentFiles(paneId);
-            loadDirectory(paneId, parent, { selectName: getBaseName(path) });
-          }
+        onReveal={revealRecent}
+        onContextMenu={(path, x, y) => {
+          setActivePane(paneId);
+          openCopyMenu({
+            target: { path, name: getBaseName(path), isDir: false },
+            x,
+            y,
+            onReveal: () => revealRecent(path),
+            noDuplicate: true,
+          });
         }}
         onCancel={() => closeRecentFiles(paneId)}
         onSwitchPane={switchPane}
@@ -548,10 +562,17 @@ export default function App(): ReactElement {
               label,
               onSelect: () => copyText(copyMenu.target, kind),
             })),
-            {
-              label: "複製",
-              onSelect: () => transfer.duplicatePath(copyMenu.target),
-            },
+            ...(copyMenu.onReveal
+              ? [{ label: "ディレクトリへ移動", onSelect: copyMenu.onReveal }]
+              : []),
+            ...(copyMenu.noDuplicate
+              ? []
+              : [
+                  {
+                    label: "複製",
+                    onSelect: () => transfer.duplicatePath(copyMenu.target),
+                  },
+                ]),
           ]}
           onClose={dialogs.closeCopyMenu}
         />

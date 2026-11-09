@@ -1,4 +1,9 @@
-import { useState, type FormEvent, type ReactElement } from "react";
+import {
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactElement,
+} from "react";
 import Minibuffer from "../../../components/Minibuffer";
 import type { DialogState } from "../types";
 
@@ -10,6 +15,28 @@ interface OperationDialogProps {
   dialog: DialogState;
   /** ダイアログを閉じるハンドラー. */
   onClose: () => void;
+}
+
+/**
+ * 左右の矢印キーで, ミニバッファの中のボタンへフォーカスを動かします (端は, 反対側へつなぐ).
+ *
+ * @param e - キー入力.
+ * @returns 動かしたら `true`.
+ */
+function moveButtonFocus(e: KeyboardEvent<HTMLDivElement>): boolean {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
+    return false;
+  }
+  const buttons = [...e.currentTarget.querySelectorAll("button")];
+  if (buttons.length === 0) {
+    return false;
+  }
+  const current = buttons.findIndex((b) => b === document.activeElement);
+  const step = e.key === "ArrowRight" ? 1 : -1;
+  const next = (Math.max(current, 0) + step + buttons.length) % buttons.length;
+  buttons[next].focus();
+  e.preventDefault();
+  return true;
 }
 
 /**
@@ -56,7 +83,7 @@ function PromptBody({
 }
 
 /**
- * 確認用のミニバッファ. `y` で承諾, `n` で取り消します.
+ * 確認用のミニバッファ. `y` で承諾, `n` で取り消します. `←` `→` で「はい」「いいえ」のボタンを行き来し, `Enter` で押します.
  *
  * @param props - コンポーネントのプロパティ (確認のダイアログと, 閉じるハンドラー).
  * @returns 確認用のミニバッファのReact要素.
@@ -71,6 +98,9 @@ function ConfirmBody({
   return (
     <div
       onKeyDown={(e) => {
+        if (moveButtonFocus(e)) {
+          return;
+        }
         if (e.key === "y") {
           dialog.onConfirm();
         } else if (e.key === "n") {
@@ -92,7 +122,7 @@ function ConfirmBody({
 }
 
 /**
- * 選択肢用のミニバッファ. 各選択肢のキー (例: `y` / `n` / `a`) で選び, `Esc` で取りやめます.
+ * 選択肢用のミニバッファ. 各選択肢のキー (例: `y` / `n` / `a`) で選び, `Esc` で取りやめます. `←` `→` で選択肢のボタンを行き来し, `Enter` で押します.
  *
  * @param props - コンポーネントのプロパティ (選択肢のダイアログ).
  * @returns 選択肢用のミニバッファのReact要素.
@@ -105,6 +135,9 @@ function ChoiceBody({
   return (
     <div
       onKeyDown={(e) => {
+        if (moveButtonFocus(e)) {
+          return;
+        }
         const choice = dialog.choices.find((c) => c.key === e.key);
         if (choice) {
           e.preventDefault();

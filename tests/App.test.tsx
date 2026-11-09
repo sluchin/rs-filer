@@ -5644,6 +5644,63 @@ describe("App (タブ)", () => {
     ).toBeInTheDocument();
   });
 
+  it("正常系: ブックマーク・最近開いたファイル・移動履歴の一覧は、出したタブだけに出て、他のタブには出ないこと", async () => {
+    mockHome((cmd) =>
+      cmd === "load_recent_files"
+        ? Promise.resolve(["/mock/home/b.txt"])
+        : undefined,
+    );
+    const user = await renderLoaded();
+    const shown = (title: string): boolean =>
+      screen.queryByText(title) !== null;
+
+    // タブ 1 で, ブックマークの一覧を出す (一覧が出ている間は, キーでタブを作れないので, + を押す)
+    await user.keyboard("b");
+    expect(shown("ブックマーク")).toBe(true);
+    await user.click(screen.getByRole("button", { name: "新しいタブ" }));
+    expect(shown("ブックマーク")).toBe(false);
+    expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
+
+    // タブ 2 で, 最近開いたファイルの一覧を出す
+    await user.keyboard("{Alt>}r{/Alt}");
+    expect(await screen.findByText("最近開いたファイル")).toBeInTheDocument();
+    expect(shown("ブックマーク")).toBe(false);
+
+    // タブ 1 に戻ると, ブックマークだけが出ている
+    await user.click(screen.getAllByRole("tab")[0]);
+    expect(shown("ブックマーク")).toBe(true);
+    expect(shown("最近開いたファイル")).toBe(false);
+
+    // タブ 2 に戻ると, 最近開いたファイルだけが出ている
+    await user.click(screen.getAllByRole("tab")[1]);
+    expect(shown("最近開いたファイル")).toBe(true);
+    expect(shown("ブックマーク")).toBe(false);
+
+    // タブ 2 の一覧を閉じても, タブ 1 の一覧はそのまま
+    await user.keyboard("{Escape}");
+    expect(shown("最近開いたファイル")).toBe(false);
+    await user.click(screen.getAllByRole("tab")[0]);
+    expect(shown("ブックマーク")).toBe(true);
+  });
+
+  it("正常系: ツリー表示は、出したタブだけに出て、他のタブには出ないこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+    const treeShown = (): boolean =>
+      paneOf("left").queryAllByRole("treeitem").length > 0;
+
+    await user.keyboard("T");
+    await paneOf("left").findByRole("treeitem", { name: /FolderA/ });
+    // ツリーが出ている間は, キーでタブを作れないので, + を押す
+    await user.click(screen.getByRole("button", { name: "新しいタブ" }));
+    expect(treeShown()).toBe(false);
+
+    await user.click(screen.getAllByRole("tab")[0]);
+    expect(treeShown()).toBe(true);
+    await user.click(screen.getAllByRole("tab")[1]);
+    expect(treeShown()).toBe(false);
+  });
+
   it("正常系: 右ペインをアクティブにしたタブは、替えて戻ってもアクティブなペインが右のままであること", async () => {
     mockHome();
     const user = await renderLoaded();
@@ -5746,6 +5803,42 @@ describe("App (最近開いたファイル)", () => {
     expect(screen.getByText("最近開いたファイル")).toBeInTheDocument();
     await user.keyboard("ko");
 
+    await waitFor(() =>
+      expect(screen.queryByText("最近開いたファイル")).not.toBeInTheDocument(),
+    );
+    expect(cursorNames()).toEqual(["b.txt"]);
+  });
+
+  it("正常系: 一覧のファイルを右クリックすると, フルパスのコピー, ファイル名のコピー, ディレクトリへの移動ができること (複製は出ない)", async () => {
+    mockHome((cmd) =>
+      cmd === "load_recent_files"
+        ? Promise.resolve(["/mock/home/b.txt"])
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}r{/Alt}");
+    const row = await screen.findByText("/mock/home/b.txt");
+
+    fireEvent.contextMenu(row, { clientX: 5, clientY: 6 });
+    expect(await screen.findByText("フルパスをコピー")).toBeInTheDocument();
+    expect(screen.getByText("ファイル名をコピー")).toBeInTheDocument();
+    expect(screen.getByText("ディレクトリへ移動")).toBeInTheDocument();
+    expect(screen.queryByText("複製")).not.toBeInTheDocument();
+
+    mockedInvoke.mockClear();
+    await user.click(screen.getByText("フルパスをコピー"));
+    expect(mockedInvoke).toHaveBeenCalledWith("copy_text_to_clipboard", {
+      text: "/mock/home/b.txt",
+    });
+
+    fireEvent.contextMenu(row, { clientX: 5, clientY: 6 });
+    await user.click(await screen.findByText("ファイル名をコピー"));
+    expect(mockedInvoke).toHaveBeenCalledWith("copy_text_to_clipboard", {
+      text: "b.txt",
+    });
+
+    fireEvent.contextMenu(row, { clientX: 5, clientY: 6 });
+    await user.click(await screen.findByText("ディレクトリへ移動"));
     await waitFor(() =>
       expect(screen.queryByText("最近開いたファイル")).not.toBeInTheDocument(),
     );

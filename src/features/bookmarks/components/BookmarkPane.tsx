@@ -26,6 +26,8 @@ interface BookmarkPaneProps {
   isToggleKey: (e: KeyboardEvent) => boolean;
   /** `o` で, カーソル位置のパスのあるディレクトリを開くハンドラー. 省略した場合は, `o` は何もしない. */
   onReveal?: (path: string) => void;
+  /** 行を右クリックしたときのハンドラー (パスと, 画面の座標). 省略した場合は, 何もしない. */
+  onContextMenu?: (path: string, x: number, y: number) => void;
   /** 見出し. 省略した場合は「ブックマーク」. */
   title?: string;
   /** 一覧が空のときの表示. 省略した場合は「登録されていません.」. */
@@ -43,6 +45,7 @@ interface BookmarkPaneProps {
  * `Esc` または一覧を開くキー (既定は `b`) で, 何もせず通常のペイン表示に戻ります (トグル). `Tab` では, もう一方のペインへ移り,
  * この一覧は (アクティブでないまま) 表示され続けます.
  * `onReveal` を渡すと, `o` で, カーソル位置のパスのあるディレクトリを開く (最近開いたファイルの一覧用).
+ * `onContextMenu` を渡すと, 行を右クリックしたときに, その行にカーソルを移して知らせる.
  * 見出しと, 空のときの表示を変えれば, 最近開いたファイルなど, パスの一覧にも使えます.
  *
  * @param props - コンポーネントのプロパティ.
@@ -59,6 +62,7 @@ export default function BookmarkPane({
   onSwitchPane,
   isToggleKey,
   onReveal,
+  onContextMenu,
   title = "ブックマーク",
   emptyText = "登録されていません.",
 }: BookmarkPaneProps): ReactElement {
@@ -155,6 +159,13 @@ export default function BookmarkPane({
               aria-current={i === index ? "true" : undefined}
               onClick={() => setIndex(i)}
               onDoubleClick={() => onSelect(path)}
+              onContextMenu={(e) => {
+                if (onContextMenu) {
+                  e.preventDefault();
+                  setIndex(i);
+                  onContextMenu(path, e.clientX, e.clientY);
+                }
+              }}
             >
               <span className="col-name file-name full-path">{path}</span>
             </li>
