@@ -555,6 +555,7 @@ export default function App(): ReactElement {
         onClose={tabs.closeTab}
         onCloseRight={tabs.closeTabsToRight}
         onCloseOthers={tabs.closeOtherTabs}
+        onReorder={tabs.reorderTab}
         onNew={() => tabs.newTab(true)}
       />
       <div className="app-body">

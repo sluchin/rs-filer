@@ -5421,6 +5421,55 @@ describe("App (タブ)", () => {
     await user.click(screen.getByRole("menuitem", { name }));
   };
 
+  /** タブの要素を幅 100 の箱として並べ, from 番のタブを to 番の位置までドラッグする. */
+  const dragTab = (from: number, to: number): void => {
+    const items = Array.from(
+      document.querySelectorAll<HTMLElement>(".tab-item"),
+    );
+    items.forEach((el, i) => {
+      el.getBoundingClientRect = () =>
+        ({ left: i * 100, right: i * 100 + 100 }) as DOMRect;
+    });
+    const x = to * 100 + 50;
+    fireEvent.mouseDown(items[from], { button: 0, clientX: from * 100 + 50 });
+    fireEvent.mouseMove(window, { clientX: x + 10 });
+    fireEvent.mouseMove(window, { clientX: x });
+    fireEvent.mouseUp(window, { clientX: x });
+  };
+
+  it("正常系: タブをドラッグして並べ替えても、表示しているタブは変わらず、そのタブを動かすと表示のタブも一緒に動くこと", async () => {
+    const user = await threeTabs();
+    const selected = (): number =>
+      screen
+        .getAllByRole("tab")
+        .findIndex((tab) => tab.getAttribute("aria-selected") === "true");
+    expect(selected()).toBe(2);
+
+    // 表示しているタブより左のタブを, 表示のタブの位置まで動かす
+    dragTab(0, 2);
+    expect(tabLabels()).toEqual(["FolderA", "FolderA", "home"]);
+    expect(selected()).toBe(1);
+    // 表示しているタブより右のタブを, 左へ動かす
+    dragTab(2, 0);
+    expect(tabLabels()).toEqual(["home", "FolderA", "FolderA"]);
+    expect(selected()).toBe(2);
+    // 表示しているタブを, 動かす
+    dragTab(2, 0);
+    expect(tabLabels()).toEqual(["FolderA", "home", "FolderA"]);
+    expect(selected()).toBe(0);
+    expect(paneOf("left").getByText("in.txt")).toBeInTheDocument();
+    // 表示しているタブと関わらない動かし方
+    dragTab(1, 2);
+    expect(selected()).toBe(0);
+    // 同じ位置なら何も起きない
+    dragTab(1, 1);
+    expect(tabLabels()).toEqual(["FolderA", "FolderA", "home"]);
+
+    // 動かしたあとも, タブを選ぶと, そのタブの場所が開く
+    await user.click(screen.getAllByRole("tab")[2]);
+    expect(await paneOf("left").findByText("b.txt")).toBeInTheDocument();
+  });
+
   it("正常系: 右クリックの「右のタブを全て閉じる」で、そのタブより右が閉じ、今のタブが閉じたときはそのタブへ替わること", async () => {
     const user = await threeTabs();
 

@@ -313,6 +313,30 @@ export function useTabs({
   const closeOtherTabs = (index: number): void =>
     keepTabs((i) => i === index, index);
 
+  /**
+   * タブを, 別の位置へ動かす (ドラッグでの並べ替え). 表示しているタブは, 動かしても表示したままにする.
+   *
+   * @param from - 動かすタブの番号 (0 から).
+   * @param to - 動かした先の番号 (0 から). 動かしたあと, このタブがこの番号になる.
+   */
+  const reorderTab = (from: number, to: number): void => {
+    if (from === to) {
+      return;
+    }
+    const all = saved.map((tab, i) => (i === active ? live() : tab));
+    const [moved] = all.splice(from, 1);
+    all.splice(to, 0, moved);
+    setSaved(all);
+    // 表示しているタブの, 動かしたあとの番号
+    if (active === from) {
+      setActive(to);
+    } else if (from < active && to >= active) {
+      setActive(active - 1);
+    } else if (from > active && to <= active) {
+      setActive(active + 1);
+    }
+  };
+
   const tabs: TabInfo[] = saved.map((tab, i) => {
     const snapshot = i === active ? live() : tab;
     const path = snapshot.left.currentPath;
@@ -332,5 +356,6 @@ export function useTabs({
     nextTab: () => moveTab(1),
     previousTab: () => moveTab(-1),
     selectTab,
+    reorderTab,
   };
 }
