@@ -112,7 +112,7 @@ export default function App(): ReactElement {
   );
   const { notice, notify } = useNotice(logInfo);
   const keymap = useUserKeymap(logError);
-  // 履歴一覧とブックマーク一覧は, 開くキー (キーマップで割り当てたもの) をもう一度押すと閉じる (トグル).
+  // 移動履歴の一覧とブックマーク一覧は, 開くキー (キーマップで割り当てたもの) をもう一度押すと閉じる (トグル).
   // 一覧の表示中は, 全体のキー操作が無効なので, 一覧の側で判定する. 1 つのキーの割り当てだけを見る (`C-x` で始まる, 続きのキーの割り当ては見ない).
   const isHistoryListKey = useCallback(
     (e: KeyboardEvent): boolean =>

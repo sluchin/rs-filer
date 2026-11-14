@@ -7,7 +7,7 @@ import { PATH_LIST_SCROLL_STEP } from "@/features/explorer/pathList";
 const LONG = "/home/user/a/very/long/path/that/does/not/fit/in/the/pane";
 
 /** ブックマーク一覧を描画し, 一覧 (ul) とハンドラーを返す. */
-function renderPane(isActive = true) {
+function renderPane(isActive = true, bookmarks = ["/a", LONG]) {
   const handlers = {
     onActivate: vi.fn(),
     onSelect: vi.fn(),
@@ -21,7 +21,7 @@ function renderPane(isActive = true) {
     <BookmarkPane
       paneId="left"
       isActive={isActive}
-      bookmarks={["/a", LONG]}
+      bookmarks={bookmarks}
       {...handlers}
     />,
   );
@@ -140,5 +140,68 @@ describe("BookmarkPane", () => {
     const notPrevented = fireEvent.contextMenu(screen.getByText("/a"));
 
     expect(notPrevented).toBe(true);
+  });
+
+  it("正常系: / で絞り込みの入力欄が出て, 入力した語を含むものだけが残り, 入力中は j や d を一覧の操作にしないこと", async () => {
+    const user = userEvent.setup();
+    const { handlers } = renderPane(true, ["/a/memo.md", "/b/todo.txt"]);
+
+    await user.keyboard("/");
+    const input = screen.getByLabelText("left list filter");
+    expect(input).toHaveFocus();
+    await user.keyboard("td");
+
+    expect(input).toHaveValue("td");
+    expect(screen.queryByText("/b/todo.txt")).not.toBeInTheDocument();
+    expect(screen.getByText("一致するものがありません.")).toBeInTheDocument();
+    expect(handlers.onRemove).not.toHaveBeenCalled();
+
+    await user.clear(input);
+    await user.keyboard("TODO");
+    expect(screen.queryByText("/a/memo.md")).not.toBeInTheDocument();
+    expect(screen.getByText("/b/todo.txt")).toBeInTheDocument();
+  });
+
+  it("正常系: Enter で入力を終えると絞り込みは残り, 絞り込んだ一覧で選んだり外したりでき, Ctrl-S で入力欄へ戻ること", async () => {
+    const user = userEvent.setup();
+    const { handlers } = renderPane(true, ["/a/memo.md", "/b/todo.txt"]);
+
+    await user.keyboard("/todo{Enter}");
+    expect(screen.getByLabelText("left list filter")).not.toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(handlers.onSelect).toHaveBeenCalledWith("/b/todo.txt");
+    await user.keyboard("d");
+    expect(handlers.onRemove).toHaveBeenCalledWith("/b/todo.txt");
+
+    await user.keyboard("{Control>}s{/Control}");
+    expect(screen.getByLabelText("left list filter")).toHaveFocus();
+  });
+
+  it("正常系: Esc で絞り込みを解除し, 絞り込んでいないときの Esc は一覧を閉じること", async () => {
+    const user = userEvent.setup();
+    const { handlers } = renderPane(true, ["/a/memo.md", "/b/todo.txt"]);
+
+    await user.keyboard("/todo{Escape}");
+    expect(screen.queryByLabelText("left list filter")).toBeNull();
+    expect(screen.getByText("/a/memo.md")).toBeInTheDocument();
+    expect(handlers.onCancel).not.toHaveBeenCalled();
+
+    await user.keyboard("/todo{Enter}{Escape}");
+    expect(screen.queryByLabelText("left list filter")).toBeNull();
+    expect(handlers.onCancel).not.toHaveBeenCalled();
+
+    await user.keyboard("{Escape}");
+    expect(handlers.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("境界: / を 2 回押しても入力欄は 1 つで, 一覧が空のときは「一致するものがありません」でなく空の表示のままであること", async () => {
+    const user = userEvent.setup();
+    renderPane(true, []);
+
+    await user.keyboard("/");
+    await user.keyboard("{Enter}/");
+    expect(screen.getAllByLabelText("left list filter")).toHaveLength(1);
+    expect(screen.getByLabelText("left list filter")).toHaveFocus();
+    expect(screen.getByText("登録されていません.")).toBeInTheDocument();
   });
 });

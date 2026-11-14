@@ -2340,12 +2340,12 @@ describe("App (履歴・ブックマーク)", () => {
   });
 });
 
-describe("App (履歴一覧)", () => {
+describe("App (移動履歴の一覧)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("正常系: M-h でアクティブなペインの表示が履歴一覧に切り替わり, 現在地に印が付くこと", async () => {
+  it("正常系: M-h でアクティブなペインの表示が移動履歴の一覧に切り替わり, 現在地に印が付くこと", async () => {
     mockPhase4();
     const user = await renderLoaded();
     await user.keyboard("{Enter}");
@@ -2361,7 +2361,7 @@ describe("App (履歴一覧)", () => {
     expect(paneOf("right").getByText("FolderA")).toBeInTheDocument();
   });
 
-  it("正常系: 履歴一覧の表示中に, もう一度 M-h を押すと, 移動せずに通常の表示に戻ること (トグル)", async () => {
+  it("正常系: 移動履歴の一覧の表示中に, もう一度 M-h を押すと, 移動せずに通常の表示に戻ること (トグル)", async () => {
     mockPhase4();
     const user = await renderLoaded();
     await user.keyboard("{Alt>}h{/Alt}");

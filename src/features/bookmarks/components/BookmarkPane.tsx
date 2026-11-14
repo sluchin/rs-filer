@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import PathItem from "../../explorer/components/PathItem";
-import { scrollPathList } from "../../explorer/pathList";
+import { filterPaths, scrollPathList } from "../../explorer/pathList";
+import QuickFilterBar from "../../search/components/QuickFilterBar";
 import type { PaneId } from "../../explorer/types";
 
 /**
@@ -49,6 +50,8 @@ interface BookmarkPaneProps {
  * この一覧は (アクティブでないまま) 表示され続けます.
  * `onReveal` を渡すと, `o` で, カーソル位置のパスのあるディレクトリを開く (最近開いたファイルの一覧用).
  * `onContextMenu` を渡すと, 行を右クリックしたときに, その行にカーソルを移して知らせる.
+ * `/` または `Ctrl-S` で, 入力した文字 (空白で区切った語を全て含むもの) に一覧を絞り込みます. `Enter` で入力を終えて
+ * 一覧の操作へ戻り (絞り込みは維持), `Esc` で絞り込みを解除します (絞り込んでいないときの `Esc` は, 一覧を閉じます).
  * 見出しと, 空のときの表示を変えれば, 最近開いたファイルなど, パスの一覧にも使えます.
  *
  * @param props - コンポーネントのプロパティ.
@@ -58,7 +61,7 @@ export default function BookmarkPane({
   paneId,
   isActive,
   onActivate,
-  bookmarks,
+  bookmarks: allPaths,
   onSelect,
   onRemove,
   onCancel,
@@ -71,7 +74,14 @@ export default function BookmarkPane({
   isFiles = false,
 }: BookmarkPaneProps): ReactElement {
   const [rawIndex, setIndex] = useState(0);
+  /** 絞り込みの文字. 絞り込みの入力欄を出していないときは null. */
+  const [filter, setFilter] = useState<string | null>(null);
+  const filterInput = useRef<HTMLInputElement | null>(null);
   const rowsRef = useRef<HTMLUListElement>(null);
+  const bookmarks = useMemo(
+    () => (filter === null ? allPaths : filterPaths(allPaths, filter)),
+    [allPaths, filter],
+  );
   // 解除などで件数が減ってカーソルが範囲外に出ても, 描画時にその場でクランプする
   // (件数が変わるたびに setState し直すのではなく, 値そのものを直す).
   const index = Math.min(rawIndex, Math.max(0, bookmarks.length - 1));
@@ -82,6 +92,10 @@ export default function BookmarkPane({
       return;
     }
     const handleKeyDown = (e: KeyboardEvent): void => {
+      // 絞り込みの入力欄での入力は, 入力欄が受け取る (一覧の操作にしない).
+      if (e.target instanceof HTMLInputElement) {
+        return;
+      }
       if (isToggleKey(e)) {
         // 一覧を開くキーをもう一度押したら, 閉じる (トグル)
         e.preventDefault();
@@ -113,9 +127,21 @@ export default function BookmarkPane({
         if (bookmarks[index]) {
           onReveal(bookmarks[index]);
         }
+      } else if (e.key === "/" || (e.ctrlKey && e.key === "s")) {
+        // 入力欄が出ていれば (Enter で抜けたあと) そこへ戻り, 出ていなければ出す.
+        e.preventDefault();
+        if (filterInput.current) {
+          filterInput.current.focus();
+        } else {
+          setFilter("");
+        }
       } else if (e.key === "Escape") {
         e.preventDefault();
-        onCancel();
+        if (filter === null) {
+          onCancel();
+        } else {
+          setFilter(null);
+        }
       } else if (e.key === "Tab") {
         // 全体のキー操作 (ペイン切り替えを含む) は無効になっているので, ここで代わりに行う.
         e.preventDefault();
@@ -127,6 +153,7 @@ export default function BookmarkPane({
   }, [
     isActive,
     bookmarks,
+    filter,
     index,
     onSelect,
     onRemove,
@@ -146,11 +173,29 @@ export default function BookmarkPane({
     >
       {/* 通常のペインのパス入力欄と高さを揃えるための見出し行. */}
       <div className="path-bar bookmark-title">{title}</div>
+      {filter !== null && (
+        <QuickFilterBar
+          value={filter}
+          onChange={(value) => {
+            setFilter(value);
+            setIndex(0);
+          }}
+          onCancel={() => setFilter(null)}
+          inputRef={(element) => {
+            filterInput.current = element;
+          }}
+          label={`${paneId} list filter`}
+        />
+      )}
       <div className="file-list">
         <ul ref={rowsRef} className="file-rows path-rows">
           {bookmarks.length === 0 && (
             <li className="file-row">
-              <span className="col-name">{emptyText}</span>
+              <span className="col-name">
+                {allPaths.length === 0
+                  ? emptyText
+                  : "一致するものがありません."}
+              </span>
             </li>
           )}
           {bookmarks.map((path, i) => (
