@@ -76,7 +76,7 @@ chmod +x src-tauri/target/release/bundle/appimage/rsfiler_*_amd64.AppImage
 
 `npm run tauri build` を実行すると、`.dmg` ディスクイメージおよび `.app` アプリケーションバンドルが生成されます。
 
-#### インストール手順
+#### macOS のインストール手順
 
 1. `src-tauri/target/release/bundle/dmg/` 配下にある `.dmg` ファイルをダブルクリックして開きます。
 2. アプリケーションアイコン (`rsfiler`) を **Applications** フォルダーへドラッグ＆ドロップします。
@@ -91,7 +91,7 @@ chmod +x src-tauri/target/release/bundle/appimage/rsfiler_*_amd64.AppImage
 
 `npm run tauri build` を実行すると、`src-tauri/target/release/bundle/msi/` 配下に `.msi` インストーラーが生成されます。
 
-#### インストール手順
+#### Windows のインストール手順
 
 1. `src-tauri/target/release/bundle/msi/rsfiler_*_x64_en-US.msi` をダブルクリックします。
 2. ウィザードの指示に従ってインストールを完了させます。

@@ -1,6 +1,6 @@
-## ファイル構成
+# ファイル構成
 
-### 📁 プロジェクトルート (設定・ビルド構成)
+## 📁 プロジェクトルート (設定・ビルド構成)
 
 ```text
 ├── package.json                        # フロントエンド依存関係・スクリプト
@@ -19,7 +19,7 @@
 
 ---
 
-### 📁 フロントエンド (`src/` - React / TypeScript)
+## 📁 フロントエンド (`src/` - React / TypeScript)
 
 ```text
 src/
@@ -139,7 +139,7 @@ src/
 
 ---
 
-### 🦀 バックエンド (`src-tauri/src/` - Rust)
+## 🦀 バックエンド (`src-tauri/src/` - Rust)
 
 ```text
 src-tauri/src/
@@ -174,7 +174,7 @@ src-tauri/src/
     └── preview_loader.rs               # 文字コード自動判定・画像サムネイル・Hexダンプ生成
 ```
 
-### 🧪 フロントエンドのテスト (`tests/` - Vitest)
+## 🧪 フロントエンドのテスト (`tests/` - Vitest)
 
 `src/` と同じ構成で、`<ソースのファイル名>.test.ts(x)` の名前で置く。`src/` は `@/` で参照する (`import App from "@/App"`)。
 
@@ -250,7 +250,7 @@ tests/
 └── setup.ts                            # vitest の setupFiles
 ```
 
-### 🧪 バックエンドのテスト (`src-tauri/tests/` - Rust)
+## 🧪 バックエンドのテスト (`src-tauri/tests/` - Rust)
 
 ```text
 src-tauri/tests/
