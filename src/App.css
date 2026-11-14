@@ -266,6 +266,31 @@ body,
   text-overflow: clip;
 }
 
+/* パスの一覧の行は, 名前の下にフルパスを灰色で並べるので, 2 行分の高さにする (エクスプローラの検索結果と同じ). */
+.path-rows .file-row {
+  height: auto;
+  min-height: calc(var(--row-height) * 2);
+  padding: 2px 0;
+}
+
+.path-item {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  padding: 0 4px;
+  line-height: 1.3;
+}
+
+.path-item-name {
+  white-space: nowrap;
+}
+
+.path-item-full {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
 .col-size {
   width: 72px;
   min-width: 30px;

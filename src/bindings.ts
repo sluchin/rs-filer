@@ -548,6 +548,8 @@ export type AppConfig_Deserialize = {
 	 *  保存したものを, フロントエンドが取り込むため, 空の一覧と区別する).
 	 */
 	bookmarks?: string[] | null,
+	/**  お気に入りに登録したファイル (登録した順). 登録がなければ空. */
+	favorites?: string[],
 };
 
 /**  アプリケーションの設定. */
@@ -587,6 +589,8 @@ export type AppConfig_Serialize = {
 	 *  保存したものを, フロントエンドが取り込むため, 空の一覧と区別する).
 	 */
 	bookmarks?: string[],
+	/**  お気に入りに登録したファイル (登録した順). 登録がなければ空. */
+	favorites?: string[],
 };
 
 /**  ファイル一覧の列幅設定. */

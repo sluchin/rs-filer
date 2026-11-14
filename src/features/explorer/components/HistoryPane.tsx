@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import { scrollPathList } from "../pathList";
+import PathItem from "./PathItem";
 import type { PaneId } from "../types";
 
 /**
@@ -120,7 +121,7 @@ export default function HistoryPane({
               onClick={() => setIndex(i)}
               onDoubleClick={() => onSelect(path, i)}
             >
-              <span className="col-name file-name full-path">{path}</span>
+              <PathItem path={path} isDir />
               {i === historyIndex && <span className="col-attr">現在地</span>}
             </li>
           ))}

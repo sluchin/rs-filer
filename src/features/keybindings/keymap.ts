@@ -119,6 +119,8 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   "M-r": "recentFiles",
   "C-x C-r": "recentFiles",
   b: "bookmarks",
+  F: "favorites",
+  "M-f": "addFavorite",
   "M-b": "addBookmark",
   "M-x": "palette",
   ":": "palette",

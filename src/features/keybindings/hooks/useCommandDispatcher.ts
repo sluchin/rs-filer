@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import loglevel from "loglevel";
 import type { useBookmarks } from "../../bookmarks/hooks/useBookmarks";
+import type { useFavorites } from "../../favorites/hooks/useFavorites";
 import type { CopyKind, CopyTarget } from "../../explorer/copyText";
 import type { useFileList } from "../../explorer/hooks/useFileList";
 import type { useMarks } from "../../explorer/hooks/useMarks";
@@ -49,6 +50,8 @@ export interface PanelActions {
   openHistoryList: (pane: PaneId) => void;
   /** 指定したペインに, 最近開いたファイルの一覧を出す. */
   openRecentFiles: (pane: PaneId) => void;
+  /** 指定したペインに, お気に入りの一覧を出す. */
+  openFavorites: (pane: PaneId) => void;
   /** 指定したペインに, ブックマークの一覧を出す. */
   openBookmarks: (pane: PaneId) => void;
   /** 指定したペインの, ツリー表示を切り替える. */
@@ -88,6 +91,8 @@ export interface CommandDispatcherDeps {
   settings: ReturnType<typeof useSettings>;
   /** ブックマーク (`useBookmarks`). */
   bookmarks: Pick<ReturnType<typeof useBookmarks>, "toggleBookmark">;
+  /** お気に入り (`useFavorites`). */
+  favorites: Pick<ReturnType<typeof useFavorites>, "toggleFavorite">;
   /** タブの操作 (`useTabs`). */
   tabs: Pick<
     ReturnType<typeof useTabs>,
@@ -128,6 +133,7 @@ export function useCommandDispatcher(
     marks,
     settings,
     bookmarks,
+    favorites,
     tabs,
     panels,
     pathInputs,
@@ -383,6 +389,20 @@ export function useCommandDispatcher(
       case "bookmarks":
         panels.openBookmarks(activePane);
         break;
+      case "favorites":
+        panels.openFavorites(activePane);
+        break;
+      case "addFavorite": {
+        // selectedIndex が -1 のときは, `..` の行にカーソルがある (対象の項目がない).
+        const file = active.files[active.selectedIndex];
+        if (!file || file.is_dir) {
+          reportError("お気に入りに登録するファイルを選んでください.");
+          break;
+        }
+        favorites.toggleFavorite(file.path);
+        panels.openFavorites(activePane);
+        break;
+      }
       case "addBookmark":
         bookmarks.toggleBookmark(active.currentPath);
         panels.openBookmarks(activePane);

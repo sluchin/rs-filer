@@ -210,6 +210,9 @@ pub struct AppConfig {
     /// 保存したものを, フロントエンドが取り込むため, 空の一覧と区別する).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bookmarks: Option<Vec<String>>,
+    /// お気に入りに登録したファイル (登録した順). 登録がなければ空.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub favorites: Vec<String>,
 }
 
 impl Default for AppConfig {
@@ -225,6 +228,7 @@ impl Default for AppConfig {
             history_limit: super::history::DEFAULT_HISTORY_LIMIT,
             recent_files_limit: super::recent::DEFAULT_RECENT_FILES_LIMIT,
             bookmarks: None,
+            favorites: Vec::new(),
         }
     }
 }

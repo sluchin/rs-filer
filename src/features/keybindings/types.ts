@@ -61,6 +61,8 @@ export const COMMANDS = [
   "historyList",
   "bookmarks",
   "recentFiles",
+  "favorites",
+  "addFavorite",
   "addBookmark",
   "palette",
   "help",

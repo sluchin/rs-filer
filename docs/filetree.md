@@ -103,6 +103,10 @@ src/
 │   │   └── hooks/
 │   │       └── useBookmarks.ts
 │   │
+│   ├── favorites/                      # お気に入りファイル (一覧は BookmarkPane で出す)
+│   │   └── hooks/
+│   │       └── useFavorites.ts
+│   │
 │   ├── tree/                            # ツリー表示 (Phase 9)
 │   │   ├── components/
 │   │   │   └── TreePane.tsx            # ペインのファイル一覧をツリー形式にするビュー (キー操作・ツリー表示)
@@ -190,6 +194,9 @@ tests/
 │   │   │   └── BookmarkPane.test.tsx
 │   │   └── hooks/
 │   │       └── useBookmarks.test.ts
+│   ├── favorites/
+│   │   └── hooks/
+│   │       └── useFavorites.test.ts
 │   ├── explorer/
 │   │   ├── components/
 │   │   │   ├── DualPaneContainer.test.tsx

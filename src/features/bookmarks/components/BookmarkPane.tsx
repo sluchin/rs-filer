@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
+import PathItem from "../../explorer/components/PathItem";
 import { scrollPathList } from "../../explorer/pathList";
 import type { PaneId } from "../../explorer/types";
 
@@ -32,6 +33,8 @@ interface BookmarkPaneProps {
   title?: string;
   /** 一覧が空のときの表示. 省略した場合は「登録されていません.」. */
   emptyText?: string;
+  /** 一覧の項目がファイルか (最近開いたファイルの一覧). 省略した場合は, ディレクトリ. */
+  isFiles?: boolean;
 }
 
 /**
@@ -65,6 +68,7 @@ export default function BookmarkPane({
   onContextMenu,
   title = "ブックマーク",
   emptyText = "登録されていません.",
+  isFiles = false,
 }: BookmarkPaneProps): ReactElement {
   const [rawIndex, setIndex] = useState(0);
   const rowsRef = useRef<HTMLUListElement>(null);
@@ -167,7 +171,7 @@ export default function BookmarkPane({
                 }
               }}
             >
-              <span className="col-name file-name full-path">{path}</span>
+              <PathItem path={path} isDir={!isFiles} />
             </li>
           ))}
         </ul>

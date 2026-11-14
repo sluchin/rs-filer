@@ -37,6 +37,13 @@ const paneOf = (pane: "left" | "right") =>
 const pathOf = (args: unknown): unknown =>
   (args as { path?: unknown } | undefined)?.path;
 
+/** パスの一覧の行の文字 (フルパスと, 現在地の印). 名前の欄は除く. */
+function rowPathText(li: HTMLElement): string {
+  return Array.from(li.querySelectorAll(".full-path, .col-attr"))
+    .map((e) => e.textContent)
+    .join("");
+}
+
 describe("App (Dual Pane)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -2285,11 +2292,10 @@ describe("App (履歴・ブックマーク)", () => {
     await paneOf("left").findByText("in.txt");
     await user.keyboard("{Alt>}b{/Alt}");
 
-    expect(
-      paneOf("left")
-        .getAllByRole("listitem")
-        .map((li) => li.textContent),
-    ).toEqual(["/mock/home", "/mock/home/FolderA"]);
+    expect(paneOf("left").getAllByRole("listitem").map(rowPathText)).toEqual([
+      "/mock/home",
+      "/mock/home/FolderA",
+    ]);
 
     await user.keyboard("j");
     await user.keyboard("d");
@@ -2348,7 +2354,7 @@ describe("App (履歴一覧)", () => {
     await user.keyboard("{Alt>}h{/Alt}");
 
     const rows = paneOf("left").getAllByRole("listitem");
-    expect(rows.map((li) => li.textContent)).toEqual([
+    expect(rows.map(rowPathText)).toEqual([
       "/mock/home",
       "/mock/home/FolderA現在地",
     ]);
@@ -2463,7 +2469,9 @@ describe("App (履歴一覧)", () => {
     const user = await renderLoaded();
     await user.keyboard("{Alt>}h{/Alt}");
     await user.keyboard("z");
-    expect(paneOf("left").getByText("/mock/home")).toHaveClass("file-name");
+    expect(
+      paneOf("left").getByText("/mock/home", { selector: ".full-path" }),
+    ).toBeInTheDocument();
   });
 
   it("正常系: ↑/↓ でもカーソルが動き, 先頭・末尾より外へは出ないこと", async () => {
@@ -4227,7 +4235,9 @@ describe("App (ブックマーク一覧の境界)", () => {
     const user = await renderLoaded();
     await user.keyboard("{Alt>}b{/Alt}");
     await user.keyboard("z");
-    expect(paneOf("left").getByText("/mock/home")).toHaveClass("file-name");
+    expect(
+      paneOf("left").getByText("/mock/home", { selector: ".full-path" }),
+    ).toBeInTheDocument();
   });
 
   it("正常系: ブックマーク一覧の表示中に Tab を押すと, もう一方のペインがアクティブになり (ブラウザ既定のフォーカス移動は起きない), そちらを通常どおり操作できること", async () => {
@@ -4867,18 +4877,16 @@ describe("App (移動履歴の保存と復元)", () => {
     await user.keyboard("{Alt>}h{/Alt}");
 
     // 左: 開いた /mock/home は履歴にあるので, 末尾へ移し, そこが現在地.
-    expect(
-      paneOf("left")
-        .getAllByRole("listitem")
-        .map((li) => li.textContent),
-    ).toEqual(["/mock/old", "/mock/home現在地"]);
+    expect(paneOf("left").getAllByRole("listitem").map(rowPathText)).toEqual([
+      "/mock/old",
+      "/mock/home現在地",
+    ]);
     // 右: 開いた /mock/home は履歴に無いので, 末尾に足す.
     await user.keyboard("{Escape}{Tab}{Alt>}h{/Alt}");
-    expect(
-      paneOf("right")
-        .getAllByRole("listitem")
-        .map((li) => li.textContent),
-    ).toEqual(["/mock/other", "/mock/home現在地"]);
+    expect(paneOf("right").getAllByRole("listitem").map(rowPathText)).toEqual([
+      "/mock/other",
+      "/mock/home現在地",
+    ]);
   });
 
   it("正常系: 区切りが混ざった Windows のパスの履歴は, \\ 区切りにそろえて, 重複を除いて復元すること", async () => {
@@ -4894,11 +4902,10 @@ describe("App (移動履歴の保存と復元)", () => {
 
     await user.keyboard("{Alt>}h{/Alt}");
 
-    expect(
-      paneOf("left")
-        .getAllByRole("listitem")
-        .map((li) => li.textContent),
-    ).toEqual(["C:\\Users\\foo", "/mock/home現在地"]);
+    expect(paneOf("left").getAllByRole("listitem").map(rowPathText)).toEqual([
+      "C:\\Users\\foo",
+      "/mock/home現在地",
+    ]);
   });
 
   it("正常系: ディレクトリを移動すると, 左右の履歴を保存すること. 戻るだけでは保存しないこと", async () => {
@@ -4957,11 +4964,10 @@ describe("App (移動履歴の保存と復元)", () => {
     await paneOf("left").findByText("in.txt");
     await user.keyboard("{Alt>}h{/Alt}");
 
-    expect(
-      paneOf("left")
-        .getAllByRole("listitem")
-        .map((li) => li.textContent),
-    ).toEqual(["/mock/home", "/mock/home/FolderA現在地"]);
+    expect(paneOf("left").getAllByRole("listitem").map(rowPathText)).toEqual([
+      "/mock/home",
+      "/mock/home/FolderA現在地",
+    ]);
   });
 });
 
@@ -5881,5 +5887,143 @@ describe("App (最近開いたファイル)", () => {
 
     expect(await screen.findByText("/mock/home/c.txt")).toBeInTheDocument();
     expect(screen.queryByText("/mock/home/a.txt")).not.toBeInTheDocument();
+  });
+});
+
+describe("App (お気に入り)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: M-f でカーソル位置のファイルを登録して一覧が開き, 設定に保存され, Enter で開けること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("j");
+    await user.keyboard("{Alt>}f{/Alt}");
+
+    expect(await screen.findByText("お気に入り")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "left pane" })).getByText(
+        "/mock/home/b.txt",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("save_config", {
+        config: expect.objectContaining({ favorites: ["/mock/home/b.txt"] }),
+      }),
+    );
+
+    mockedInvoke.mockClear();
+    await user.keyboard("{Enter}");
+    expect(mockedInvoke).toHaveBeenCalledWith("open_item", {
+      path: "/mock/home/b.txt",
+    });
+    expect(screen.queryByText("お気に入り")).not.toBeInTheDocument();
+  });
+
+  it("正常系: F で一覧を開き, もう一度 F で閉じること. 空のときはその旨が出て, クリックでペインがアクティブになること", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("F");
+    expect(await screen.findByText("登録されていません.")).toBeInTheDocument();
+    await user.click(
+      within(screen.getByRole("region", { name: "right pane" })).getByText(
+        "FolderA",
+      ),
+    );
+    await user.click(
+      within(screen.getByRole("region", { name: "left pane" })).getByText(
+        "登録されていません.",
+      ),
+    );
+    expect(screen.getByRole("region", { name: "left pane" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+
+    await user.keyboard("F");
+    expect(screen.queryByText("お気に入り")).not.toBeInTheDocument();
+  });
+
+  it("異常系: ディレクトリの行と, 親ディレクトリの行 (..) では, 登録せずにエラーを出すこと", async () => {
+    mockHome();
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}f{/Alt}");
+    expect(
+      screen.getByText("エラー: お気に入りに登録するファイルを選んでください."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("お気に入り")).not.toBeInTheDocument();
+
+    await user.keyboard("k");
+    await user.keyboard("{Alt>}f{/Alt}");
+    expect(screen.queryByText("お気に入り")).not.toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "save_config",
+      expect.objectContaining({
+        config: expect.objectContaining({ favorites: expect.anything() }),
+      }),
+    );
+  });
+
+  it("正常系: 登録済みのファイルに M-f を押すと解除されること. d でも一覧から外せること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_config"
+        ? Promise.resolve({
+            theme: "classic",
+            font_size: "medium",
+            editor: null,
+            terminal: null,
+            favorites: ["/mock/home/b.txt", "/mock/home/old.txt"],
+          })
+        : undefined,
+    );
+    const user = await renderLoaded();
+
+    await user.keyboard("j");
+    await user.keyboard("{Alt>}f{/Alt}");
+    expect(await screen.findByText("お気に入り")).toBeInTheDocument();
+    expect(screen.queryByText("/mock/home/b.txt")).not.toBeInTheDocument();
+    expect(screen.getByText("/mock/home/old.txt")).toBeInTheDocument();
+
+    await user.keyboard("d");
+    expect(screen.queryByText("/mock/home/old.txt")).not.toBeInTheDocument();
+  });
+
+  it("正常系: o でそのファイルのあるディレクトリを開き (親の無いパスは何もしない), 右クリックでコピーのメニューが出ること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_config"
+        ? Promise.resolve({
+            theme: "classic",
+            font_size: "medium",
+            editor: null,
+            terminal: null,
+            favorites: ["/", "/mock/home/b.txt"],
+          })
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("F");
+    const row = await screen.findByText("/mock/home/b.txt");
+
+    fireEvent.contextMenu(row, { clientX: 5, clientY: 6 });
+    expect(await screen.findByText("フルパスをコピー")).toBeInTheDocument();
+    expect(screen.queryByText("複製")).not.toBeInTheDocument();
+    await user.click(screen.getByText("ディレクトリへ移動"));
+    await waitFor(() =>
+      expect(screen.queryByText("お気に入り")).not.toBeInTheDocument(),
+    );
+    expect(cursorNames()).toEqual(["b.txt"]);
+
+    await user.keyboard("F");
+    await screen.findByText("お気に入り");
+    await user.keyboard("o");
+    expect(screen.getByText("お気に入り")).toBeInTheDocument();
+    await user.keyboard("jo");
+    await waitFor(() =>
+      expect(screen.queryByText("お気に入り")).not.toBeInTheDocument(),
+    );
   });
 });

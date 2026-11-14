@@ -83,6 +83,7 @@ fn test_read_write_config_round_trip() {
         history_limit: 500,
         recent_files_limit: 50,
         bookmarks: Some(vec!["/home/a".to_string()]),
+        favorites: vec!["/home/a/memo.md".to_string()],
     };
 
     write_config(&path, &config).unwrap();

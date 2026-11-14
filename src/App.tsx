@@ -3,6 +3,7 @@ import log from "loglevel";
 import BookmarkPane from "./features/bookmarks/components/BookmarkPane";
 import HistoryPane from "./features/explorer/components/HistoryPane";
 import { useBookmarks } from "./features/bookmarks/hooks/useBookmarks";
+import { useFavorites } from "./features/favorites/hooks/useFavorites";
 import OperationLogDialog from "./components/OperationLogDialog";
 import KeyHintBar from "./components/KeyHintBar";
 import StatusBar from "./components/StatusBar";
@@ -86,6 +87,7 @@ export default function App(): ReactElement {
     bookmarkPanes,
     historyPanes,
     recentPanes,
+    favoritePanes,
     treePanes,
     previewOn,
     infoOn,
@@ -93,6 +95,7 @@ export default function App(): ReactElement {
     closeBookmarks,
     closeHistoryList,
     closeRecentFiles,
+    closeFavorites,
     closeTree,
     openCopyMenu,
   } = dialogs;
@@ -121,6 +124,11 @@ export default function App(): ReactElement {
       resolveKey(e, null, keymap).command === "recentFiles",
     [keymap],
   );
+  const isFavoritesKey = useCallback(
+    (e: KeyboardEvent): boolean =>
+      resolveKey(e, null, keymap).command === "favorites",
+    [keymap],
+  );
   const isBookmarksKey = useCallback(
     (e: KeyboardEvent): boolean =>
       resolveKey(e, null, keymap).command === "bookmarks",
@@ -128,6 +136,7 @@ export default function App(): ReactElement {
   );
   const settings = useSettings();
   const bookmarks = useBookmarks(settings);
+  const favorites = useFavorites(settings);
   const {
     leftPane,
     rightPane,
@@ -240,6 +249,7 @@ export default function App(): ReactElement {
     marks,
     settings,
     bookmarks,
+    favorites,
     tabs,
     panels: dialogs,
     pathInputs,
@@ -387,6 +397,49 @@ export default function App(): ReactElement {
     );
   });
   (["left", "right"] as const).forEach((paneId) => {
+    if (!favoritePanes[paneId]) {
+      return;
+    }
+    // ファイルのあるディレクトリへ移り, そのファイルにカーソルを合わせる
+    const revealFavorite = (path: string): void => {
+      const parent = getParentPath(path);
+      if (parent !== null) {
+        closeFavorites(paneId);
+        loadDirectory(paneId, parent, { selectName: getBaseName(path) });
+      }
+    };
+    paneOverrides[paneId] = (
+      <BookmarkPane
+        paneId={paneId}
+        isActive={activePane === paneId}
+        bookmarks={favorites.favorites}
+        title="お気に入り"
+        emptyText="登録されていません."
+        isFiles
+        onActivate={() => setActivePane(paneId)}
+        onSelect={(path) => {
+          closeFavorites(paneId);
+          openPath(path);
+        }}
+        onRemove={favorites.removeFavorite}
+        onReveal={revealFavorite}
+        onContextMenu={(path, x, y) => {
+          setActivePane(paneId);
+          openCopyMenu({
+            target: { path, name: getBaseName(path), isDir: false },
+            x,
+            y,
+            onReveal: () => revealFavorite(path),
+            noDuplicate: true,
+          });
+        }}
+        onCancel={() => closeFavorites(paneId)}
+        onSwitchPane={switchPane}
+        isToggleKey={isFavoritesKey}
+      />
+    );
+  });
+  (["left", "right"] as const).forEach((paneId) => {
     if (!recentPanes[paneId]) {
       return;
     }
@@ -404,6 +457,7 @@ export default function App(): ReactElement {
         isActive={activePane === paneId}
         bookmarks={recentFiles.files}
         title="最近開いたファイル"
+        isFiles
         emptyText="開いたファイルはありません."
         onActivate={() => setActivePane(paneId)}
         onSelect={(path) => {

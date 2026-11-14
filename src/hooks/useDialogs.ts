@@ -26,7 +26,7 @@ type PaneFlags = Record<PaneId, boolean>;
 const NO_PANES: PaneFlags = { left: false, right: false };
 
 /**
- * タブごとに持つ, ペインの表示の差し替え (ブックマーク・移動履歴・最近開いたファイルの一覧と, ツリー).
+ * タブごとに持つ, ペインの表示の差し替え (ブックマーク・移動履歴・最近開いたファイル・お気に入りの一覧と, ツリー).
  */
 export interface PaneOverlays {
   /** ブックマークの一覧を出しているペイン. */
@@ -35,6 +35,8 @@ export interface PaneOverlays {
   history: PaneFlags;
   /** 最近開いたファイルの一覧を出しているペイン. */
   recent: PaneFlags;
+  /** お気に入りの一覧を出しているペイン. */
+  favorites: PaneFlags;
   /** ツリー表示にしているペイン. */
   tree: PaneFlags;
 }
@@ -44,6 +46,7 @@ export const NO_OVERLAYS: PaneOverlays = {
   bookmarks: NO_PANES,
   history: NO_PANES,
   recent: NO_PANES,
+  favorites: NO_PANES,
   tree: NO_PANES,
 };
 
@@ -59,6 +62,7 @@ export function useDialogs() {
   const [bookmarkPanes, setBookmarkPanes] = useState<PaneFlags>(NO_PANES);
   const [historyPanes, setHistoryPanes] = useState<PaneFlags>(NO_PANES);
   const [recentPanes, setRecentPanes] = useState<PaneFlags>(NO_PANES);
+  const [favoritePanes, setFavoritePanes] = useState<PaneFlags>(NO_PANES);
   const [treePanes, setTreePanes] = useState<PaneFlags>(NO_PANES);
   const [logOpen, setLogOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -84,6 +88,8 @@ export function useDialogs() {
         setHistoryPanes((p) => ({ ...p, [pane]: true })),
       openRecentFiles: (pane) =>
         setRecentPanes((p) => ({ ...p, [pane]: true })),
+      openFavorites: (pane) =>
+        setFavoritePanes((p) => ({ ...p, [pane]: true })),
       openBookmarks: (pane) =>
         setBookmarkPanes((p) => ({ ...p, [pane]: true })),
       toggleTree: (pane) => setTreePanes((p) => ({ ...p, [pane]: !p[pane] })),
@@ -104,6 +110,9 @@ export function useDialogs() {
       /** 指定したペインの, 最近開いたファイルの一覧を閉じる. */
       closeRecentFiles: (pane: PaneId) =>
         setRecentPanes((p) => ({ ...p, [pane]: false })),
+      /** 指定したペインの, お気に入りの一覧を閉じる. */
+      closeFavorites: (pane: PaneId) =>
+        setFavoritePanes((p) => ({ ...p, [pane]: false })),
       /** 指定したペインの, ツリー表示を閉じる. */
       closeTree: (pane: PaneId) =>
         setTreePanes((p) => ({ ...p, [pane]: false })),
@@ -124,6 +133,7 @@ export function useDialogs() {
         setBookmarkPanes(overlays.bookmarks);
         setHistoryPanes(overlays.history);
         setRecentPanes(overlays.recent);
+        setFavoritePanes(overlays.favorites);
         setTreePanes(overlays.tree);
       },
     };
@@ -140,6 +150,7 @@ export function useDialogs() {
     bookmarkPanes[activePane] ||
     historyPanes[activePane] ||
     recentPanes[activePane] ||
+    favoritePanes[activePane] ||
     treePanes[activePane] ||
     logOpen ||
     paletteOpen ||
@@ -151,6 +162,7 @@ export function useDialogs() {
     bookmarks: bookmarkPanes,
     history: historyPanes,
     recent: recentPanes,
+    favorites: favoritePanes,
     tree: treePanes,
   };
 
@@ -159,6 +171,7 @@ export function useDialogs() {
     bookmarkPanes,
     historyPanes,
     recentPanes,
+    favoritePanes,
     treePanes,
     logOpen,
     helpOpen,
