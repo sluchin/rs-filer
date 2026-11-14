@@ -46,6 +46,7 @@ import { useFileOperations } from "./features/operations/hooks/useFileOperations
 import { installLogForwarding } from "./services/logForwarder";
 import TreePane from "./features/tree/components/TreePane";
 import ContextMenu from "./components/ContextMenu";
+import { removeHistoryEntry } from "./features/explorer/history";
 import {
   copyChoicesOf,
   copyTextOf,
@@ -390,6 +391,16 @@ export default function App(): ReactElement {
           loadDirectory(paneId, path);
         }}
         onRemove={bookmarks.removeBookmark}
+        onContextMenu={(path, x, y) => {
+          setActivePane(paneId);
+          openCopyMenu({
+            target: { path, name: getBaseName(path), isDir: true },
+            x,
+            y,
+            noDuplicate: true,
+            onRemove: () => bookmarks.removeBookmark(path),
+          });
+        }}
         onCancel={() => closeBookmarks(paneId)}
         onSwitchPane={switchPane}
         isToggleKey={isBookmarksKey}
@@ -431,6 +442,7 @@ export default function App(): ReactElement {
             y,
             onReveal: () => revealFavorite(path),
             noDuplicate: true,
+            onRemove: () => favorites.removeFavorite(path),
           });
         }}
         onCancel={() => closeFavorites(paneId)}
@@ -474,6 +486,7 @@ export default function App(): ReactElement {
             y,
             onReveal: () => revealRecent(path),
             noDuplicate: true,
+            onRemove: () => recentFiles.remove(path),
           });
         }}
         onCancel={() => closeRecentFiles(paneId)}
@@ -497,6 +510,20 @@ export default function App(): ReactElement {
         onSelect={(path, index) => {
           closeHistoryList(paneId);
           loadDirectory(paneId, path, { historyIndex: index });
+        }}
+        onContextMenu={(path, index, x, y) => {
+          setActivePane(paneId);
+          openCopyMenu({
+            target: { path, name: getBaseName(path), isDir: true },
+            x,
+            y,
+            noDuplicate: true,
+            onRemove: () =>
+              updatePane(paneId, (p) => ({
+                ...p,
+                ...removeHistoryEntry(p, index),
+              })),
+          });
         }}
         onCancel={() => closeHistoryList(paneId)}
         onSwitchPane={switchPane}
@@ -619,6 +646,9 @@ export default function App(): ReactElement {
             })),
             ...(copyMenu.onReveal
               ? [{ label: "ディレクトリへ移動", onSelect: copyMenu.onReveal }]
+              : []),
+            ...(copyMenu.onRemove
+              ? [{ label: "一覧から削除", onSelect: copyMenu.onRemove }]
               : []),
             ...(copyMenu.noDuplicate
               ? []

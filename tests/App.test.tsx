@@ -2308,6 +2308,49 @@ describe("App (履歴・ブックマーク)", () => {
     expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
   });
 
+  it("正常系: ブックマークの行を右クリックして「一覧から削除」を選ぶと, その登録が外れること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}b{/Alt}");
+
+    fireEvent.contextMenu(paneOf("left").getByText("/mock/home"), {
+      clientX: 5,
+      clientY: 6,
+    });
+    expect(await screen.findByText("フルパスをコピー")).toBeInTheDocument();
+    await user.click(screen.getByText("一覧から削除"));
+
+    expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
+  });
+
+  it("正常系: 移動履歴の行を右クリックして「一覧から削除」を選ぶと, その行が履歴から消え, 現在地の印は残ること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("{Alt>}h{/Alt}");
+
+    // 現在地より前の行を消す
+    fireEvent.contextMenu(paneOf("left").getByText("/mock/home"), {
+      clientX: 5,
+      clientY: 6,
+    });
+    await user.click(await screen.findByText("一覧から削除"));
+    expect(paneOf("left").getAllByRole("listitem").map(rowPathText)).toEqual([
+      "/mock/home/FolderA現在地",
+    ]);
+
+    // 現在地の行 (最後の 1 件) を消す
+    fireEvent.contextMenu(paneOf("left").getByText("/mock/home/FolderA"), {
+      clientX: 5,
+      clientY: 6,
+    });
+    await user.click(await screen.findByText("一覧から削除"));
+    expect(
+      paneOf("left").getByText("一致するものがありません."),
+    ).toBeInTheDocument();
+  });
+
   it("境界: 先頭の行で ↑ を押してもカーソルが範囲外へ出ないこと", async () => {
     mockPhase4();
     const user = await renderLoaded();
@@ -5900,6 +5943,24 @@ describe("App (最近開いたファイル)", () => {
     expect(cursorNames()).toEqual(["b.txt"]);
   });
 
+  it("正常系: 右クリックの「一覧から削除」で, 一覧から外れること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_recent_files"
+        ? Promise.resolve(["/mock/home/b.txt"])
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}r{/Alt}");
+
+    fireEvent.contextMenu(await screen.findByText("/mock/home/b.txt"), {
+      clientX: 5,
+      clientY: 6,
+    });
+    await user.click(await screen.findByText("一覧から削除"));
+
+    expect(screen.queryByText("/mock/home/b.txt")).not.toBeInTheDocument();
+  });
+
   it("正常系: 前に保存した一覧が出て, d で一覧から取り除けること", async () => {
     mockHome((cmd) =>
       cmd === "load_recent_files"
@@ -6039,6 +6100,30 @@ describe("App (お気に入り)", () => {
 
     await user.keyboard("d");
     expect(screen.queryByText("/mock/home/old.txt")).not.toBeInTheDocument();
+  });
+
+  it("正常系: 右クリックの「一覧から削除」で, お気に入りから外れること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_config"
+        ? Promise.resolve({
+            theme: "classic",
+            font_size: "medium",
+            editor: null,
+            terminal: null,
+            favorites: ["/mock/home/b.txt"],
+          })
+        : undefined,
+    );
+    const user = await renderLoaded();
+    await user.keyboard("F");
+
+    fireEvent.contextMenu(await screen.findByText("/mock/home/b.txt"), {
+      clientX: 5,
+      clientY: 6,
+    });
+    await user.click(await screen.findByText("一覧から削除"));
+
+    expect(screen.queryByText("/mock/home/b.txt")).not.toBeInTheDocument();
   });
 
   it("正常系: o でそのファイルのあるディレクトリを開き (親の無いパスは何もしない), 右クリックでコピーのメニューが出ること", async () => {

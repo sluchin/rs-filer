@@ -42,3 +42,26 @@ export function pushHistory(
   );
   return { history, historyIndex: history.length - 1 };
 }
+
+/**
+ * 履歴から, 指定した位置の 1 件を除いた, 次の履歴を返します.
+ *
+ * 現在位置は, 除いた件より後ろにあれば 1 つ前へ詰め, 除いた件そのものなら, 同じ番号 (次の件. 末尾なら 1 つ前) に置きます.
+ * 位置が範囲の外なら, 同じ履歴を返します.
+ *
+ * @param state - 除く前の履歴.
+ * @param index - 除く件の位置 (0 から).
+ * @returns 除いたあとの履歴.
+ */
+export function removeHistoryEntry(
+  state: HistoryState,
+  index: number,
+): HistoryState {
+  if (index < 0 || index >= state.history.length) {
+    return state;
+  }
+  const history = state.history.filter((_, i) => i !== index);
+  const historyIndex =
+    index < state.historyIndex ? state.historyIndex - 1 : state.historyIndex;
+  return { history, historyIndex: Math.min(historyIndex, history.length - 1) };
+}

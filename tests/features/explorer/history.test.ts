@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pushHistory } from "@/features/explorer/history";
+import { pushHistory, removeHistoryEntry } from "@/features/explorer/history";
 
 describe("pushHistory", () => {
   it("正常系: 履歴にないディレクトリは, 末尾へ追加し, 現在位置を末尾にすること", () => {
@@ -66,5 +66,41 @@ describe("pushHistory", () => {
       history: ["/a"],
       historyIndex: 0,
     });
+  });
+});
+
+describe("removeHistoryEntry", () => {
+  const state = { history: ["/a", "/b", "/c"], historyIndex: 1 };
+
+  it("正常系: 現在地より前の 1 件を除くと, 現在位置が 1 つ前へ詰まること", () => {
+    expect(removeHistoryEntry(state, 0)).toEqual({
+      history: ["/b", "/c"],
+      historyIndex: 0,
+    });
+  });
+
+  it("正常系: 現在地より後ろの 1 件を除いても, 現在位置は変わらないこと", () => {
+    expect(removeHistoryEntry(state, 2)).toEqual({
+      history: ["/a", "/b"],
+      historyIndex: 1,
+    });
+  });
+
+  it("正常系: 現在地そのものを除くと, 次の件が現在位置になり, 末尾なら 1 つ前になること", () => {
+    expect(removeHistoryEntry(state, 1)).toEqual({
+      history: ["/a", "/c"],
+      historyIndex: 1,
+    });
+    expect(
+      removeHistoryEntry({ history: ["/a", "/b"], historyIndex: 1 }, 1),
+    ).toEqual({ history: ["/a"], historyIndex: 0 });
+  });
+
+  it("境界: 最後の 1 件を除くと現在位置は -1 になり, 範囲の外の位置では何も変わらないこと", () => {
+    expect(removeHistoryEntry({ history: ["/a"], historyIndex: 0 }, 0)).toEqual(
+      { history: [], historyIndex: -1 },
+    );
+    expect(removeHistoryEntry(state, -1)).toBe(state);
+    expect(removeHistoryEntry(state, 3)).toBe(state);
   });
 });

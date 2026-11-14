@@ -22,6 +22,8 @@ interface HistoryPaneProps {
   onSelect: (path: string, index: number) => void;
   /** 通常のペイン表示へ戻る (`Esc`) ハンドラー. */
   onCancel: () => void;
+  /** 行を右クリックしたときのハンドラー (パスと, 履歴上の位置と, 画面の座標). 省略した場合は, 何もしない. */
+  onContextMenu?: (path: string, index: number, x: number, y: number) => void;
   /** `Tab` で, もう一方のペインをアクティブにするハンドラー. */
   onSwitchPane: () => void;
   /** 押されたキーが, この一覧を開くキー (既定は `M-h`) かどうか. そのキーで一覧を閉じる (トグル). */
@@ -38,6 +40,7 @@ interface HistoryPaneProps {
  * 一覧を横にスクロール (スクロールバー, または `←` `→`) して見ます.
  * `/` または `Ctrl-S` で, 入力した文字 (空白で区切った語を全て含むもの) に一覧を絞り込みます. `Enter` で入力を終えて一覧の操作へ
  * 戻り (絞り込みは維持), `Esc` で絞り込みを解除します (絞り込んでいないときの `Esc` は, 一覧を閉じます).
+ * `onContextMenu` を渡すと, 行を右クリックしたときに, その行にカーソルを移して知らせる.
  * 絞り込んでも, 選んだときに渡す履歴上の位置は, 絞り込む前の位置です.
  * `Tab` では, もう一方のペインへ移り, この一覧は (アクティブでないまま) 表示され続けます.
  *
@@ -52,6 +55,7 @@ export default function HistoryPane({
   historyIndex,
   onSelect,
   onCancel,
+  onContextMenu,
   onSwitchPane,
   isToggleKey,
 }: HistoryPaneProps): ReactElement {
@@ -180,6 +184,13 @@ export default function HistoryPane({
               aria-current={position === index ? "true" : undefined}
               onClick={() => setIndex(position)}
               onDoubleClick={() => onSelect(history[i], i)}
+              onContextMenu={(e) => {
+                if (onContextMenu) {
+                  e.preventDefault();
+                  setIndex(position);
+                  onContextMenu(history[i], i, e.clientX, e.clientY);
+                }
+              }}
             >
               <PathItem path={history[i]} isDir />
               {i === historyIndex && <span className="col-attr">現在地</span>}

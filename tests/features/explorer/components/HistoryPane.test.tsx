@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import HistoryPane from "@/features/explorer/components/HistoryPane";
@@ -128,5 +128,40 @@ describe("HistoryPane", () => {
     expect(input).toHaveFocus();
     await user.keyboard("{Enter}/");
     expect(screen.getAllByLabelText("left history filter")).toHaveLength(1);
+  });
+
+  it("正常系: 行を右クリックすると, その行にカーソルを移し, パスと履歴上の位置と座標を渡すこと. onContextMenu が無ければ何もしないこと", () => {
+    const onContextMenu = vi.fn();
+    const { unmount } = render(
+      <HistoryPane
+        paneId="left"
+        isActive
+        history={["/a", "/b"]}
+        historyIndex={1}
+        onActivate={vi.fn()}
+        onSelect={vi.fn()}
+        onCancel={vi.fn()}
+        onSwitchPane={vi.fn()}
+        isToggleKey={() => false}
+        onContextMenu={onContextMenu}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByText("/a"), { clientX: 3, clientY: 4 });
+
+    expect(onContextMenu).toHaveBeenCalledWith("/a", 0, 3, 4);
+    expect(screen.getByText("/a").closest("li")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    unmount();
+
+    renderPane();
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+    });
+    screen.getByText("/a").dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
   });
 });

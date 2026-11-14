@@ -17,6 +17,8 @@ export interface CopyMenuState {
   onReveal?: () => void;
   /** 「複製」の項目を出すか (既定は出す). 最近開いたファイルの一覧では出さない. */
   noDuplicate?: boolean;
+  /** 「一覧から削除」の項目の処理 (ブックマークなどの一覧のとき). 無ければその項目は出さない. */
+  onRemove?: () => void;
 }
 
 /** 左右のペインごとの, 表示するかどうか. */
