@@ -5,7 +5,7 @@ import type { FileKind } from "../../../utils/fileKind";
  * FileIcon コンポーネントのプロパティ.
  */
 interface FileIconProps {
-  /** アイコンの種類 (`utils/fileKind.ts` の `fileKind` で, 名前から決める). */
+  /** アイコンの種類 (`utils/fileKind.ts` の `fileKind` で名前から決める). */
   kind: FileKind;
 }
 

@@ -38,7 +38,7 @@ src/
 │   └── StatusBar.tsx                   # ステータスバー (カーソル位置の名前・ディスク空き容量・エラー表示)
 │
 ├── features/                           # 機能ごとのモジュール
-│   ├── explorer/                       # ファイル一覧・ペイン関連 (Phase 2〜3)
+│   ├── explorer/                       # ファイル一覧・ペイン関連 (Phase 2~3)
 │   │   ├── components/
 │   │   │   ├── DualPaneContainer.tsx   # 左右2ペインの比率分割・アクティブ制御 (ペインごとのハンドラーを固定)
 │   │   │   ├── Pane.tsx                # 1つのペイン (ヘッダー, リスト, ドライブ切替. memo で描き直しを減らす)
@@ -161,8 +161,8 @@ src-tauri/src/
 │   ├── preview.rs                      # テキスト(文字コード自動判別)/画像/バイナリのプレビューデータ取得
 │   ├── config.rs                       # 設定ファイルの読み書き (keymap.json / config.json)
 │   ├── history.rs                      # ディレクトリの移動履歴の保存と読み込み (history.json)
-│   ├── recent.rs                       # 最近開いたファイルの保存と読み込み (recent_files.json。既定 300 件)
-│   ├── oplog.rs                        # 操作ログの保存と読み込み (operation_log.json。30 日分)
+│   ├── recent.rs                       # 最近開いたファイルの保存と読み込み (recent_files.json. 既定 300 件)
+│   ├── oplog.rs                        # 操作ログの保存と読み込み (operation_log.json. 30 日分)
 │   └── app.rs                          # 終了 (quit_app)
 │
 └── core/                               # ドメインロジック (OS依存処理・最適化実装)
@@ -254,11 +254,11 @@ tests/
 
 ```text
 src-tauri/tests/
-├── test_commands.rs                    # 結合テスト (公開 API だけを使う。直下の `test_*.rs`)
+├── test_commands.rs                    # 結合テスト (公開 API だけを使う. 直下の `test_*.rs`)
 ├── test_clipboard.rs
 ├── test_history.rs
 ├── test_logging.rs
-└── unit/                               # 単体テスト (`src/` と同じ構成で `test_<ソースのファイル名>.rs`。対象のソースに `#[path]` で子モジュールとして組み込む)
+└── unit/                               # 単体テスト (`src/` と同じ構成で `test_<ソースのファイル名>.rs`. 対象のソースに `#[path]` で子モジュールとして組み込む)
     ├── test_lib.rs
     ├── test_logging.rs
     ├── test_window_state.rs

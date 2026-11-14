@@ -58,7 +58,7 @@ fn test_open_in_editor_with_default_app_failure() {
 
 #[test]
 fn test_candidates_for_success() {
-    // 設定があれば, それだけを候補にする.
+    // 設定があればそれだけを候補にする.
     assert_eq!(
         candidates_for(Some(" kitty ")),
         vec![("kitty".to_string(), Vec::new())]
@@ -127,7 +127,7 @@ fn test_resolve_editor_order() {
     );
     assert_eq!(resolve_editor(None, &|_| None).unwrap(), None);
 
-    // 設定があれば, 環境変数より優先する.
+    // 設定があれば環境変数より優先する.
     let config = AppConfig {
         editor: Some("configured".to_string()),
         ..Default::default()

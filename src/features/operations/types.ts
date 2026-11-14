@@ -29,7 +29,7 @@ export type DialogState =
       title: string;
       /** 確認する内容. */
       message: string;
-      /** 選択肢. `key` を押すと, その `run` を実行して, ダイアログを閉じる. */
+      /** 選択肢. `key` を押すと, その `run` を実行してダイアログを閉じる. */
       choices: ChoiceOption[];
     };
 

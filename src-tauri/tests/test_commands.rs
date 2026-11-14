@@ -46,7 +46,7 @@ fn test_read_directory_integration() {
     let entries = result.unwrap();
     assert_eq!(entries.len(), 4, "4つのエントリが取得できること");
 
-    // 並べ替えはフロントエンドで行うため, 順序は問わず, 種類だけを検証する.
+    // 並べ替えはフロントエンドで行うため, 順序は問わず種類だけを検証する.
     let is_dir = |name: &str| entries.iter().find(|e| e.name == name).unwrap().is_dir;
     assert!(is_dir("a_dir"));
     assert!(is_dir("z_dir"));

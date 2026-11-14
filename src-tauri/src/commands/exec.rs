@@ -34,7 +34,7 @@ fn path_refs(_count: usize) -> String {
 /// # Returns
 ///
 /// 環境変数を二重引用符で囲み, 空白区切りで並べたもの (`"%RSFILER_PATH_1%" "%RSFILER_PATH_2%"`).
-/// Windows のファイル名には `"` を使えないので, 囲みから抜け出せない.
+/// Windows のファイル名には `"` を使えないので囲みから抜け出せない.
 #[cfg(windows)]
 fn path_refs(count: usize) -> String {
     (1..=count)

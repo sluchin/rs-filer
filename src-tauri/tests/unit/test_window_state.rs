@@ -174,7 +174,7 @@ fn test_capture_restored_from_maximized_overwrites_flag() {
 
 #[test]
 fn test_capture_without_position_keeps_previous_position() {
-    // 位置を扱えない環境 (Wayland のまま) では, 大きさだけを更新して, 以前の位置を残す.
+    // 位置を扱えない環境 (Wayland のまま) では, 大きさだけを更新して以前の位置を残す.
     let previous = state(1000, 700, Some(120), Some(80), false);
     assert_eq!(
         capture(Some(&previous), (900, 650), None, false, false),
@@ -207,10 +207,10 @@ fn test_should_use_x11_conditions() {
 
 #[test]
 fn test_is_position_supported_conditions() {
-    // Wayland でない (X11, Windows, macOS) なら, 扱える.
+    // Wayland でない (X11, Windows, macOS) なら扱える.
     assert!(is_position_supported(None, None));
     assert!(is_position_supported(Some(""), None));
-    // Wayland でも, X11 (XWayland) で動いていれば, 扱える.
+    // Wayland でも, X11 (XWayland) で動いていれば扱える.
     assert!(is_position_supported(Some("wayland-0"), Some("x11")));
     assert!(is_position_supported(
         Some("wayland-0"),
@@ -398,13 +398,13 @@ fn test_restore_with_success() {
 
 #[test]
 fn test_restore_with_skips_unavailable_items() {
-    // 保存値が無ければ, 何もしない.
+    // 保存値が無ければ何もしない.
     let dir = tempfile::tempdir().unwrap();
     let window = MockWindow::new();
     restore_with(&window, Some(dir.path()), &fake_env(X11));
     assert!(window.calls.borrow().is_empty());
 
-    // Wayland のままなら, 位置は設定しない. 最大化していなければ, 最大化しない.
+    // Wayland のままなら位置は設定しない. 最大化していなければ最大化しない.
     store_window_state_to(
         Some(dir.path()),
         &state(1000, 700, Some(30), Some(40), false),
@@ -425,7 +425,7 @@ fn test_restore_with_failure_continues() {
         ..MockWindow::new()
     };
     restore_with(&window, Some(dir.path()), &fake_env(X11));
-    // 失敗しても, 残りの項目を続ける.
+    // 失敗しても残りの項目を続ける.
     assert_eq!(
         *window.calls.borrow(),
         vec!["size 1000x700", "position 30,40", "maximize"]

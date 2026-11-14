@@ -125,7 +125,7 @@ fn test_recent_files_limit_defaults_survives_save_config_and_caps_the_load() {
         vec![b]
     );
 
-    // フロントエンドから (上限を知らない既定値で) 保存しても, 書いた上限を残す.
+    // フロントエンドから (上限を知らない既定値で) 保存しても書いた上限を残す.
     save_config_to(Some(config.path()), &AppConfig::default()).unwrap();
     assert_eq!(
         load_config_from(Some(config.path()))

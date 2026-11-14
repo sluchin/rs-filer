@@ -275,7 +275,7 @@ export function useFileOperations(
   /**
    * カーソル位置のアーカイブ (zip, tar, tar.gz, tgz) を, 展開先のディレクトリの名前を入力させて,
    * 同じディレクトリの下へ展開します. 名前の初期値は, アーカイブの名前から拡張子を除いたもの.
-   * アーカイブでなければ, エラーを表示します.
+   * アーカイブでなければエラーを表示します.
    */
   const startExtract = useCallback((): void => {
     const file = selectedEntry();

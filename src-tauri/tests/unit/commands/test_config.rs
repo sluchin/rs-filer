@@ -381,7 +381,7 @@ fn test_store_window_state_to_and_load_window_state_from_success() {
 
 #[test]
 fn test_store_window_state_to_and_load_window_state_from_failure() {
-    // 書き込めない場合は, ログに出すだけで, パニックしない.
+    // 書き込めない場合は, ログに出すだけでパニックしない.
     store_window_state_to(None, &sample_window(false));
 
     // 壊れた設定ファイルは, 状態が無いものとして扱う.

@@ -115,7 +115,7 @@ pub fn save_operation_log_to(
 ) -> Result<(), String> {
     let dir = config_dir.ok_or_else(|| "Config directory is not available".to_string())?;
     let kept = retain_recent(entries, now_ms);
-    // 件数が多いので, 整形せずに書く. 途中で落ちても壊れないように, 一時ファイルから置き換える.
+    // 件数が多いので整形せずに書く. 途中で落ちても壊れないように, 一時ファイルから置き換える.
     let text = serde_json::to_string(&kept).map_err(|e| e.to_string())?;
     write_atomic(&operation_log_path(dir), text.as_bytes())
 }

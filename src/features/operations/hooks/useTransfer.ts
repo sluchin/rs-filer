@@ -443,7 +443,7 @@ export function useTransfer({
 
   /**
    * 削除の印を付けた項目を, 確認のうえゴミ箱へ移動します (Emacs の Dired の `x`. `dired-do-flagged-delete`).
-   * 印が無ければ, 知らせるだけです.
+   * 印が無ければ知らせるだけです.
    */
   const startDeleteFlagged = useCallback((): void => {
     const files = source.files.filter((f) => source.flags.includes(f.path));

@@ -95,7 +95,7 @@ export function useItemInfo(path: string | null): InfoState {
  * @returns 計算の状況. 数え終わるまでは `loading`.
  */
 export function useDirStats(path: string | null): StatsState {
-  // 数えるのは, 詳細を取得し終えた (待ち終えた) ディレクトリなので, ここでは待たない.
+  // 数えるのは, 詳細を取得し終えた (待ち終えた) ディレクトリなのでここでは待たない.
   const state = useByPath<DirStats>(path, getDirStats, "配下の合計", 0);
   return state.status === "ready"
     ? { status: "ready", stats: state.value }

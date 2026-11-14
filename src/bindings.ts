@@ -443,7 +443,7 @@ export const commands = {
 	 */
 	copyTextToClipboard: (text: string) => __TAURI_INVOKE<null>("copy_text_to_clipboard", { text }),
 	/**
-	 *  ユーザーの設定から, 履歴を読み込みます. 今は無いディレクトリは除き, `config.json` の
+	 *  ユーザーの設定から履歴を読み込みます. 今は無いディレクトリは除き, `config.json` の
 	 *  `history_limit` の件数までにします.
 	 * 
 	 *  # Returns
@@ -534,12 +534,12 @@ export type AppConfig_Deserialize = {
 	 */
 	last_paths?: LastPaths_Deserialize | null,
 	/**
-	 *  ディレクトリの移動履歴の, ペインごとの件数の上限 (既定は 1000). 超えたら, 古い方から捨てる.
+	 *  ディレクトリの移動履歴の, ペインごとの件数の上限 (既定は 1000). 超えたら古い方から捨てる.
 	 *  利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
 	 */
 	history_limit?: number,
 	/**
-	 *  最近開いたファイルの件数の上限 (既定は 300). 超えたら, 古い方から捨てる.
+	 *  最近開いたファイルの件数の上限 (既定は 300). 超えたら古い方から捨てる.
 	 *  利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
 	 */
 	recent_files_limit?: number,
@@ -573,12 +573,12 @@ export type AppConfig_Serialize = {
 	 */
 	last_paths?: LastPaths_Serialize,
 	/**
-	 *  ディレクトリの移動履歴の, ペインごとの件数の上限 (既定は 1000). 超えたら, 古い方から捨てる.
+	 *  ディレクトリの移動履歴の, ペインごとの件数の上限 (既定は 1000). 超えたら古い方から捨てる.
 	 *  利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
 	 */
 	history_limit: number,
 	/**
-	 *  最近開いたファイルの件数の上限 (既定は 300). 超えたら, 古い方から捨てる.
+	 *  最近開いたファイルの件数の上限 (既定は 300). 超えたら古い方から捨てる.
 	 *  利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
 	 */
 	recent_files_limit: number,
@@ -638,10 +638,10 @@ export type DiskSpace = {
 	total: number,
 };
 
-/**  ファイルシステム上の 1 つのエントリ（ファイルまたはディレクトリ）を表す構造体. */
+/**  ファイルシステム上の 1 つのエントリ (ファイルまたはディレクトリ) を表す構造体. */
 export type FileEntry = FileEntry_Serialize | FileEntry_Deserialize;
 
-/**  ファイルシステム上の 1 つのエントリ（ファイルまたはディレクトリ）を表す構造体. */
+/**  ファイルシステム上の 1 つのエントリ (ファイルまたはディレクトリ) を表す構造体. */
 export type FileEntry_Deserialize = {
 	/**  ファイルまたはディレクトリの名前. */
 	name: string,
@@ -659,7 +659,7 @@ export type FileEntry_Deserialize = {
 	hidden: boolean,
 };
 
-/**  ファイルシステム上の 1 つのエントリ（ファイルまたはディレクトリ）を表す構造体. */
+/**  ファイルシステム上の 1 つのエントリ (ファイルまたはディレクトリ) を表す構造体. */
 export type FileEntry_Serialize = {
 	/**  ファイルまたはディレクトリの名前. */
 	name: string,
@@ -1024,10 +1024,10 @@ export type TransferSummary = {
 	cancelled: boolean,
 };
 
-/**  ウィンドウの状態 (終了時に保存して, 起動時に復元する). */
+/**  ウィンドウの状態 (終了時に保存して起動時に復元する). */
 export type WindowState = WindowState_Serialize | WindowState_Deserialize;
 
-/**  ウィンドウの状態 (終了時に保存して, 起動時に復元する). */
+/**  ウィンドウの状態 (終了時に保存して起動時に復元する). */
 export type WindowState_Deserialize = {
 	/**  ウィンドウの内側の幅 (論理ピクセル). 最大化していないときの値. */
 	width: number,
@@ -1041,7 +1041,7 @@ export type WindowState_Deserialize = {
 	maximized?: boolean,
 };
 
-/**  ウィンドウの状態 (終了時に保存して, 起動時に復元する). */
+/**  ウィンドウの状態 (終了時に保存して起動時に復元する). */
 export type WindowState_Serialize = {
 	/**  ウィンドウの内側の幅 (論理ピクセル). 最大化していないときの値. */
 	width: number,

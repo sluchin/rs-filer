@@ -102,12 +102,12 @@ pub fn load_history_from(config_dir: Option<&Path>, limit: usize) -> Result<Pane
 /// エラー文字列を含む [`Err`].
 pub fn save_history_to(config_dir: Option<&Path>, history: &PaneHistory) -> Result<(), String> {
     let dir = config_dir.ok_or_else(|| "Config directory is not available".to_string())?;
-    // 件数が多いので, 整形せずに書く. 途中で落ちても壊れないように, 一時ファイルから置き換える.
+    // 件数が多いので整形せずに書く. 途中で落ちても壊れないように, 一時ファイルから置き換える.
     let text = serde_json::to_string(history).map_err(|e| e.to_string())?;
     write_atomic(&history_path(dir), text.as_bytes())
 }
 
-/// 設定ディレクトリから, 履歴を読み込みます. 件数の上限は, `config.json` の `history_limit` を使います.
+/// 設定ディレクトリから履歴を読み込みます. 件数の上限は, `config.json` の `history_limit` を使います.
 ///
 /// # Arguments
 ///
@@ -126,7 +126,7 @@ fn load_history_with_limit(config_dir: Option<&Path>) -> Result<PaneHistory, Str
     })
 }
 
-/// ユーザーの設定から, 履歴を読み込みます. 今は無いディレクトリは除き, `config.json` の
+/// ユーザーの設定から履歴を読み込みます. 今は無いディレクトリは除き, `config.json` の
 /// `history_limit` の件数までにします.
 ///
 /// # Returns

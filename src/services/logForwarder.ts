@@ -15,7 +15,7 @@ const FORWARDABLE_LEVELS: readonly string[] = [
 
 /** ログをまとめて送るまで待つ時間 (ミリ秒). */
 const FLUSH_DELAY_MS = 200;
-/** この件数がたまったら, 待たずに送る. */
+/** この件数がたまったら待たずに送る. */
 const MAX_PENDING = 50;
 /** 1 件のメッセージの最大の文字数. 超えた分は省いて送る. */
 const MAX_MESSAGE_LENGTH = 4000;

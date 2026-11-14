@@ -160,7 +160,7 @@ export default function TreePane({
         !e.altKey
       ) {
         // ディレクトリ作成. `N`: カーソル位置のディレクトリの下 (ファイルなら, そのファイルのあるディレクトリ.
-        // 何も無ければ, ツリーの根). `+`: 通常の一覧と同じく, いま開いているディレクトリ (ツリーの根) の直下.
+        // 何も無ければツリーの根). `+`: 通常の一覧と同じく, いま開いているディレクトリ (ツリーの根) の直下.
         e.preventDefault();
         // ファイルの行の親は, ツリーの行が根の下にあるので, 必ずある.
         const row = rows.find((r) => r.node.path === cursorPath);
@@ -196,7 +196,7 @@ export default function TreePane({
         !e.altKey
       ) {
         // 削除. `d` / `D` / `Delete`: ゴミ箱へ. `Shift+Delete`: 完全に削除 (通常の一覧と同じ).
-        // ツリーにはマークが無いので, `d` も削除の印を付けず, すぐに確認する.
+        // ツリーにはマークが無いので, `d` も削除の印を付けずすぐに確認する.
         e.preventDefault();
         const row = rows.find((r) => r.node.path === cursorPath);
         if (row) {
@@ -314,7 +314,7 @@ export default function TreePane({
                 style={{ paddingLeft: `${depth * 16}px` }}
                 title={node.name}
               >
-                {/* 展開の向きは, 同じ ▶ を回転して表す (▼ は別の文字で, 大きさが変わるため). */}
+                {/* 展開の向きは, 同じ ▶ を回転して表す (▼ は別の文字で大きさが変わるため). */}
                 <span
                   className="tree-icon"
                   data-expanded={node.isDir && !node.empty && node.expanded}

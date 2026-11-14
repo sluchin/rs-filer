@@ -66,7 +66,7 @@ export interface TabDeps {
  *
  * 今のタブの状態は, 今までどおり `useFileList` が持つ (`leftPane` / `rightPane`). 表示していないタブの状態は
  * ここで保存し, タブを替えるときに, 入れ替える. ディレクトリの移動履歴は, ペインの左右ごとに 1 つ
- * (保存するファイルも 1 つ) なので, 入れ替えても引き継ぐ.
+ * (保存するファイルも 1 つ) なので入れ替えても引き継ぐ.
  *
  * @param deps - ペインの状態と操作.
  * @returns タブの一覧と, タブを操作する関数.
@@ -218,7 +218,7 @@ export function useTabs({
     updatePane("left", fresh);
     updatePane("right", fresh);
     setOverlays(NO_OVERLAYS);
-    // 検索の結果の表示は引き継げないので、ディレクトリを読み直す
+    // 検索の結果の表示は引き継げないので, ディレクトリを読み直す
     (["left", "right"] as const).forEach((pane) => {
       if (current[pane].search !== null) {
         loadDirectory(pane, current[pane].currentPath);
@@ -238,7 +238,7 @@ export function useTabs({
     }
     const rest = saved.filter((_, i) => i !== index);
     if (index !== active) {
-      // 表示していないタブを閉じる. 表示は変えず, 番号だけ詰める.
+      // 表示していないタブを閉じる. 表示は変えず番号だけ詰める.
       setSaved(rest);
       setActive(index < active ? active - 1 : active);
       return;

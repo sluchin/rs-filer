@@ -14,7 +14,7 @@ interface HistoryPaneProps {
   onActivate: () => void;
   /** このペインが移動してきたディレクトリの履歴 (古い順). */
   history: string[];
-  /** 履歴の中で, 現在地に当たる位置. */
+  /** 履歴の中で現在地に当たる位置. */
   historyIndex: number;
   /** 選んだ (`Enter` またはダブルクリック) ときのハンドラー. 選んだ履歴上の位置も渡す. */
   onSelect: (path: string, index: number) => void;

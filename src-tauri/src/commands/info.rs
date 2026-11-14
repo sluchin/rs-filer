@@ -10,9 +10,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-/// 配下の合計を数える時間の上限 (秒). これを超えたら, そこまでの結果を返す.
+/// 配下の合計を数える時間の上限 (秒). これを超えたらそこまでの結果を返す.
 const STATS_TIME_LIMIT_SECS: u64 = 10;
-/// 配下の合計で数える項目 (ファイルとディレクトリ) の数の上限. これを超えたら, そこまでの結果を返す.
+/// 配下の合計で数える項目 (ファイルとディレクトリ) の数の上限. これを超えたらそこまでの結果を返す.
 const STATS_MAX_ENTRIES: u64 = 5_000_000;
 
 /// 項目の種類.

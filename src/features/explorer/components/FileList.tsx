@@ -344,7 +344,7 @@ export default function FileList({
     return element.getBoundingClientRect().width;
   }, []);
 
-  // ドラッグ開始. このとき, 幅を保存していない列は, 今の見た目の幅で固定する (動かした列より右の列の位置が、
+  // ドラッグ開始. このとき, 幅を保存していない列は, 今の見た目の幅で固定する (動かした列より右の列の位置が,
   // 動かさないうちに変わらないように).
   const handleHeaderMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -364,8 +364,8 @@ export default function FileList({
     [detectColumn, measureColumn, columnWidths],
   );
 
-  // ドラッグ中. 境界線の「左側」の列の幅を、境界線がカーソルについて動くように変える. 右の列は、その分
-  // 右へずれる. ペインより広くなったら、行の一覧に横のスクロールバーが出る. 離したら、幅を知らせる.
+  // ドラッグ中. 境界線の「左側」の列の幅を, 境界線がカーソルについて動くように変える. 右の列は, その分
+  // 右へずれる. ペインより広くなったら, 行の一覧に横のスクロールバーが出る. 離したら幅を知らせる.
   useEffect(() => {
     if (!drag) return;
     // 最後に動かしたときの列幅. 動かさずに離したときは null のまま (知らせない).
@@ -393,7 +393,7 @@ export default function FileList({
     };
   }, [drag, onColumnWidthChange]);
 
-  // ダブルクリックで列幅を内容に合わせる. 境界線の「左側」の列を、内容に合う幅にする (ドラッグと同じ列).
+  // ダブルクリックで列幅を内容に合わせる. 境界線の「左側」の列を, 内容に合う幅にする (ドラッグと同じ列).
   const handleHeaderDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const column = detectColumn(e.clientX);

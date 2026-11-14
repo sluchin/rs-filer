@@ -244,7 +244,7 @@ export function useFileList(onError: (message: string) => void) {
   );
 
   /**
-   * 指定されたパスのディレクトリを読み込みます. 失敗した場合は, エラーを設定して, 何もしません.
+   * 指定されたパスのディレクトリを読み込みます. 失敗した場合は, エラーを設定して何もしません.
    *
    * @param pane - 更新対象のペイン識別子.
    * @param targetPath - 読み込み対象のディレクトリ絶対パス.

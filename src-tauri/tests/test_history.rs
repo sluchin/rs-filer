@@ -190,7 +190,7 @@ fn test_history_limit_defaults_and_survives_save_config() {
         50
     );
 
-    // フロントエンドから (上限を知らない既定値で) 保存しても, 書いた上限を残す.
+    // フロントエンドから (上限を知らない既定値で) 保存しても書いた上限を残す.
     save_config_to(Some(config.path()), &AppConfig::default()).unwrap();
     assert_eq!(
         load_config_from(Some(config.path())).unwrap().history_limit,

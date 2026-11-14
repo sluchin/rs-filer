@@ -69,7 +69,7 @@ export default function PathBar({
     setSelected(-1);
   };
 
-  /** 一覧の候補を選んで, 入力欄に入れる. 先頭と末尾は, つなげて回る. */
+  /** 一覧の候補を選んで入力欄に入れる. 先頭と末尾は, つなげて回る. */
   const select = (index: number): void => {
     const next = (index + candidates.length) % candidates.length;
     setSelected(next);

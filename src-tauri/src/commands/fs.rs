@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-/// ファイルシステム上の 1 つのエントリ（ファイルまたはディレクトリ）を表す構造体.
+/// ファイルシステム上の 1 つのエントリ (ファイルまたはディレクトリ) を表す構造体.
 #[derive(Debug, Serialize, Type)]
 pub struct FileEntry {
     /// ファイルまたはディレクトリの名前.
@@ -349,7 +349,7 @@ fn walk_tree(
 /// # Arguments
 ///
 /// * `root` - 探し始めるディレクトリの絶対パス文字列.
-/// * `query` - 名前の一部か, ワイルドカード (`name_matches` を参照). 空文字列なら, すべてに合う.
+/// * `query` - 名前の一部か, ワイルドカード (`name_matches` を参照). 空文字列ならすべてに合う.
 /// * `show_hidden` - `true` の場合は隠しファイルも探す.
 /// * `max_results` - 集める件数の上限.
 ///

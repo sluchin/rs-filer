@@ -22,7 +22,7 @@ fn request(kind: TransferKind, sources: &[&Path], dest: Option<&Path>) -> Transf
     }
 }
 
-/// 進捗を記録しながら, 実際の操作で実行する.
+/// 進捗を記録しながら実際の操作で実行する.
 fn run(req: &TransferRequest) -> (Result<TransferSummary, String>, Vec<TransferProgress>) {
     let events = RefCell::new(Vec::new());
     let cancel = AtomicBool::new(false);
@@ -266,7 +266,7 @@ fn test_transfer_move_directory_onto_existing_requires_overwrite() {
     fs::create_dir_all(dest.join("d")).unwrap();
     fs::write(dest.join("d/a.txt"), "old").unwrap();
 
-    // 確認 (overwrite) が無ければ, 何も変えずに失敗する.
+    // 確認 (overwrite) が無ければ何も変えずに失敗する.
     let (result, _) = run(&request(TransferKind::Move, &[&src], Some(&dest)));
 
     assert!(result.unwrap_err().starts_with("Already exists"));
@@ -296,7 +296,7 @@ fn test_transfer_move_multiple_with_one_conflict_changes_nothing() {
 
 #[test]
 fn test_move_one_never_overwrites_without_the_overwrite_flag() {
-    // 検証の後に同名のものができた場合に備え, move_one 自身も, 黙って上書きしない.
+    // 検証の後に同名のものができた場合に備え, move_one 自身も黙って上書きしない.
     let dir = tempdir().unwrap();
     let src = dir.path().join("a.txt");
     let dst = dir.path().join("b.txt");
@@ -872,7 +872,7 @@ fn test_progress_size_of_reuses_measured_sizes() {
         // 測っていないものは測って覚える.
         assert_eq!(p.size_of(&sub), 5);
         assert_eq!(p.sizes[&sub], 5);
-        // 覚えている値があれば, 測り直さない.
+        // 覚えている値があれば測り直さない.
         p.sizes.insert(sub.clone(), 100);
         assert_eq!(p.size_of(&sub), 100);
     });
@@ -1420,7 +1420,7 @@ fn test_copy_tree_parallel_failure_returns_first_error() {
     let src = dir.path().join("src");
     make_small_files(&src, 40);
     let dst = dir.path().join("dst");
-    // コピー先に, ファイルがある (上書きしない) ので, 失敗する. コピー先のディレクトリは既にあるので消さない.
+    // コピー先に, ファイルがある (上書きしない) ので失敗する. コピー先のディレクトリは既にあるので消さない.
     fs::create_dir(&dst).unwrap();
     fs::write(dst.join("f7"), "other").unwrap();
 

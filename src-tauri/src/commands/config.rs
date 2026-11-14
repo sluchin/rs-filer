@@ -134,7 +134,7 @@ pub struct PaneColumnWidths {
     pub right: ColumnWidths,
 }
 
-/// ウィンドウの状態 (終了時に保存して, 起動時に復元する).
+/// ウィンドウの状態 (終了時に保存して起動時に復元する).
 #[derive(Serialize, Deserialize, Type, Clone, PartialEq, Debug)]
 pub struct WindowState {
     /// ウィンドウの内側の幅 (論理ピクセル). 最大化していないときの値.
@@ -200,10 +200,10 @@ pub struct AppConfig {
     /// `save_last_paths` が書き込む. `save_config` では上書きしない.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_paths: Option<LastPaths>,
-    /// ディレクトリの移動履歴の, ペインごとの件数の上限 (既定は 1000). 超えたら, 古い方から捨てる.
+    /// ディレクトリの移動履歴の, ペインごとの件数の上限 (既定は 1000). 超えたら古い方から捨てる.
     /// 利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
     pub history_limit: usize,
-    /// 最近開いたファイルの件数の上限 (既定は 300). 超えたら, 古い方から捨てる.
+    /// 最近開いたファイルの件数の上限 (既定は 300). 超えたら古い方から捨てる.
     /// 利用者が `config.json` を書き換えて変える. `save_config` では上書きしない.
     pub recent_files_limit: usize,
     /// ブックマークしたディレクトリ. 一度も保存していない場合は `None` (以前の版が localStorage に

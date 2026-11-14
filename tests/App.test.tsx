@@ -865,7 +865,7 @@ describe("App (作成・名前変更・削除)", () => {
     const user = await renderLoaded();
     await user.keyboard("j");
 
-    // 印を付けるだけで, まだ削除しない (最後の行なので, カーソルは動かない)
+    // 印を付けるだけで, まだ削除しない (最後の行なのでカーソルは動かない)
     await user.keyboard("d");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(cursorNames()).toEqual(["b.txt"]);
@@ -2082,7 +2082,7 @@ describe("App (表示・ソート・絞り込み)", () => {
     expect(statusText()).toContain("名前 ↓");
     expect(leftNames()).toEqual(["FolderA", "b.md", "a.txt"]);
 
-    // 名前の次は更新日時 (よく使うので, 拡張子やサイズより先)
+    // 名前の次は更新日時 (よく使うので拡張子やサイズより先)
     await user.keyboard("s");
     expect(statusText()).toContain("更新日時 ↑");
     await user.keyboard("s");
@@ -5064,7 +5064,7 @@ describe("App (再帰検索)", () => {
       await paneOf("left").findByText("内容の検索: TODO (1 件) — Esc で戻る"),
     ).toBeInTheDocument();
 
-    // 隠しファイルの切り替えで、同じ種類 (内容) の検索を探し直す
+    // 隠しファイルの切り替えで, 同じ種類 (内容) の検索を探し直す
     await user.keyboard(".");
     await waitFor(() =>
       expect(mockedInvoke).toHaveBeenCalledWith("search_contents", {
@@ -5087,7 +5087,7 @@ describe("App (再帰検索)", () => {
     expect(candidates.getByText("find-grep-dired")).toBeInTheDocument();
     expect(candidates.getByText("find-name-dired")).toBeInTheDocument();
 
-    // 入力が変わると、候補の一覧は消える
+    // 入力が変わると, 候補の一覧は消える
     await user.keyboard("n");
     expect(
       screen.queryByRole("list", { name: "候補" }),

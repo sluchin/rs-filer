@@ -900,7 +900,7 @@ fn collect_nested_conflicts(
         let child_label = format!("{}/{}", label, entry.file_name().to_string_lossy());
         let src_is_dir = entry.file_type().is_ok_and(|t| t.is_dir());
         match fs::symlink_metadata(&child_dst) {
-            // 同名のものが無ければ, 上書きにならない.
+            // 同名のものが無ければ上書きにならない.
             Err(_) => {}
             // ディレクトリ同士は, さらに中を調べる.
             Ok(meta) if src_is_dir && meta.is_dir() => {
@@ -1094,7 +1094,7 @@ fn move_one(
     progress: &mut Progress,
 ) -> Result<(), Stop> {
     if progress.skip.contains(src) {
-        // 上書きしないと答えたファイル. 移動元に残して, 進捗だけ進める.
+        // 上書きしないと答えたファイル. 移動元に残して進捗だけ進める.
         let size = progress.size_of(src);
         progress.advance(size, &file_name_of(src));
         return Ok(());

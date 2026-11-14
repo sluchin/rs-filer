@@ -1,12 +1,12 @@
 import { COMMANDS, type Command, type KeyResolution } from "./types";
 
 /**
- * キーの並び (`"C-x C-f"` など) から, コマンドへの対応.
+ * キーの並び (`"C-x C-f"` など) からコマンドへの対応.
  */
 export type Keymap = Map<string, Command>;
 
 /**
- * 既定のキー割り当て. キーの並びから, コマンドへの対応.
+ * 既定のキー割り当て. キーの並びからコマンドへの対応.
  *
  * Emacs の Dired と同じキーには, Dired と同じ働きのコマンドを割り当てる. Dired の働きが rs-filer に無いキー
  * (`c`, `M`, `O`, `H`, `L`, `i`, `.`, `<`, `>` など) には, rs-filer のコマンドを割り当てている.
@@ -137,7 +137,7 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   "C-x C-c": "quit",
 };
 
-/** キーイベントの `key` から, 表記のキー名への対応. */
+/** キーイベントの `key` から表記のキー名への対応. */
 const KEY_NAMES: Record<string, string> = {
   ArrowUp: "Up",
   ArrowDown: "Down",

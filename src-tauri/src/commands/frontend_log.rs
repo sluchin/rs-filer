@@ -107,7 +107,7 @@ fn target_for(name: &str) -> String {
 #[specta::specta]
 pub fn log_frontend_message(entries: Vec<FrontendLogEntry>) {
     for entry in entries {
-        // キーの名前は `logging::TIME_KEY` に合わせる (ログの書き込みで, この時刻を使う).
+        // キーの名前は `logging::TIME_KEY` に合わせる (ログの書き込みでこの時刻を使う).
         log::log!(
             target: &target_for(&entry.name),
             entry.level.into(),

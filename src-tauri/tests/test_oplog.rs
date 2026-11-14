@@ -61,7 +61,7 @@ fn test_save_and_load_operation_log_roundtrip_drops_old_entries() {
         load_operation_log_from(Some(dir.path()), now).unwrap(),
         vec![record(now - 10, "recent")]
     );
-    // 読み込むときにも, 古いものは除く.
+    // 読み込むときにも古いものは除く.
     assert!(
         load_operation_log_from(Some(dir.path()), now + RETENTION_MS + 100)
             .unwrap()

@@ -20,7 +20,7 @@ export type FileKind =
   | "font"
   | "file";
 
-/** 拡張子 (小文字. `.` を除く) から, 種類への対応. */
+/** 拡張子 (小文字. `.` を除く) から種類への対応. */
 const EXTENSIONS: Record<string, FileKind> = {};
 
 /**

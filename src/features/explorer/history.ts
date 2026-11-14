@@ -28,7 +28,7 @@ export function pushHistory(
   targetPath: string,
   limit: number = DEFAULT_HISTORY_LIMIT,
 ): HistoryState {
-  // 今のディレクトリを開き直しただけなら, 同じ配列を返す (変わっていないので, 保存しない)
+  // 今のディレクトリを開き直しただけなら, 同じ配列を返す (変わっていないので保存しない)
   const last = state.history.length - 1;
   if (state.history[last] === targetPath) {
     return { history: state.history, historyIndex: last };

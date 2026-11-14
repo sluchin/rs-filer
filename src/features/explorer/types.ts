@@ -23,7 +23,7 @@ export interface SearchState {
   kind: SearchKind;
   /** 検索した文字列 (名前の一部かワイルドカード, または正規表現). */
   query: string;
-  /** 件数の上限に達して, 打ち切ったかどうか. */
+  /** 件数の上限に達して打ち切ったかどうか. */
   truncated: boolean;
 }
 
