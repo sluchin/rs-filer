@@ -31,6 +31,22 @@ export const DEFAULT_HISTORY_LIMIT = 1000;
 /** 最近開いたファイルの件数の上限の既定値 (バックエンドの `DEFAULT_RECENT_FILES_LIMIT` に合わせる). */
 export const DEFAULT_RECENT_FILES_LIMIT = 300;
 
+/**
+ * ペインが今のディレクトリで使う列幅を返す. ディレクトリごとの設定があればそれ, なければペイン毎の設定.
+ *
+ * @param config - アプリケーションの設定.
+ * @param paneId - ペイン.
+ * @param path - ペインが開いているディレクトリ.
+ * @returns 使う列幅.
+ */
+export function columnWidthsFor(
+  config: Pick<AppConfig, "pane_column_widths" | "dir_column_widths">,
+  paneId: "left" | "right",
+  path: string,
+): ColumnWidths {
+  return config.dir_column_widths?.[path] ?? config.pane_column_widths[paneId];
+}
+
 /** 既定の設定 (バックエンドの `AppConfig::default()` に合わせる). */
 export const DEFAULT_CONFIG: AppConfig = {
   theme: "classic",

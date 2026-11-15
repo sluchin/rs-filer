@@ -46,8 +46,10 @@ export interface PaneProps {
   filterInputRef: (element: HTMLInputElement | null) => void;
   /** ペイン毎の列幅設定. */
   paneColumnWidths: PaneColumnWidths;
-  /** 列幅が変更されたときのハンドラー (paneId と幅を渡す). */
-  onColumnWidthChange: (paneId: PaneId, widths: ColumnWidths) => void;
+  /** ディレクトリごとの列幅設定 (キーはディレクトリのパス). あれば, ペイン毎の設定より優先する. */
+  dirColumnWidths?: Record<string, ColumnWidths>;
+  /** 列幅が変更されたときのハンドラー (開いているディレクトリのパスと幅を渡す). */
+  onColumnWidthChange: (path: string, widths: ColumnWidths) => void;
 }
 
 /**
@@ -71,9 +73,11 @@ function Pane({
   pathInputRef,
   filterInputRef,
   paneColumnWidths,
+  dirColumnWidths,
   onColumnWidthChange,
 }: PaneProps): ReactElement {
-  const columnWidths = paneColumnWidths[paneId];
+  const columnWidths =
+    dirColumnWidths?.[state.currentPath] ?? paneColumnWidths[paneId];
   return (
     <div
       role="region"
@@ -121,7 +125,9 @@ function Pane({
         onItemOpen={onItemOpen}
         onItemContextMenu={onItemContextMenu}
         columnWidths={columnWidths}
-        onColumnWidthChange={(widths) => onColumnWidthChange(paneId, widths)}
+        onColumnWidthChange={(widths) =>
+          onColumnWidthChange(state.currentPath, widths)
+        }
       />
     </div>
   );

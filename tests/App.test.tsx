@@ -4551,7 +4551,7 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
     [">", 310],
     ["<", 290],
   ])(
-    "正常系: %s で, アクティブなペインの名前の列の幅を, 既定の幅から 10px 変えて, 保存すること",
+    "正常系: %s で, アクティブなペインの今のディレクトリの, 名前の列の幅を, 既定の幅から 10px 変えて, 保存すること",
     async (key, width) => {
       mockHome();
       const user = await renderLoaded();
@@ -4561,7 +4561,7 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
       await waitFor(() =>
         expect(mockedInvoke).toHaveBeenCalledWith("save_config", {
           config: expect.objectContaining({
-            pane_column_widths: { left: { col_name: width }, right: {} },
+            dir_column_widths: { "/mock/home": { col_name: width } },
           }),
         }),
       );
@@ -4569,9 +4569,8 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
       await waitFor(() =>
         expect(mockedInvoke).toHaveBeenCalledWith("save_config", {
           config: expect.objectContaining({
-            pane_column_widths: {
-              left: { col_name: width * 2 - 300 },
-              right: {},
+            dir_column_widths: {
+              "/mock/home": { col_name: width * 2 - 300 },
             },
           }),
         }),
@@ -4579,7 +4578,28 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
     },
   );
 
-  it("正常系: M-x resetColumnWidths で, アクティブなペインの列幅だけが既定に戻り, 保存されること", async () => {
+  it("正常系: 名前の列の幅は, ディレクトリごとに別々に保存され, ほかのディレクトリの幅を変えないこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+
+    await user.keyboard(">");
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("<");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("save_config", {
+        config: expect.objectContaining({
+          dir_column_widths: {
+            "/mock/home": { col_name: 310 },
+            "/mock/home/FolderA": { col_name: 290 },
+          },
+        }),
+      }),
+    );
+  });
+
+  it("正常系: M-x resetColumnWidths で, 今のディレクトリの列幅だけが既定に戻り, 保存されること", async () => {
     mockHome((cmd) =>
       cmd === "load_config"
         ? Promise.resolve({
@@ -4587,9 +4607,9 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
             font_size: "medium",
             editor: null,
             terminal: null,
-            pane_column_widths: {
-              left: { col_name: 900, col_size: 80 },
-              right: { col_name: 500 },
+            dir_column_widths: {
+              "/mock/home": { col_name: 900, col_size: 80 },
+              "/other": { col_name: 500 },
             },
           })
         : undefined,
@@ -4602,7 +4622,7 @@ describe("App (外部連携・テーマ・フォントサイズ)", () => {
     await waitFor(() =>
       expect(mockedInvoke).toHaveBeenCalledWith("save_config", {
         config: expect.objectContaining({
-          pane_column_widths: { left: {}, right: { col_name: 500 } },
+          dir_column_widths: { "/mock/home": {}, "/other": { col_name: 500 } },
         }),
       }),
     );

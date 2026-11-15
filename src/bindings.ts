@@ -523,6 +523,8 @@ export type AppConfig_Deserialize = {
 	terminal?: string | null,
 	/**  ファイル一覧の列幅 (ペイン毎). */
 	pane_column_widths?: PaneColumnWidths_Deserialize,
+	/**  ディレクトリごとの列幅 (キーはディレクトリのパス). あれば, ペイン毎の列幅より優先する. */
+	dir_column_widths?: { [key in string]: ColumnWidths_Deserialize },
 	/**
 	 *  前回終了時のウィンドウの状態. 保存されていない場合は `None`.
 	 *  バックエンドが終了時に書き込む. フロントエンドからの保存では上書きしない.
@@ -564,6 +566,8 @@ export type AppConfig_Serialize = {
 	terminal: string | null,
 	/**  ファイル一覧の列幅 (ペイン毎). */
 	pane_column_widths: PaneColumnWidths_Serialize,
+	/**  ディレクトリごとの列幅 (キーはディレクトリのパス). あれば, ペイン毎の列幅より優先する. */
+	dir_column_widths?: { [key in string]: ColumnWidths_Serialize },
 	/**
 	 *  前回終了時のウィンドウの状態. 保存されていない場合は `None`.
 	 *  バックエンドが終了時に書き込む. フロントエンドからの保存では上書きしない.

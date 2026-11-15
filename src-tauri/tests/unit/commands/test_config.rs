@@ -78,6 +78,13 @@ fn test_read_write_config_round_trip() {
         editor: Some("code".to_string()),
         terminal: Some("konsole".to_string()),
         pane_column_widths: PaneColumnWidths::default(),
+        dir_column_widths: HashMap::from([(
+            "/home/a".to_string(),
+            ColumnWidths {
+                col_name: Some(420),
+                ..ColumnWidths::default()
+            },
+        )]),
         window: Some(sample_window(false)),
         last_paths: None,
         history_limit: 500,

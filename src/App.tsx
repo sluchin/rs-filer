@@ -602,7 +602,8 @@ export default function App(): ReactElement {
           registerPathInput={registerPathInput}
           registerFilterInput={registerFilterInput}
           paneColumnWidths={settings.config.pane_column_widths}
-          onColumnWidthChange={settings.updatePaneColumnWidth}
+          dirColumnWidths={settings.config.dir_column_widths}
+          onColumnWidthChange={settings.updateDirColumnWidth}
         />
       </div>
       {/* コマンド入力・作成・名前変更・削除確認・ドライブ選択は,

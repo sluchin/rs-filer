@@ -46,8 +46,10 @@ interface DualPaneContainerProps {
   registerFilterInput: (pane: PaneId, element: HTMLInputElement | null) => void;
   /** ペイン毎の列幅設定. */
   paneColumnWidths: PaneColumnWidths;
-  /** 列幅が変更されたときのハンドラー. */
-  onColumnWidthChange: (paneId: PaneId, widths: ColumnWidths) => void;
+  /** ディレクトリごとの列幅設定 (キーはディレクトリのパス). */
+  dirColumnWidths?: Record<string, ColumnWidths>;
+  /** 列幅が変更されたときのハンドラー (開いているディレクトリのパスと幅を渡す). */
+  onColumnWidthChange: (path: string, widths: ColumnWidths) => void;
 }
 
 /** ペインごとに束ねたハンドラー (`Pane` へ渡す). */
@@ -128,6 +130,7 @@ export default function DualPaneContainer({
   registerPathInput,
   registerFilterInput,
   paneColumnWidths,
+  dirColumnWidths,
   onColumnWidthChange,
 }: DualPaneContainerProps): ReactElement {
   const [left, right] = useMemo(() => {
@@ -169,6 +172,7 @@ export default function DualPaneContainer({
         isActive={activePane === paneId}
         {...bound}
         paneColumnWidths={paneColumnWidths}
+        dirColumnWidths={dirColumnWidths}
         onColumnWidthChange={onColumnWidthChange}
       />
     );

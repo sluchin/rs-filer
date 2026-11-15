@@ -71,7 +71,7 @@ function makeDeps(right: PaneState, colName?: number) {
       config: {
         pane_column_widths: { left: {}, right: { col_name: colName } },
       },
-      updatePaneColumnWidth: vi.fn(),
+      updateDirColumnWidth: vi.fn(),
     },
     bookmarks: { toggleBookmark: vi.fn() },
     panels,
@@ -247,16 +247,24 @@ describe("useCommandDispatcher", () => {
   it("正常系: 名前の列の幅は, 既定の幅から変え, 最小値より狭くしない", () => {
     const wider = makeDeps(pane([], 0)).deps;
     useCommandDispatcher(wider)("resizeColumnWider");
-    expect(wider.settings.updatePaneColumnWidth).toHaveBeenCalledWith("right", {
+    expect(wider.settings.updateDirColumnWidth).toHaveBeenCalledWith("/work", {
       col_name: 310,
     });
 
     const narrower = makeDeps(pane([], 0), 35).deps;
     useCommandDispatcher(narrower)("resizeColumnNarrower");
-    expect(narrower.settings.updatePaneColumnWidth).toHaveBeenCalledWith(
-      "right",
+    expect(narrower.settings.updateDirColumnWidth).toHaveBeenCalledWith(
+      "/work",
       { col_name: 30 },
     );
+
+    // ディレクトリごとの設定があれば, それを起点にする
+    const own = makeDeps(pane([], 0)).deps;
+    own.settings.config.dir_column_widths = { "/work": { col_name: 500 } };
+    useCommandDispatcher(own)("resizeColumnWider");
+    expect(own.settings.updateDirColumnWidth).toHaveBeenCalledWith("/work", {
+      col_name: 510,
+    });
   });
 
   it("異常系: カーソル位置に項目が無ければ, フルパスをコピーせずにエラーを出す", () => {

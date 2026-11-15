@@ -192,6 +192,9 @@ pub struct AppConfig {
     /// ファイル一覧の列幅 (ペイン毎).
     #[serde(default)]
     pub pane_column_widths: PaneColumnWidths,
+    /// ディレクトリごとの列幅 (キーはディレクトリのパス). あれば, ペイン毎の列幅より優先する.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub dir_column_widths: HashMap<String, ColumnWidths>,
     /// 前回終了時のウィンドウの状態. 保存されていない場合は `None`.
     /// バックエンドが終了時に書き込む. フロントエンドからの保存では上書きしない.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -223,6 +226,7 @@ impl Default for AppConfig {
             editor: None,
             terminal: None,
             pane_column_widths: PaneColumnWidths::default(),
+            dir_column_widths: HashMap::new(),
             window: None,
             last_paths: None,
             history_limit: super::history::DEFAULT_HISTORY_LIMIT,

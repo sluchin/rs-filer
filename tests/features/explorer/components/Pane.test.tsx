@@ -29,7 +29,7 @@ describe("Pane", () => {
     vi.clearAllMocks();
   });
 
-  it("正常系: そのペインの列幅を一覧に渡し, 一覧で変えた列幅を, ペインを付けて知らせること", () => {
+  it("正常系: そのペインの列幅を一覧に渡し, 一覧で変えた列幅を, 開いているディレクトリのパスを付けて知らせること", () => {
     const onColumnWidthChange = vi.fn();
     render(
       <Pane
@@ -47,6 +47,7 @@ describe("Pane", () => {
         pathInputRef={vi.fn()}
         filterInputRef={vi.fn()}
         paneColumnWidths={{ left: { col_name: 100 }, right: { col_name: 200 } }}
+        dirColumnWidths={{ "/other": { col_name: 999 } }}
         onColumnWidthChange={onColumnWidthChange}
       />,
     );
@@ -54,8 +55,35 @@ describe("Pane", () => {
 
     expect(props.columnWidths).toEqual({ col_name: 200 });
     props.onColumnWidthChange?.({ col_name: 250 });
-    expect(onColumnWidthChange).toHaveBeenCalledWith("right", {
+    expect(onColumnWidthChange).toHaveBeenCalledWith(STATE.currentPath, {
       col_name: 250,
+    });
+  });
+
+  it("正常系: 開いているディレクトリの列幅の設定があれば, ペインの設定より優先すること", () => {
+    render(
+      <Pane
+        paneId="right"
+        state={STATE}
+        isActive
+        onActivate={vi.fn()}
+        onParent={vi.fn()}
+        onPathSubmit={vi.fn()}
+        onFilterChange={vi.fn()}
+        onParentClick={vi.fn()}
+        onItemClick={vi.fn()}
+        onItemOpen={vi.fn()}
+        onItemContextMenu={vi.fn()}
+        pathInputRef={vi.fn()}
+        filterInputRef={vi.fn()}
+        paneColumnWidths={{ left: {}, right: { col_name: 200 } }}
+        dirColumnWidths={{ [STATE.currentPath]: { col_name: 640 } }}
+        onColumnWidthChange={vi.fn()}
+      />,
+    );
+
+    expect(vi.mocked(FileList).mock.calls[0][0].columnWidths).toEqual({
+      col_name: 640,
     });
   });
 });

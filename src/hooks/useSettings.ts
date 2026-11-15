@@ -92,17 +92,14 @@ export function useSettings() {
     [config.font_size, update],
   );
 
-  /** ペインの列幅を更新します. */
-  const updatePaneColumnWidth = useCallback(
-    (paneId: "left" | "right", widths: ColumnWidths): void => {
+  /** ディレクトリの列幅を更新します (ほかのディレクトリの列幅は変わりません). */
+  const updateDirColumnWidth = useCallback(
+    (path: string, widths: ColumnWidths): void => {
       update({
-        pane_column_widths: {
-          ...config.pane_column_widths,
-          [paneId]: widths,
-        },
+        dir_column_widths: { ...config.dir_column_widths, [path]: widths },
       });
     },
-    [config.pane_column_widths, update],
+    [config.dir_column_widths, update],
   );
 
   return {
@@ -111,6 +108,6 @@ export function useSettings() {
     cycleTheme,
     cycleFontSize,
     update,
-    updatePaneColumnWidth,
+    updateDirColumnWidth,
   };
 }

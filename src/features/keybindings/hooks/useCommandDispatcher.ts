@@ -14,7 +14,10 @@ import {
   targetsOf,
   type useTransfer,
 } from "../../operations/hooks/useTransfer";
-import { DEFAULT_NAME_COLUMN_WIDTH } from "../../settings/types";
+import {
+  DEFAULT_NAME_COLUMN_WIDTH,
+  columnWidthsFor,
+} from "../../settings/types";
 import type { useSettings } from "../../../hooks/useSettings";
 import {
   getHomeDir,
@@ -157,12 +160,16 @@ export function useCommandDispatcher(
     copyText({ path: file.path, name: file.name, isDir: file.is_dir }, kind);
   };
 
-  /** アクティブなペインの, 名前の列の幅を変える. */
+  /** アクティブなペインの, 今のディレクトリの, 名前の列の幅を変える. */
   const resizeNameColumn = (delta: number): void => {
-    const paneWidths = settings.config.pane_column_widths[activePane];
-    const current = paneWidths.col_name ?? DEFAULT_NAME_COLUMN_WIDTH;
-    settings.updatePaneColumnWidth(activePane, {
-      ...paneWidths,
+    const widths = columnWidthsFor(
+      settings.config,
+      activePane,
+      active.currentPath,
+    );
+    const current = widths.col_name ?? DEFAULT_NAME_COLUMN_WIDTH;
+    settings.updateDirColumnWidth(active.currentPath, {
+      ...widths,
       col_name: Math.max(MIN_COLUMN_WIDTH, current + delta),
     });
   };
@@ -444,7 +451,7 @@ export function useCommandDispatcher(
         resizeNameColumn(-COLUMN_STEP);
         break;
       case "resetColumnWidths":
-        settings.updatePaneColumnWidth(activePane, {});
+        settings.updateDirColumnWidth(active.currentPath, {});
         break;
       case "toggleTree":
         panels.toggleTree(activePane);
