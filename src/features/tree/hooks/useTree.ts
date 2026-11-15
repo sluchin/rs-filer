@@ -3,6 +3,7 @@ import loglevel from "loglevel";
 import { dirsHaveEntries, readDirectory } from "../../../services/tauriApi";
 import { compareNames } from "../../explorer/view";
 import { getParentPath } from "../../../utils/path";
+import type { FileEntry } from "../../explorer/types";
 import type { TreeNode, TreeRow } from "../types";
 
 /** この機能のロガー. */
@@ -32,8 +33,35 @@ async function findEmptyDirs(
 }
 
 /**
- * ディレクトリ直下のサブディレクトリとファイルをツリーのノードにして読み込みます.
+ * ディレクトリ直下の項目を, ツリーのノードにします.
  * ディレクトリを先に, ファイルを後に, それぞれ一覧と同じ名前順 (大文字小文字を区別しない自然順) に並べます.
+ * 配下の有無は調べないので, どのノードも `checked` は false です (あとから `findEmptyDirs` で調べる).
+ *
+ * @param entries - ディレクトリ直下の項目.
+ * @param showHidden - 隠しファイル・隠しディレクトリを含めるか.
+ * @returns 子ノードの配列.
+ */
+function toNodes(entries: FileEntry[], showHidden: boolean): TreeNode[] {
+  return entries
+    .filter((e) => showHidden || !e.hidden)
+    .sort(
+      (a, b) =>
+        Number(b.is_dir) - Number(a.is_dir) || compareNames(a.name, b.name),
+    )
+    .map((e) => ({
+      path: e.path,
+      name: e.name,
+      isDir: e.is_dir,
+      empty: false,
+      checked: false,
+      expanded: false,
+      loaded: false,
+      children: [],
+    }));
+}
+
+/**
+ * ディレクトリ直下のサブディレクトリとファイルをツリーのノードにして読み込みます.
  *
  * @param path - 読み込むディレクトリの絶対パス.
  * @param showHidden - 隠しファイル・隠しディレクトリを含めるか.
@@ -44,31 +72,54 @@ async function fetchChildren(
   showHidden: boolean,
 ): Promise<TreeNode[]> {
   try {
-    const entries = await readDirectory(path);
-    const sorted = entries
-      .filter((e) => showHidden || !e.hidden)
-      .sort(
-        (a, b) =>
-          Number(b.is_dir) - Number(a.is_dir) || compareNames(a.name, b.name),
-      );
-    const dirs = sorted.filter((e) => e.is_dir);
-    const emptyDirs = await findEmptyDirs(
-      dirs.map((e) => e.path),
-      showHidden,
-    );
-    return sorted.map((e) => ({
-      path: e.path,
-      name: e.name,
-      isDir: e.is_dir,
-      empty: emptyDirs.has(e.path),
-      expanded: false,
-      loaded: false,
-      children: [],
-    }));
+    return toNodes(await readDirectory(path), showHidden);
   } catch (e) {
     log.error(`${path} の読み込み失敗:`, e);
     return [];
   }
+}
+
+/**
+ * ノードの中のディレクトリのパスを返します.
+ *
+ * @param nodes - 調べるノード.
+ * @returns ディレクトリのノードのパス.
+ */
+function dirPaths(nodes: TreeNode[]): string[] {
+  return nodes.filter((n) => n.isDir).map((n) => n.path);
+}
+
+/**
+ * ノードとその子孫の中の, ディレクトリのパスを全て返します.
+ *
+ * @param nodes - 調べるノード.
+ * @returns ディレクトリのノードのパス.
+ */
+function allDirPaths(nodes: TreeNode[]): string[] {
+  return nodes.flatMap((n) =>
+    n.isDir ? [n.path, ...allDirPaths(n.children)] : [],
+  );
+}
+
+/**
+ * 配下の有無を確認したディレクトリに, 確認済みの印と, 空の印を付けた新しいツリーを返します.
+ *
+ * @param nodes - 今のツリー.
+ * @param checked - 配下の有無を確認したディレクトリのパスの集合.
+ * @param empty - そのうち, 配下に何も無いディレクトリのパスの集合.
+ * @returns 印を付けた新しいツリー (元のツリーは変えない).
+ */
+function applyEmpty(
+  nodes: TreeNode[],
+  checked: Set<string>,
+  empty: Set<string>,
+): TreeNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    checked: node.checked || checked.has(node.path),
+    empty: node.empty || empty.has(node.path),
+    children: applyEmpty(node.children, checked, empty),
+  }));
 }
 
 /**
@@ -143,9 +194,14 @@ function flatten(nodes: TreeNode[], depth: number): TreeRow[] {
  *
  * @param rootPath - ツリーの根にするディレクトリ (ペインのカレントディレクトリ).
  * @param showHidden - 隠しファイル・隠しディレクトリを表示するか.
+ * @param rootEntries - ツリーの根の直下の項目 (ペインの一覧が読み込み済みのもの). 渡すと, 根の読み込みを省く.
  * @returns ツリーの行・カーソル位置と操作関数.
  */
-export function useTree(rootPath: string, showHidden: boolean) {
+export function useTree(
+  rootPath: string,
+  showHidden: boolean,
+  rootEntries?: FileEntry[],
+) {
   const [roots, setRoots] = useState<TreeNode[]>([]);
   const [cursorPath, setCursorPath] = useState<string | null>(null);
   const version = useRef(0);
@@ -154,21 +210,48 @@ export function useTree(rootPath: string, showHidden: boolean) {
   useEffect(() => {
     rootsRef.current = roots;
   }, [roots]);
+  // 根の読み込みを省くための項目. 一覧が変わるたびに読み込み直さないよう, ref で持つ.
+  const rootEntriesRef = useRef(rootEntries);
+  useEffect(() => {
+    rootEntriesRef.current = rootEntries;
+  }, [rootEntries]);
+
+  /**
+   * 配下に何も無いディレクトリを調べて, ツリーに印を付ける. 表示を待たせないよう, 表示のあとで行う.
+   *
+   * @param paths - 調べるディレクトリのパス.
+   */
+  const markEmpty = useCallback(
+    (paths: string[]): void => {
+      const current = version.current;
+      void findEmptyDirs(paths, showHidden).then((empty) => {
+        if (current === version.current) {
+          setRoots((prev) => applyEmpty(prev, new Set(paths), empty));
+        }
+      });
+    },
+    [showHidden],
+  );
 
   useEffect(() => {
     version.current += 1;
     const current = version.current;
-    fetchChildren(rootPath, showHidden).then((children) => {
+    const preloaded = rootEntriesRef.current;
+    const loading = preloaded
+      ? Promise.resolve(toNodes(preloaded, showHidden))
+      : fetchChildren(rootPath, showHidden);
+    loading.then((children) => {
       if (current !== version.current) {
         return;
       }
       setRoots(children);
       setCursorPath(children[0]?.path ?? null);
+      markEmpty(dirPaths(children));
     });
     return () => {
       version.current += 1;
     };
-  }, [rootPath, showHidden]);
+  }, [rootPath, showHidden, markEmpty]);
 
   const rows = useMemo(() => flatten(roots, 0), [roots]);
 
@@ -189,12 +272,16 @@ export function useTree(rootPath: string, showHidden: boolean) {
           ...n,
           children,
           empty: n.empty || (expand && children.length === 0),
+          checked: true,
           loaded: n.loaded || expand,
           expanded: expand,
         })),
       );
+      if (expand && !node.loaded) {
+        markEmpty(dirPaths(children));
+      }
     },
-    [showHidden],
+    [showHidden, markEmpty],
   );
 
   /**
@@ -215,6 +302,7 @@ export function useTree(rootPath: string, showHidden: boolean) {
       if (current !== version.current) {
         return;
       }
+      markEmpty(dirPaths(children));
       const isRoot = parentPath === rootPath;
       const before = isRoot
         ? rootsRef.current
@@ -227,6 +315,7 @@ export function useTree(rootPath: string, showHidden: boolean) {
             ...n,
             children: mergeChildren(n.children, children),
             empty: children.length === 0,
+            checked: true,
             loaded: true,
             expanded: true,
           })),
@@ -253,7 +342,7 @@ export function useTree(rootPath: string, showHidden: boolean) {
         return neighbor?.path ?? (isRoot ? null : parentPath);
       });
     },
-    [rootPath, showHidden],
+    [rootPath, showHidden, markEmpty],
   );
 
   /** カーソルを動かす. 範囲の外には出ない. */
@@ -320,6 +409,7 @@ export function useTree(rootPath: string, showHidden: boolean) {
         ...n,
         children: expandedChildren,
         empty: n.empty || expandedChildren.length === 0,
+        checked: true,
         loaded: true,
         expanded: true,
       };
@@ -331,8 +421,9 @@ export function useTree(rootPath: string, showHidden: boolean) {
         return;
       }
       setRoots((prev) => updateNode(prev, node.path, () => updated));
+      markEmpty(allDirPaths(updated.children));
     });
-  }, [rows, cursorPath, showHidden]);
+  }, [rows, cursorPath, showHidden, markEmpty]);
 
   /** カーソル位置のディレクトリ配下をすべて折り畳む. */
   const collapseDeep = useCallback((): void => {

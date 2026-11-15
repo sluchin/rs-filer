@@ -1,5 +1,6 @@
 import { useEffect, type ReactElement } from "react";
-import type { PaneId } from "../../explorer/types";
+import type { FileEntry, PaneId } from "../../explorer/types";
+import type { TreeNode } from "../types";
 import { useTree } from "../hooks/useTree";
 import FileIcon from "../../explorer/components/FileIcon";
 import { useScrollToEnd } from "../../../hooks/useScrollToEnd";
@@ -17,6 +18,8 @@ interface TreePaneProps {
   rootPath: string;
   /** 隠しファイル・隠しディレクトリを表示するかどうか. */
   showHidden: boolean;
+  /** 根の直下の項目 (ペインの一覧が読み込み済みのもの). 渡すと, 根を読み込み直さずに, すぐ表示する. */
+  rootEntries?: FileEntry[];
   /** このペインがアクティブかどうか. アクティブな間だけ, キー操作を受け付ける. */
   isActive: boolean;
   /** このペインをアクティブにするハンドラー (クリック時). */
@@ -65,6 +68,16 @@ interface TreePaneProps {
 }
 
 /**
+ * 展開マークを出すノードか. 配下の有無を確認して, 何かあると分かったディレクトリだけに出す.
+ *
+ * @param node - ノード.
+ * @returns 出す場合は true.
+ */
+function hasMark(node: TreeNode): boolean {
+  return node.isDir && node.checked && !node.empty;
+}
+
+/**
  * ペインのファイル一覧を, ツリー形式の表示に差し替えるビュー.
  *
  * ペインのカレントディレクトリ配下を, ディレクトリの展開・折り畳みができるツリーで表示します.
@@ -86,6 +99,7 @@ export default function TreePane({
   paneId,
   rootPath,
   showHidden,
+  rootEntries,
   isActive,
   onActivate,
   onSelect,
@@ -109,7 +123,7 @@ export default function TreePane({
     expandDeep,
     collapseDeep,
     refresh,
-  } = useTree(rootPath, showHidden);
+  } = useTree(rootPath, showHidden, rootEntries);
   const { ref: pathRef } = useScrollToEnd<HTMLDivElement>(rootPath);
 
   useEffect(() => {
@@ -279,9 +293,7 @@ export default function TreePane({
             <li
               key={node.path}
               role="treeitem"
-              aria-expanded={
-                node.isDir && !node.empty ? node.expanded : undefined
-              }
+              aria-expanded={hasMark(node) ? node.expanded : undefined}
               aria-level={depth + 1}
               className="file-row"
               data-cursor={
@@ -317,9 +329,9 @@ export default function TreePane({
                 {/* 展開の向きは, 同じ ▶ を回転して表す (▼ は別の文字で大きさが変わるため). */}
                 <span
                   className="tree-icon"
-                  data-expanded={node.isDir && !node.empty && node.expanded}
+                  data-expanded={hasMark(node) && node.expanded}
                 >
-                  {node.isDir && !node.empty ? "▶" : ""}
+                  {hasMark(node) ? "▶" : ""}
                 </span>
                 <FileIcon kind={fileKind(node.name, node.isDir)} />
                 {node.isDir ? `${node.name}/` : node.name}

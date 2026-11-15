@@ -65,6 +65,93 @@ describe("useTree", () => {
     );
   });
 
+  it("正常系: 配下の有無の確認を待たずに行を表示し, 確認が終わってから空の印を付けること", async () => {
+    let finish: (flags: boolean[]) => void = () => {};
+    mockedInvoke.mockImplementation((cmd, args) => {
+      if (cmd === "dirs_have_entries") {
+        return new Promise((resolve) => {
+          finish = resolve as (flags: boolean[]) => void;
+        });
+      }
+      const path = (args as { path: string }).path;
+      return Promise.resolve(
+        path === "/h"
+          ? [{ name: "docs", path: "/h/docs", is_dir: true, hidden: false }]
+          : [],
+      );
+    });
+    const { result } = renderHook(() => useTree("/h", false));
+
+    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+    // 確認が終わるまでは, 展開マークを出さない (確認済みの印が無い)
+    expect(result.current.rows[0].node.checked).toBe(false);
+
+    await act(async () => finish([false]));
+    expect(result.current.rows[0].node.empty).toBe(true);
+    expect(result.current.rows[0].node.checked).toBe(true);
+  });
+
+  it("正常系: 確認が終わる前に別のディレクトリへ替わったら, 古い確認の結果は使わないこと", async () => {
+    let finish: (flags: boolean[]) => void = () => {};
+    mockedInvoke.mockImplementation((cmd, args) => {
+      if (cmd === "dirs_have_entries") {
+        return new Promise((resolve) => {
+          finish = resolve as (flags: boolean[]) => void;
+        });
+      }
+      const path = (args as { path: string }).path;
+      return Promise.resolve([
+        { name: "d", path: `${path}/d`, is_dir: true, hidden: false },
+      ]);
+    });
+    const { result, rerender } = renderHook(
+      ({ root }) => useTree(root, false),
+      {
+        initialProps: { root: "/h" },
+      },
+    );
+    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+    const finishOld = finish;
+
+    rerender({ root: "/k" });
+    await waitFor(() => expect(result.current.rows[0].node.path).toBe("/k/d"));
+    await act(async () => finishOld([false]));
+
+    expect(result.current.rows[0].node.checked).toBe(false);
+    expect(result.current.rows[0].node.empty).toBe(false);
+  });
+
+  it("正常系: 展開したあとに折り畳んでも, 確認済みの印は残ること", async () => {
+    const { result } = renderHook(() => useTree("/h", false));
+    await waitFor(() => expect(result.current.rows).toHaveLength(3));
+
+    act(() => result.current.expandOrChild());
+    await waitFor(() => expect(result.current.rows).toHaveLength(4));
+    act(() => result.current.collapseOrParent());
+
+    await waitFor(() => expect(result.current.rows).toHaveLength(3));
+    expect(result.current.rows[0].node.checked).toBe(true);
+  });
+
+  it("正常系: 根の直下の項目を渡すと, 根を読み込まずに表示し, 一覧の隠しファイルの設定に従うこと", async () => {
+    const entries = [
+      { name: "b", path: "/h/b", is_dir: true, hidden: false },
+      { name: ".x", path: "/h/.x", is_dir: false, hidden: true },
+    ] as never;
+    const { result } = renderHook(() => useTree("/h", false, entries));
+
+    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+    expect(result.current.rows[0].node.name).toBe("b");
+    expect(mockedInvoke).not.toHaveBeenCalledWith("read_directory", {
+      path: "/h",
+    });
+    // 配下の有無は, 表示のあとで調べる
+    expect(mockedInvoke).toHaveBeenCalledWith("dirs_have_entries", {
+      paths: ["/h/b"],
+      showHidden: false,
+    });
+  });
+
   it("異常系: 配下の有無を調べられなくても, 一覧は表示し, empty にしないこと", async () => {
     mockedInvoke.mockImplementation((cmd, args) => {
       if (cmd === "dirs_have_entries") {

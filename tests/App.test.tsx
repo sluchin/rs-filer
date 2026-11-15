@@ -5121,6 +5121,22 @@ describe("App (再帰検索)", () => {
     vi.clearAllMocks();
   });
 
+  it("正常系: 検索の結果の表示中にツリーにすると, 検索の結果ではなく, ディレクトリの直下をツリーにすること", async () => {
+    mockSearch();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}x{/Alt}find-name-dired{Enter}in{Enter}");
+    await paneOf("left").findByText("FolderA/in.txt");
+
+    await user.keyboard("T");
+
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("read_directory", {
+        path: "/mock/home",
+      }),
+    );
+    expect(paneOf("left").queryByText("FolderA/in.txt")).toBeNull();
+  });
+
   it("正常系: M-x find-name-dired で名前を聞いて再帰検索し, 結果と件数が出て, Esc で元の一覧に戻ること", async () => {
     mockSearch();
     const user = await renderLoaded();

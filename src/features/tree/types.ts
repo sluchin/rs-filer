@@ -10,6 +10,8 @@ export interface TreeNode {
   isDir: boolean;
   /** 配下にディレクトリもファイルも無いと分かっている場合は true. 展開マークを表示しない. 不明な間は false. */
   empty: boolean;
+  /** 配下の有無を確認済みの場合は true. 確認が終わるまでは, 展開マークを出さない (出してから消えるちらつきを避ける). */
+  checked: boolean;
   /** 展開済みの場合は true. ファイルでは常に false. */
   expanded: boolean;
   /** 子ノードを読み込み済みの場合は true. ファイルでは常に false. */

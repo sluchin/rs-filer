@@ -572,6 +572,8 @@ export default function App(): ReactElement {
         paneId={paneId}
         rootPath={state.currentPath}
         showHidden={state.showHidden}
+        // 検索の結果の表示中は, 一覧が検索の結果なので, 使わない
+        rootEntries={state.search === null ? state.allFiles : undefined}
         isActive={activePane === paneId}
         onActivate={() => setActivePane(paneId)}
         onSelect={(path, isDir) => {

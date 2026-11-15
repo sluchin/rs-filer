@@ -12,6 +12,7 @@ const node = (path: string, isDir: boolean): TreeNode => ({
   name: path.split("/").pop() as string,
   isDir,
   empty: false,
+  checked: true,
   expanded: false,
   loaded: false,
   children: [],
