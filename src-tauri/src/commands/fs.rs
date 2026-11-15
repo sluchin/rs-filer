@@ -24,6 +24,10 @@ pub struct FileEntry {
     pub readonly: bool,
     /// 隠しファイルの場合は `true` (Unix では名前が `.` で始まるもの, Windows では隠し属性).
     pub hidden: bool,
+    /// 項目そのもの (シンボリックリンクならリンク自身) の, ファイルの種類とパーミッションのビット (Unix の `st_mode`).
+    /// Unix 以外では `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<u32>,
 }
 
 /// メタデータの最終更新日時を, UNIX 時刻の秒に変換します.
@@ -69,6 +73,35 @@ pub(crate) fn unix_secs(time: std::time::SystemTime) -> Option<i64> {
 pub(crate) fn is_hidden(_name: &str, metadata: &fs::Metadata) -> bool {
     use std::os::windows::fs::MetadataExt;
     metadata.file_attributes() & 0x2 != 0
+}
+
+/// メタデータから, ファイルの種類とパーミッションのビット (`st_mode`) を取り出します. Unix.
+///
+/// # Arguments
+///
+/// * `metadata` - 項目そのもの (シンボリックリンクならリンク自身) のメタデータ.
+///
+/// # Returns
+///
+/// `st_mode`.
+#[cfg(unix)]
+pub(crate) fn mode_of(metadata: &fs::Metadata) -> Option<u32> {
+    use std::os::unix::fs::MetadataExt;
+    Some(metadata.mode())
+}
+
+/// メタデータから, ファイルの種類とパーミッションのビットを取り出します. Unix 以外は取れないので `None`.
+///
+/// # Arguments
+///
+/// * `_metadata` - 対象のメタデータ (使わない).
+///
+/// # Returns
+///
+/// 常に `None`.
+#[cfg(not(unix))]
+pub(crate) fn mode_of(_metadata: &fs::Metadata) -> Option<u32> {
+    None
 }
 
 /// メタデータの隠し属性を判定します. Windows 以外.
@@ -120,6 +153,7 @@ fn scan_directory(path: &str) -> Result<Vec<FileEntry>, String> {
                 .as_ref()
                 .is_some_and(|m| m.permissions().readonly()),
             hidden: own.as_ref().is_some_and(|m| is_hidden(&name, m)),
+            mode: own.as_ref().and_then(mode_of),
             name,
         });
     }
@@ -334,6 +368,7 @@ fn walk_tree(
                     .as_ref()
                     .is_some_and(|m| m.permissions().readonly()),
                 hidden,
+                mode: own.as_ref().and_then(mode_of),
                 name: relative,
             });
         }

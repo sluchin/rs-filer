@@ -97,7 +97,7 @@ describe("FileList の列の位置", () => {
   });
 
   it("正常系: 列の幅の合計がペインより広くなるとき, ヘッダーと行を, その合計の幅以上にして横にスクロールさせること", () => {
-    // 400 + 85 + 135 + 52 (属性の既定の幅) = 672.
+    // 400 + 85 + 135 + 92 (属性の既定の幅) = 712.
     const { container } = renderList({
       col_name: 400,
       col_size: 85,
@@ -105,10 +105,10 @@ describe("FileList の列の位置", () => {
     });
 
     expect(container.querySelector(".file-header-row")).toHaveStyle({
-      minWidth: "672px",
+      minWidth: "712px",
     });
     for (const row of Array.from(container.querySelectorAll(".file-row"))) {
-      expect(row).toHaveStyle({ minWidth: "672px" });
+      expect(row).toHaveStyle({ minWidth: "712px" });
     }
   });
 

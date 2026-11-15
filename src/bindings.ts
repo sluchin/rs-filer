@@ -665,6 +665,11 @@ export type FileEntry_Deserialize = {
 	readonly: boolean,
 	/**  隠しファイルの場合は `true` (Unix では名前が `.` で始まるもの, Windows では隠し属性). */
 	hidden: boolean,
+	/**
+	 *  項目そのもの (シンボリックリンクならリンク自身) の, ファイルの種類とパーミッションのビット (Unix の `st_mode`).
+	 *  Unix 以外では `None`.
+	 */
+	mode?: number | null,
 };
 
 /**  ファイルシステム上の 1 つのエントリ (ファイルまたはディレクトリ) を表す構造体. */
@@ -683,6 +688,11 @@ export type FileEntry_Serialize = {
 	readonly: boolean,
 	/**  隠しファイルの場合は `true` (Unix では名前が `.` で始まるもの, Windows では隠し属性). */
 	hidden: boolean,
+	/**
+	 *  項目そのもの (シンボリックリンクならリンク自身) の, ファイルの種類とパーミッションのビット (Unix の `st_mode`).
+	 *  Unix 以外では `None`.
+	 */
+	mode?: number,
 };
 
 /**  フォントサイズ. */

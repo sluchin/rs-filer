@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { FileEntry } from "@/features/explorer/types";
 import {
   formatAttributes,
+  formatMode,
   formatBytesDetail,
   formatDate,
   formatDiskSize,
@@ -41,6 +42,28 @@ describe("formatSize", () => {
   });
 });
 
+describe("formatMode", () => {
+  it.each([
+    [0o100664, "-rw-rw-r--"],
+    [0o040755, "drwxr-xr-x"],
+    [0o120777, "lrwxrwxrwx"],
+    [0o100000, "----------"],
+    [0o020620, "crw--w----"],
+    [0o060660, "brw-rw----"],
+    [0o010644, "prw-r--r--"],
+    [0o140755, "srwxr-xr-x"],
+    [0o104755, "-rwsr-xr-x"],
+    [0o104644, "-rwSr--r--"],
+    [0o102755, "-rwxr-sr-x"],
+    [0o102745, "-rwxr-Sr-x"],
+    [0o041777, "drwxrwxrwt"],
+    [0o041776, "drwxrwxrwT"],
+    [0o000644, "?rw-r--r--"],
+  ])("正常系: モード %o は %s になること", (mode, expected) => {
+    expect(formatMode(mode)).toBe(expected);
+  });
+});
+
 describe("formatAttributes", () => {
   it.each([
     [{ is_dir: true }, "d-w-"],
@@ -49,6 +72,15 @@ describe("formatAttributes", () => {
     [{ hidden: true }, "-a-wh"],
   ])("正常系: %j の属性は %s になること", (over, expected) => {
     expect(formatAttributes(entry(over))).toBe(expected);
+  });
+
+  it("正常系: パーミッションが分かるときは, ls -l と同じ形になり, 読み取り専用や隠しの印は付かないこと", () => {
+    expect(formatAttributes(entry({ mode: 0o100664, hidden: true }))).toBe(
+      "-rw-rw-r--",
+    );
+    expect(
+      formatAttributes(entry({ mode: 0o040755, is_dir: true, readonly: true })),
+    ).toBe("drwxr-xr-x");
   });
 });
 

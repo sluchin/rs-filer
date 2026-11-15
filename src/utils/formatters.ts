@@ -37,14 +37,53 @@ export function formatSize(file: FileEntry): string {
   return file.is_dir ? "" : String(file.size ?? 0);
 }
 
+/** `st_mode` の種類のビットと, `ls -l` の先頭の文字. */
+const FILE_TYPE_CHARS: Record<number, string> = {
+  0o040000: "d",
+  0o120000: "l",
+  0o100000: "-",
+  0o020000: "c",
+  0o060000: "b",
+  0o010000: "p",
+  0o140000: "s",
+};
+
 /**
- * 属性を xyzzy 風の文字列に整形します. ディレクトリは `d-w-`, ファイルは `-a-w-` で,
- * 読み取り専用の場合は `w` が `r` に, 隠しファイルの場合は末尾が `h` になります.
+ * `st_mode` を, `ls -l` と同じ 10 文字 (`-rw-rw-r--`, `drwxr-xr-x`) に整形します.
+ * setuid・setgid・スティッキーは, 実行ビットの位置を `s` `S` `t` `T` にします.
+ *
+ * @param mode - `st_mode` (ファイルの種類とパーミッションのビット).
+ * @returns `ls -l` 形式の文字列.
+ */
+export function formatMode(mode: number): string {
+  const type = FILE_TYPE_CHARS[mode & 0o170000] ?? "?";
+  // 利用者, グループ, その他の順に, 読み・書き・実行の 3 文字を作る
+  const triple = (shift: number, special: boolean, on: string): string => {
+    const bits = (mode >> shift) & 0o7;
+    const exec =
+      bits & 0o1 ? (special ? on : "x") : special ? on.toUpperCase() : "-";
+    return `${bits & 0o4 ? "r" : "-"}${bits & 0o2 ? "w" : "-"}${exec}`;
+  };
+  return (
+    type +
+    triple(6, (mode & 0o4000) !== 0, "s") +
+    triple(3, (mode & 0o2000) !== 0, "s") +
+    triple(0, (mode & 0o1000) !== 0, "t")
+  );
+}
+
+/**
+ * 属性を文字列に整形します. パーミッションが分かる (Unix) ときは `ls -l` と同じ形 (`-rw-rw-r--`) で,
+ * 分からない (Windows) ときは xyzzy 風 (ディレクトリは `d-w-`, ファイルは `-a-w-`.
+ * 読み取り専用は `w` が `r` に, 隠しファイルは末尾が `h` になる) です.
  *
  * @param file - 対象のエントリ.
  * @returns 属性の文字列.
  */
 export function formatAttributes(file: FileEntry): string {
+  if (file.mode != null) {
+    return formatMode(file.mode);
+  }
   const head = file.is_dir ? "d-" : "-a-";
   return `${head}${file.readonly ? "r" : "w"}${file.hidden ? "h" : "-"}`;
 }

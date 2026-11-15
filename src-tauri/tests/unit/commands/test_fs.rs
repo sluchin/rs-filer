@@ -47,6 +47,29 @@ fn test_scan_directory_follows_symlinks() {
     assert!(!get("dangling").is_dir);
 }
 
+#[cfg(unix)]
+#[test]
+fn test_scan_directory_reports_mode_of_the_entry_itself() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("f.txt");
+    fs::write(&file, "x").unwrap();
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o640)).unwrap();
+    fs::create_dir(dir.path().join("d")).unwrap();
+    std::os::unix::fs::symlink(&file, dir.path().join("link")).unwrap();
+
+    let files = scan_directory(&dir.path().to_string_lossy()).unwrap();
+    let get = |n: &str| files.iter().find(|f| f.name == n).unwrap();
+
+    assert_eq!(get("f.txt").mode.unwrap(), 0o100640);
+    assert_eq!(get("d").mode.unwrap() & 0o170000, 0o040000);
+    // シンボリックリンクは, リンク自身の種類 (リンク) になる.
+    assert_eq!(get("link").mode.unwrap() & 0o170000, 0o120000);
+
+    let found = search_tree(&dir.path().to_string_lossy(), "f.txt", false, 10).unwrap();
+    assert_eq!(found.entries[0].mode.unwrap(), 0o100640);
+}
+
 #[test]
 fn test_dirs_have_entries_empty_files_hidden_and_missing() {
     let dir = tempdir().unwrap();

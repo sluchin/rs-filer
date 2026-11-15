@@ -27,7 +27,7 @@ const ICON_COLUMN_WIDTH = 21;
 const MIN_COLUMN_WIDTH = 30;
 
 /** サイズ・更新日時・属性の列の, 幅を保存していないときの幅 (px). CSS の `.col-size` などと同じ. */
-const DEFAULT_COLUMN_WIDTH = { col_size: 72, col_date: 136, col_attr: 52 };
+const DEFAULT_COLUMN_WIDTH = { col_size: 72, col_date: 136, col_attr: 92 };
 
 /** ヘッダーの境界線をつかめる範囲 (境界線から左右にこの px 未満). */
 const BORDER_GRAB_RANGE = 6;
