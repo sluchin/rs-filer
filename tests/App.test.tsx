@@ -2424,6 +2424,42 @@ describe("App (移動履歴の一覧)", () => {
     expect(paneOf("right").getByText("FolderA")).toBeInTheDocument();
   });
 
+  it("正常系: どの一覧の表示中でも, ほかの一覧を開くキーで, その一覧に替わること", async () => {
+    mockHome((cmd) =>
+      cmd === "load_recent_files"
+        ? Promise.resolve(["/mock/home/b.txt"])
+        : undefined,
+    );
+    const user = await renderLoaded();
+
+    await user.keyboard("{Alt>}r{/Alt}");
+    await screen.findByText("最近開いたファイル");
+
+    await user.keyboard("{Alt>}h{/Alt}");
+    expect(await paneOf("left").findByText("移動履歴")).toBeInTheDocument();
+    expect(screen.queryByText("最近開いたファイル")).not.toBeInTheDocument();
+
+    await user.keyboard("b");
+    expect(await paneOf("left").findByText("ブックマーク")).toBeInTheDocument();
+    expect(screen.queryByText("移動履歴")).not.toBeInTheDocument();
+
+    await user.keyboard("F");
+    expect(await paneOf("left").findByText("お気に入り")).toBeInTheDocument();
+    expect(screen.queryByText("ブックマーク")).not.toBeInTheDocument();
+
+    await user.keyboard("{Alt>}r{/Alt}");
+    expect(
+      await paneOf("left").findByText("最近開いたファイル"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("お気に入り")).not.toBeInTheDocument();
+
+    // 同じキーは, これまでどおり閉じる
+    await user.keyboard("{Alt>}r{/Alt}");
+    await waitFor(() =>
+      expect(screen.queryByText("最近開いたファイル")).not.toBeInTheDocument(),
+    );
+  });
+
   it("正常系: 移動履歴の一覧の表示中に, もう一度 M-h を押すと, 移動せずに通常の表示に戻ること (トグル)", async () => {
     mockPhase4();
     const user = await renderLoaded();

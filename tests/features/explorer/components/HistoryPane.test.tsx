@@ -70,6 +70,34 @@ describe("HistoryPane", () => {
     expect(handlers.onSelect).not.toHaveBeenCalled();
   });
 
+  it("正常系: ほかの一覧を開くキーは onOtherListKey に渡り, 処理されたら何もせず, 処理されなければ通常どおり扱うこと", async () => {
+    const user = userEvent.setup();
+    const onOtherListKey = vi.fn((e: KeyboardEvent) => e.key === "b");
+    render(
+      <HistoryPane
+        paneId="left"
+        isActive
+        history={["/a", "/b"]}
+        historyIndex={1}
+        onActivate={vi.fn()}
+        onSelect={vi.fn()}
+        onCancel={vi.fn()}
+        onSwitchPane={vi.fn()}
+        isToggleKey={() => false}
+        onOtherListKey={onOtherListKey}
+      />,
+    );
+
+    await user.keyboard("b");
+    expect(onOtherListKey).toHaveBeenCalledTimes(1);
+    await user.keyboard("k");
+    expect(onOtherListKey).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("/a").closest("li")).toHaveAttribute(
+      "data-cursor",
+      "active",
+    );
+  });
+
   it("正常系: 見出しは「移動履歴」であること", () => {
     renderPane();
     expect(screen.getByText("移動履歴")).toBeInTheDocument();

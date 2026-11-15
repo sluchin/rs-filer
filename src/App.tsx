@@ -135,6 +135,33 @@ export default function App(): ReactElement {
       resolveKey(e, null, keymap).command === "bookmarks",
     [keymap],
   );
+  /**
+   * 一覧の表示中に, ほかの一覧を開くキーが押されたら, 今の一覧を閉じてその一覧を開く判定を返す.
+   *
+   * @param paneId - 一覧を出しているペイン.
+   * @param own - その一覧を開くコマンド (このキーでは切り替えない).
+   * @returns キーを処理したら true を返す関数.
+   */
+  const switchListKey =
+    (paneId: PaneId, own: string) =>
+    (e: KeyboardEvent): boolean => {
+      const command = resolveKey(e, null, keymap).command;
+      const opens = {
+        bookmarks: dialogs.openBookmarks,
+        favorites: dialogs.openFavorites,
+        recentFiles: dialogs.openRecentFiles,
+        historyList: dialogs.openHistoryList,
+      } as const;
+      if (command === undefined || command === own || !(command in opens)) {
+        return false;
+      }
+      closeBookmarks(paneId);
+      closeFavorites(paneId);
+      closeRecentFiles(paneId);
+      closeHistoryList(paneId);
+      opens[command as keyof typeof opens](paneId);
+      return true;
+    };
   const settings = useSettings();
   const bookmarks = useBookmarks(settings);
   const favorites = useFavorites(settings);
@@ -404,6 +431,7 @@ export default function App(): ReactElement {
         onCancel={() => closeBookmarks(paneId)}
         onSwitchPane={switchPane}
         isToggleKey={isBookmarksKey}
+        onOtherListKey={switchListKey(paneId, "bookmarks")}
       />
     );
   });
@@ -448,6 +476,7 @@ export default function App(): ReactElement {
         onCancel={() => closeFavorites(paneId)}
         onSwitchPane={switchPane}
         isToggleKey={isFavoritesKey}
+        onOtherListKey={switchListKey(paneId, "favorites")}
       />
     );
   });
@@ -492,6 +521,7 @@ export default function App(): ReactElement {
         onCancel={() => closeRecentFiles(paneId)}
         onSwitchPane={switchPane}
         isToggleKey={isRecentFilesKey}
+        onOtherListKey={switchListKey(paneId, "recentFiles")}
       />
     );
   });
@@ -528,6 +558,7 @@ export default function App(): ReactElement {
         onCancel={() => closeHistoryList(paneId)}
         onSwitchPane={switchPane}
         isToggleKey={isHistoryListKey}
+        onOtherListKey={switchListKey(paneId, "historyList")}
       />
     );
   });

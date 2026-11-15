@@ -28,6 +28,11 @@ interface HistoryPaneProps {
   onSwitchPane: () => void;
   /** 押されたキーが, この一覧を開くキー (既定は `M-h`) かどうか. そのキーで一覧を閉じる (トグル). */
   isToggleKey: (e: KeyboardEvent) => boolean;
+  /**
+   * 押されたキーが, ほかの一覧を開くキーなら, その一覧へ切り替えて true を返す. 省略した場合は, 切り替えない.
+   * 一覧の表示中は全体のキー操作が無効なので, 一覧の側から呼ぶ.
+   */
+  onOtherListKey?: (e: KeyboardEvent) => boolean;
 }
 
 /**
@@ -58,6 +63,7 @@ export default function HistoryPane({
   onContextMenu,
   onSwitchPane,
   isToggleKey,
+  onOtherListKey,
 }: HistoryPaneProps): ReactElement {
   const [rawIndex, setIndex] = useState(historyIndex);
   /** 絞り込みの文字. 絞り込みの入力欄を出していないときは null. */
@@ -89,6 +95,9 @@ export default function HistoryPane({
         // 一覧を開くキーをもう一度押したら, 閉じる (トグル)
         e.preventDefault();
         onCancel();
+      } else if (onOtherListKey?.(e)) {
+        // ほかの一覧を開くキーなら, その一覧に替わる
+        e.preventDefault();
       } else if (e.key === "ArrowDown" || e.key === "j") {
         e.preventDefault();
         setIndex(Math.min(rows.length - 1, index + 1));
@@ -141,6 +150,7 @@ export default function HistoryPane({
     onCancel,
     onSwitchPane,
     isToggleKey,
+    onOtherListKey,
   ]);
 
   return (

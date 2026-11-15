@@ -26,6 +26,11 @@ interface BookmarkPaneProps {
   onSwitchPane: () => void;
   /** 押されたキーが, この一覧を開くキー (既定は `b`) かどうか. そのキーで一覧を閉じる (トグル). */
   isToggleKey: (e: KeyboardEvent) => boolean;
+  /**
+   * 押されたキーが, ほかの一覧を開くキーなら, その一覧へ切り替えて true を返す. 省略した場合は, 切り替えない.
+   * 一覧の表示中は全体のキー操作が無効なので, 一覧の側から呼ぶ.
+   */
+  onOtherListKey?: (e: KeyboardEvent) => boolean;
   /** `o` で, カーソル位置のパスのあるディレクトリを開くハンドラー. 省略した場合は, `o` は何もしない. */
   onReveal?: (path: string) => void;
   /** 行を右クリックしたときのハンドラー (パスと, 画面の座標). 省略した場合は, 何もしない. */
@@ -67,6 +72,7 @@ export default function BookmarkPane({
   onCancel,
   onSwitchPane,
   isToggleKey,
+  onOtherListKey,
   onReveal,
   onContextMenu,
   title = "ブックマーク",
@@ -100,6 +106,9 @@ export default function BookmarkPane({
         // 一覧を開くキーをもう一度押したら, 閉じる (トグル)
         e.preventDefault();
         onCancel();
+      } else if (onOtherListKey?.(e)) {
+        // ほかの一覧を開くキーなら, その一覧に替わる
+        e.preventDefault();
       } else if (e.key === "ArrowDown" || e.key === "j") {
         e.preventDefault();
         setIndex(Math.min(bookmarks.length - 1, index + 1));
@@ -161,6 +170,7 @@ export default function BookmarkPane({
     onCancel,
     onSwitchPane,
     isToggleKey,
+    onOtherListKey,
   ]);
 
   return (

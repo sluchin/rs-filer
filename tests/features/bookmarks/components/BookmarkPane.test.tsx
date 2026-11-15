@@ -108,6 +108,34 @@ describe("BookmarkPane", () => {
     expect(handlers.onSelect).not.toHaveBeenCalled();
   });
 
+  it("正常系: ほかの一覧を開くキーは onOtherListKey に渡り, 処理されたら何もせず, 処理されなければ通常どおり扱うこと", async () => {
+    const user = userEvent.setup();
+    const onOtherListKey = vi.fn((e: KeyboardEvent) => e.key === "F");
+    render(
+      <BookmarkPane
+        paneId="left"
+        isActive
+        onActivate={vi.fn()}
+        bookmarks={["/a", "/b"]}
+        onSelect={vi.fn()}
+        onRemove={vi.fn()}
+        onCancel={vi.fn()}
+        onSwitchPane={vi.fn()}
+        isToggleKey={() => false}
+        onOtherListKey={onOtherListKey}
+      />,
+    );
+
+    await user.keyboard("F");
+    await user.keyboard("j");
+
+    expect(onOtherListKey).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("/b").closest("li")).toHaveAttribute(
+      "data-cursor",
+      "active",
+    );
+  });
+
   it("正常系: onContextMenu を渡すと, 右クリックした行にカーソルを移し, パスと座標を渡すこと", () => {
     const onContextMenu = vi.fn();
     render(
