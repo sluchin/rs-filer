@@ -56,6 +56,16 @@ export function nextSort(current: SortOption): SortOption {
 }
 
 /**
+ * 基準はそのままに, 向き (昇順と降順) を逆にしたソートの設定を返します.
+ *
+ * @param current - 現在のソートの設定.
+ * @returns 向きを逆にしたソートの設定.
+ */
+export function reverseSort(current: SortOption): SortOption {
+  return { key: current.key, desc: !current.desc };
+}
+
+/**
  * ファイル名の拡張子 (小文字, ドットなし) を返します. 先頭のドットだけの名前 (`.bashrc`) は拡張子なしです.
  *
  * @param name - ファイル名.

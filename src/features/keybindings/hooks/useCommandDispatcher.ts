@@ -7,7 +7,7 @@ import type { useFileList } from "../../explorer/hooks/useFileList";
 import type { useMarks } from "../../explorer/hooks/useMarks";
 import type { useNavigation } from "../../explorer/hooks/useNavigation";
 import type { FileEntry, PaneId, PaneState } from "../../explorer/types";
-import { nextSort } from "../../explorer/view";
+import { nextSort, reverseSort } from "../../explorer/view";
 import type { useFileOperations } from "../../operations/hooks/useFileOperations";
 import type { useTabs } from "../../tabs/hooks/useTabs";
 import {
@@ -364,6 +364,9 @@ export function useCommandDispatcher(
         break;
       case "cycleSort":
         setView(activePane, { sort: nextSort(active.sort) });
+        break;
+      case "reverseSort":
+        setView(activePane, { sort: reverseSort(active.sort) });
         break;
       case "toggleDetails":
         setView(activePane, { showDetails: !active.showDetails });

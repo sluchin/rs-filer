@@ -99,6 +99,7 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   ".": "toggleHidden",
   "C-x .": "toggleHidden",
   s: "cycleSort",
+  S: "reverseSort",
   i: "toggleDetails",
   "(": "toggleDetails",
   "/": "filter",

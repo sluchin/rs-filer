@@ -5,6 +5,7 @@ import {
   deriveFiles,
   extensionOf,
   nextSort,
+  reverseSort,
   SORT_CYCLE,
   sortLabel,
 } from "@/features/explorer/view";
@@ -173,6 +174,17 @@ describe("nextSort / sortLabel", () => {
 
   it("正常系: 名前 ↓ の次は, 更新日時 ↑ になること", () => {
     expect(nextSort({ key: "name", desc: true })).toEqual({
+      key: "date",
+      desc: false,
+    });
+  });
+
+  it("正常系: reverseSort は, 基準を変えずに向きだけを逆にすること", () => {
+    expect(reverseSort({ key: "size", desc: false })).toEqual({
+      key: "size",
+      desc: true,
+    });
+    expect(reverseSort({ key: "date", desc: true })).toEqual({
       key: "date",
       desc: false,
     });

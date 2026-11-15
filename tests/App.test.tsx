@@ -2107,6 +2107,26 @@ describe("App (表示・ソート・絞り込み)", () => {
     expect(statusText()).toContain("名前 ↑");
   });
 
+  it("正常系: S で, 基準を変えずにソートの順が逆になり, もう一度で戻ること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    expect(leftNames()).toEqual(["FolderA", "a.txt", "b.md"]);
+
+    await user.keyboard("S");
+    expect(statusText()).toContain("名前 ↓");
+    expect(leftNames()).toEqual(["FolderA", "b.md", "a.txt"]);
+
+    await user.keyboard("S");
+    expect(statusText()).toContain("名前 ↑");
+    expect(leftNames()).toEqual(["FolderA", "a.txt", "b.md"]);
+
+    // 別の基準でも, 基準は変わらない
+    await user.keyboard("ss");
+    expect(statusText()).toContain("更新日時 ↑");
+    await user.keyboard("S");
+    expect(statusText()).toContain("更新日時 ↓");
+  });
+
   it("正常系: i で詳細の列が隠れ, もう一度で戻ること", async () => {
     mockPhase4();
     const user = await renderLoaded();

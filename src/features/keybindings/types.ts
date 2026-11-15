@@ -47,6 +47,7 @@ export const COMMANDS = [
   "markPattern",
   "toggleHidden",
   "cycleSort",
+  "reverseSort",
   "toggleDetails",
   "filter",
   "findNameDired",

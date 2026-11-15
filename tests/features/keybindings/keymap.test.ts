@@ -71,6 +71,7 @@ describe("resolveKey", () => {
     ["(", "toggleDetails"],
     [".", "toggleHidden"],
     ["s", "cycleSort"],
+    ["S", "reverseSort"],
     ["i", "toggleDetails"],
     ["/", "filter"],
     ["b", "bookmarks"],

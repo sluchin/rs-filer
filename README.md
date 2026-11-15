@@ -87,7 +87,7 @@ npm run tauri dev
 | `* s` / `* *` / `C-a` | 全マーク |
 | `* !` / `U` | マークと削除の印を全て外す (`dired-unmark-all-marks`) |
 | `* %` / `% m` | パターンまたは正規表現でマーク (`dired-mark-files-regexp`) |
-| `.` / `s` / `(` / `i` | 隠しファイルの切り替え (起動時は非表示) / ソートの切り替え / 詳細列の切り替え (`dired-hide-details-mode`) |
+| `.` / `s` / `(` / `i` | 隠しファイルの切り替え (起動時は非表示) / ソートの切り替え (`S` で順を逆にする) / 詳細列の切り替え (`dired-hide-details-mode`) |
 | `/` / `C-s` | ファイル名の絞り込み |
 | `C-x t 2` / `C-x t 0` / `C-x t o` | 新しいタブ / タブを閉じる / 次のタブ (`Ctrl-Tab`)。タブはドラッグで並べ替え |
 | `M-x find-name-dired` / `M-x find-grep-dired` | サブディレクトリの中まで、名前 / ファイルの中身で再帰検索 (`Esc` で元の一覧に戻る) |

@@ -48,6 +48,7 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   markPattern: "パターンでマーク",
   toggleHidden: "隠しファイルの表示 / 非表示",
   cycleSort: "ソートの切り替え",
+  reverseSort: "ソートの順を逆にする",
   toggleDetails: "詳細列の表示 / 非表示",
   filter: "ファイル名の絞り込み",
   findNameDired:
