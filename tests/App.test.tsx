@@ -2382,6 +2382,19 @@ describe("App (履歴・ブックマーク)", () => {
     ).toBeInTheDocument();
   });
 
+  it("正常系: 移動履歴の一覧で d と x を押すと, 印を付けた行が履歴から消えること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Enter}");
+    await paneOf("left").findByText("in.txt");
+    await user.keyboard("{Alt>}h{/Alt}");
+
+    await user.keyboard("kdx");
+    expect(paneOf("left").getAllByRole("listitem").map(rowPathText)).toEqual([
+      "/mock/home/FolderA現在地",
+    ]);
+  });
+
   it("境界: 先頭の行で ↑ を押してもカーソルが範囲外へ出ないこと", async () => {
     mockPhase4();
     const user = await renderLoaded();
@@ -6173,7 +6186,7 @@ describe("App (お気に入り)", () => {
     );
   });
 
-  it("正常系: 登録済みのファイルに M-f を押すと解除されること. d でも一覧から外せること", async () => {
+  it("正常系: 登録済みのファイルに M-f を押しても解除されないこと. d と x で一覧から外せること", async () => {
     mockHome((cmd) =>
       cmd === "load_config"
         ? Promise.resolve({
@@ -6190,10 +6203,10 @@ describe("App (お気に入り)", () => {
     await user.keyboard("j");
     await user.keyboard("{Alt>}f{/Alt}");
     expect(await screen.findByText("お気に入り")).toBeInTheDocument();
-    expect(screen.queryByText("/mock/home/b.txt")).not.toBeInTheDocument();
+    expect(screen.getByText("/mock/home/b.txt")).toBeInTheDocument();
     expect(screen.getByText("/mock/home/old.txt")).toBeInTheDocument();
 
-    await user.keyboard("dx");
+    await user.keyboard("jdx");
     expect(screen.queryByText("/mock/home/old.txt")).not.toBeInTheDocument();
   });
 

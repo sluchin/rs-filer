@@ -65,3 +65,22 @@ export function removeHistoryEntry(
     index < state.historyIndex ? state.historyIndex - 1 : state.historyIndex;
   return { history, historyIndex: Math.min(historyIndex, history.length - 1) };
 }
+
+/**
+ * 履歴から, 指定した位置の複数の件を除いた, 次の履歴を返します.
+ *
+ * 大きい位置から 1 件ずつ [`removeHistoryEntry`] で除くので, 現在位置の扱いは 1 件のときと同じです.
+ * 範囲の外の位置と, 重なった位置は, 無視します.
+ *
+ * @param state - 除く前の履歴.
+ * @param indexes - 除く件の位置 (0 から).
+ * @returns 除いたあとの履歴.
+ */
+export function removeHistoryEntries(
+  state: HistoryState,
+  indexes: readonly number[],
+): HistoryState {
+  return [...new Set(indexes)]
+    .sort((a, b) => b - a)
+    .reduce(removeHistoryEntry, state);
+}

@@ -46,7 +46,10 @@ import { useFileOperations } from "./features/operations/hooks/useFileOperations
 import { installLogForwarding } from "./services/logForwarder";
 import TreePane from "./features/tree/components/TreePane";
 import ContextMenu from "./components/ContextMenu";
-import { removeHistoryEntry } from "./features/explorer/history";
+import {
+  removeHistoryEntries,
+  removeHistoryEntry,
+} from "./features/explorer/history";
 import {
   copyChoicesOf,
   copyTextOf,
@@ -541,6 +544,12 @@ export default function App(): ReactElement {
           closeHistoryList(paneId);
           loadDirectory(paneId, path, { historyIndex: index });
         }}
+        onRemove={(indexes) =>
+          updatePane(paneId, (p) => ({
+            ...p,
+            ...removeHistoryEntries(p, indexes),
+          }))
+        }
         onContextMenu={(path, index, x, y) => {
           setActivePane(paneId);
           openCopyMenu({

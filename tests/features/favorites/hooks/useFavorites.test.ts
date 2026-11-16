@@ -30,26 +30,17 @@ describe("useFavorites", () => {
     vi.clearAllMocks();
   });
 
-  it("正常系: 登録すると設定に保存され, 再度呼ぶと解除されること (戻り値は登録したかどうか)", () => {
+  it("正常系: 登録すると設定に保存され, 登録済みなら再度呼んでも解除されないこと", () => {
     const { result, saved } = renderFavorites([]);
-    let registered = false;
-    act(() => {
-      registered = result.current.toggleFavorite("/a.txt");
-    });
-    expect(registered).toBe(true);
-    act(() => {
-      result.current.toggleFavorite("/b.txt");
-    });
+    act(() => result.current.addFavorite("/a.txt"));
+    act(() => result.current.addFavorite("/b.txt"));
     expect(result.current.favorites).toEqual(["/a.txt", "/b.txt"]);
     expect(saved).toHaveBeenLastCalledWith({
       favorites: ["/a.txt", "/b.txt"],
     });
 
-    act(() => {
-      registered = result.current.toggleFavorite("/a.txt");
-    });
-    expect(registered).toBe(false);
-    expect(result.current.favorites).toEqual(["/b.txt"]);
+    act(() => result.current.addFavorite("/a.txt"));
+    expect(result.current.favorites).toEqual(["/a.txt", "/b.txt"]);
   });
 
   it("正常系: removeFavorite で解除できること", () => {

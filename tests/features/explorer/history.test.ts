@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { pushHistory, removeHistoryEntry } from "@/features/explorer/history";
+import {
+  pushHistory,
+  removeHistoryEntries,
+  removeHistoryEntry,
+} from "@/features/explorer/history";
 
 describe("pushHistory", () => {
   it("正常系: 履歴にないディレクトリは, 末尾へ追加し, 現在位置を末尾にすること", () => {
@@ -102,5 +106,27 @@ describe("removeHistoryEntry", () => {
     );
     expect(removeHistoryEntry(state, -1)).toBe(state);
     expect(removeHistoryEntry(state, 3)).toBe(state);
+  });
+});
+
+describe("removeHistoryEntries", () => {
+  const state = { history: ["/a", "/b", "/c", "/d"], historyIndex: 2 };
+
+  it("正常系: 複数の件を除き, 現在位置を詰めること (順序・重複・範囲外は問わない)", () => {
+    expect(removeHistoryEntries(state, [0, 3, 0, 9])).toEqual({
+      history: ["/b", "/c"],
+      historyIndex: 1,
+    });
+  });
+
+  it("正常系: 現在地の件を含めると, 1 件のときと同じ規則で置くこと", () => {
+    expect(removeHistoryEntries(state, [2, 3])).toEqual({
+      history: ["/a", "/b"],
+      historyIndex: 1,
+    });
+  });
+
+  it("境界: 空の指定では, 同じ内容のままであること", () => {
+    expect(removeHistoryEntries(state, [])).toEqual(state);
   });
 });

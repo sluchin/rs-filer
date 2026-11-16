@@ -18,20 +18,15 @@ export function useFavorites(
   const favorites = useMemo(() => uniqueNativePaths(saved ?? []), [saved]);
 
   /**
-   * ファイルをお気に入りへ登録します. 登録済みなら解除します.
+   * ファイルをお気に入りへ登録します. 登録済みなら, 何もしません (解除は一覧の `d` のあと `x`).
    *
    * @param path - 対象のファイルのパス.
-   * @returns 登録したら true, 解除したら false.
    */
-  const toggleFavorite = useCallback(
-    (path: string): boolean => {
-      const registered = favorites.includes(path);
-      update({
-        favorites: registered
-          ? favorites.filter((f) => f !== path)
-          : [...favorites, path],
-      });
-      return !registered;
+  const addFavorite = useCallback(
+    (path: string): void => {
+      if (!favorites.includes(path)) {
+        update({ favorites: [...favorites, path] });
+      }
     },
     [favorites, update],
   );
@@ -47,5 +42,5 @@ export function useFavorites(
     [favorites, update],
   );
 
-  return { favorites, toggleFavorite, removeFavorite };
+  return { favorites, addFavorite, removeFavorite };
 }

@@ -24,6 +24,8 @@ interface HistoryPaneProps {
   onCancel: () => void;
   /** 行を右クリックしたときのハンドラー (パスと, 履歴上の位置と, 画面の座標). 省略した場合は, 何もしない. */
   onContextMenu?: (path: string, index: number, x: number, y: number) => void;
+  /** 一覧から外す (`x` で, 削除の印を付けた行) ハンドラー. 履歴上の位置を渡す. 省略した場合は, `x` は何もしない. */
+  onRemove?: (indexes: number[]) => void;
   /** `Tab` で, もう一方のペインをアクティブにするハンドラー. */
   onSwitchPane: () => void;
   /** 押されたキーが, この一覧を開くキー (既定は `M-h`) かどうか. そのキーで一覧を閉じる (トグル). */
@@ -45,6 +47,8 @@ interface HistoryPaneProps {
  * 一覧を横にスクロール (スクロールバー, または `←` `→`) して見ます.
  * `/` または `Ctrl-S` で, 入力した文字 (空白で区切った語を全て含むもの) に一覧を絞り込みます. `Enter` で入力を終えて一覧の操作へ
  * 戻り (絞り込みは維持), `Esc` で絞り込みを解除します (絞り込んでいないときの `Esc` は, 一覧を閉じます).
+ * `d` で, カーソル位置の行に削除の印 (赤字と取り消し線) を付けて 1 行下へ進み, `u` で印を外して 1 行下へ進みます.
+ * `x` で, 印を付けた行を履歴から外します (`onRemove` を渡したとき).
  * `onContextMenu` を渡すと, 行を右クリックしたときに, その行にカーソルを移して知らせる.
  * 絞り込んでも, 選んだときに渡す履歴上の位置は, 絞り込む前の位置です.
  * `Tab` では, もう一方のペインへ移り, この一覧は (アクティブでないまま) 表示され続けます.
@@ -61,6 +65,7 @@ export default function HistoryPane({
   onSelect,
   onCancel,
   onContextMenu,
+  onRemove,
   onSwitchPane,
   isToggleKey,
   onOtherListKey,
@@ -69,6 +74,8 @@ export default function HistoryPane({
   /** 絞り込みの文字. 絞り込みの入力欄を出していないときは null. */
   const [filter, setFilter] = useState<string | null>(null);
   const filterInput = useRef<HTMLInputElement | null>(null);
+  /** 削除の印を付けた行の, 履歴上の位置. */
+  const [flagged, setFlagged] = useState<ReadonlySet<number>>(new Set());
   const rowsRef = useRef<HTMLUListElement>(null);
   /** 表示する行の, 履歴上の位置 (絞り込んでいなければ, 全て). */
   const rows = useMemo(
@@ -117,6 +124,27 @@ export default function HistoryPane({
         if (at !== undefined) {
           onSelect(history[at], at);
         }
+      } else if (e.key === "d" || e.key === "u") {
+        e.preventDefault();
+        const at = rows[index];
+        if (at !== undefined) {
+          setFlagged((prev) => {
+            const next = new Set(prev);
+            if (e.key === "d") {
+              next.add(at);
+            } else {
+              next.delete(at);
+            }
+            return next;
+          });
+          setIndex(Math.min(rows.length - 1, index + 1));
+        }
+      } else if (e.key === "x") {
+        e.preventDefault();
+        if (flagged.size > 0) {
+          onRemove?.([...flagged]);
+        }
+        setFlagged(new Set());
       } else if (e.key === "/" || (e.ctrlKey && e.key === "s")) {
         // 入力欄が出ていれば (Enter で抜けたあと) そこへ戻り, 出ていなければ出す.
         e.preventDefault();
@@ -144,9 +172,11 @@ export default function HistoryPane({
     isActive,
     history,
     rows,
+    flagged,
     filter,
     index,
     onSelect,
+    onRemove,
     onCancel,
     onSwitchPane,
     isToggleKey,
@@ -188,6 +218,7 @@ export default function HistoryPane({
             <li
               key={`${i}-${history[i]}`}
               className="file-row"
+              data-flagged={flagged.has(i)}
               data-cursor={
                 position !== index ? "none" : isActive ? "active" : "inactive"
               }

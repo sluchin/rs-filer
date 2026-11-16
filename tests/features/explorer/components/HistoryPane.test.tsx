@@ -13,8 +13,9 @@ function renderPane(isActive = true, history = ["/a", LONG]) {
     onSelect: vi.fn(),
     onCancel: vi.fn(),
     onSwitchPane: vi.fn(),
-    // 一覧を開くキーの判定は App がキーマップで行う. ここでは x を, 開くキーとみなす
-    isToggleKey: vi.fn((e: KeyboardEvent) => e.key === "x"),
+    onRemove: vi.fn(),
+    // 一覧を開くキーの判定は App がキーマップで行う. ここでは q を, 開くキーとみなす
+    isToggleKey: vi.fn((e: KeyboardEvent) => e.key === "q"),
   };
   render(
     <HistoryPane
@@ -64,7 +65,7 @@ describe("HistoryPane", () => {
     const user = userEvent.setup();
     const { handlers } = renderPane();
 
-    await user.keyboard("x");
+    await user.keyboard("q");
 
     expect(handlers.onCancel).toHaveBeenCalledTimes(1);
     expect(handlers.onSelect).not.toHaveBeenCalled();
@@ -191,5 +192,51 @@ describe("HistoryPane", () => {
     });
     screen.getByText("/a").dispatchEvent(event);
     expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("正常系: d で削除の印を付けて 1 行下へ進み, u で外し, x で印を付けた行の履歴上の位置を渡すこと", async () => {
+    const user = userEvent.setup();
+    const { handlers } = renderPane(true, ["/a", "/b", "/c"]);
+    const row = (name: string) => screen.getByText(name).closest("li");
+
+    await user.keyboard("x");
+    expect(handlers.onRemove).not.toHaveBeenCalled();
+
+    await user.keyboard("kkdd");
+    expect(row("/a")).toHaveAttribute("data-flagged", "true");
+    expect(row("/b")).toHaveAttribute("data-flagged", "true");
+    expect(row("/c")).toHaveAttribute("aria-current", "true");
+
+    await user.keyboard("kku");
+    expect(row("/a")).toHaveAttribute("data-flagged", "false");
+
+    await user.keyboard("x");
+    expect(handlers.onRemove).toHaveBeenCalledWith([1]);
+    expect(row("/b")).toHaveAttribute("data-flagged", "false");
+  });
+
+  it("境界: 絞り込みで行が無いときの d は何もしないこと. onRemove が無くても x で落ちないこと", async () => {
+    const user = userEvent.setup();
+    render(
+      <HistoryPane
+        paneId="left"
+        isActive
+        history={["/a"]}
+        historyIndex={0}
+        onActivate={vi.fn()}
+        onSelect={vi.fn()}
+        onCancel={vi.fn()}
+        onSwitchPane={vi.fn()}
+        isToggleKey={() => false}
+      />,
+    );
+    await user.keyboard("dx");
+    await user.keyboard("/zzz{Enter}d");
+    expect(screen.getByText("一致するものがありません.")).toBeInTheDocument();
+    await user.keyboard("/");
+    await user.clear(screen.getByLabelText("left history filter"));
+    await user.keyboard("{Enter}");
+    await user.keyboard("dx");
+    expect(screen.getByText("/a")).toBeInTheDocument();
   });
 });

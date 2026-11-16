@@ -95,7 +95,7 @@ export interface CommandDispatcherDeps {
   /** ブックマーク (`useBookmarks`). */
   bookmarks: Pick<ReturnType<typeof useBookmarks>, "addBookmark">;
   /** お気に入り (`useFavorites`). */
-  favorites: Pick<ReturnType<typeof useFavorites>, "toggleFavorite">;
+  favorites: Pick<ReturnType<typeof useFavorites>, "addFavorite">;
   /** タブの操作 (`useTabs`). */
   tabs: Pick<
     ReturnType<typeof useTabs>,
@@ -409,7 +409,7 @@ export function useCommandDispatcher(
           reportError("お気に入りに登録するファイルを選んでください.");
           break;
         }
-        favorites.toggleFavorite(file.path);
+        favorites.addFavorite(file.path);
         panels.openFavorites(activePane);
         break;
       }
