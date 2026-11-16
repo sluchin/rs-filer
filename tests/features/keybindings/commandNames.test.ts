@@ -23,6 +23,7 @@ describe("resolveCommandName", () => {
     ["refresh", "reload"],
     ["find", "filter"],
     ["exit", "quit"],
+    ["recentf-open-files", "recentFiles"],
   ])("正常系: %s は %s に解決されること", (name, expected) => {
     expect(resolveCommandName(name)).toBe(expected);
   });

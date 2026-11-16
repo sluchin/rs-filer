@@ -9,7 +9,7 @@ export type Keymap = Map<string, Command>;
  * 既定のキー割り当て. キーの並びからコマンドへの対応.
  *
  * Emacs の Dired と同じキーには, Dired と同じ働きのコマンドを割り当てる. Dired の働きが rs-filer に無いキー
- * (`c`, `M`, `O`, `H`, `L`, `i`, `.`, `<`, `>` など) には, rs-filer のコマンドを割り当てている.
+ * (`c`, `M`, `O`, `L`, `i`, `.`, `<`, `>` など) には, rs-filer のコマンドを割り当てている.
  * 削除は Dired と同じく, `d` で印を付けて `x` で削除するか, `D` でマーク (無ければカーソル位置) を削除する.
  *
  * キーの並びの表記の規則:
@@ -46,7 +46,6 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   "M-g": "goto",
   "C-x C-d": "goto",
   "~": "gotoHome",
-  H: "gotoHome",
   "M-d": "drives",
   g: "reload",
   F5: "reload",
@@ -116,13 +115,11 @@ export const DEFAULT_BINDINGS: Record<string, Command> = {
   "C-g": "cancel",
   "M-Left": "historyBack",
   "M-Right": "historyForward",
-  "M-h": "historyList",
-  "M-r": "recentFiles",
-  "C-x C-r": "recentFiles",
-  b: "bookmarks",
-  F: "favorites",
-  "M-f": "addFavorite",
-  "M-b": "addBookmark",
+  "C-x r m": "addBookmark",
+  "C-x r l": "bookmarks",
+  "C-x f m": "addFavorite",
+  "C-x f l": "favorites",
+  "C-x h l": "historyList",
   "M-x": "palette",
   ":": "palette",
   "?": "help",

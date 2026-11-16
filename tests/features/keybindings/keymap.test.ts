@@ -60,7 +60,7 @@ describe("resolveKey", () => {
     ["O", "syncPane"],
     ["v", "preview"],
     ["L", "log"],
-    ["H", "gotoHome"],
+    ["~", "gotoHome"],
     [" ", "cursorDown"],
     ["u", "unmark"],
     ["U", "unmarkAll"],
@@ -74,7 +74,6 @@ describe("resolveKey", () => {
     ["S", "reverseSort"],
     ["i", "toggleDetails"],
     ["/", "filter"],
-    ["b", "bookmarks"],
     ["Escape", "cancel"],
   ])("正常系: 単独キー %s はコマンド %s になること", (k, command) => {
     expect(resolveKey(key(k), null)).toEqual({ command });
@@ -86,15 +85,12 @@ describe("resolveKey", () => {
     });
   });
 
-  it("正常系: Ctrl+A / Ctrl+S / Alt+B / Alt+矢印がコマンドになること", () => {
+  it("正常系: Ctrl+A / Ctrl+S / Alt+矢印がコマンドになること", () => {
     expect(resolveKey(key("a", { ctrlKey: true }), null)).toEqual({
       command: "markAll",
     });
     expect(resolveKey(key("s", { ctrlKey: true }), null)).toEqual({
       command: "filter",
-    });
-    expect(resolveKey(key("b", { altKey: true }), null)).toEqual({
-      command: "addBookmark",
     });
     expect(resolveKey(key("ArrowLeft", { altKey: true }), null)).toEqual({
       command: "historyBack",
@@ -168,13 +164,31 @@ describe("resolveKey", () => {
     });
   });
 
-  it("正常系: Alt+R と, C-x の後の C-r で, 最近開いたファイルの一覧になること", () => {
-    expect(resolveKey(key("r", { altKey: true }), null)).toEqual({
-      command: "recentFiles",
-    });
-    expect(resolveKey(key("r", { ctrlKey: true }), PREFIX_CTRL_X)).toEqual({
-      command: "recentFiles",
-    });
+  it.each([
+    ["r m", "addBookmark"],
+    ["r l", "bookmarks"],
+    ["f m", "addFavorite"],
+    ["f l", "favorites"],
+    ["h l", "historyList"],
+  ])("正常系: C-x %s は, コマンド %s になること", (keys, command) => {
+    let prefix: string | null = PREFIX_CTRL_X;
+    for (const k of keys.split(" ")) {
+      const result = resolveKey(key(k), prefix);
+      prefix = result.prefix ?? null;
+      if (prefix === null) {
+        expect(result).toEqual({ command });
+      }
+    }
+  });
+
+  it("正常系: 一覧を開くキーの旧割り当て (b, F, H, M-b, M-f, M-h, M-r, C-x C-r) は無いこと", () => {
+    for (const k of ["b", "F", "H"]) {
+      expect(resolveKey(key(k), null)).toEqual({});
+    }
+    for (const k of ["b", "f", "h", "r"]) {
+      expect(resolveKey(key(k, { altKey: true }), null)).toEqual({});
+    }
+    expect(resolveKey(key("r", { ctrlKey: true }), PREFIX_CTRL_X)).toEqual({});
   });
 
   it("正常系: C-x の後に C-d で, パス入力欄へ移る (goto) こと", () => {

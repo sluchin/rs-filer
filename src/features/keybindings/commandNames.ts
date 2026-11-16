@@ -90,6 +90,7 @@ const ALIASES: Record<string, Command> = {
   copy_as: "duplicate",
   exit: "quit",
   recentf: "recentFiles",
+  "recentf-open-files": "recentFiles",
 };
 
 /**

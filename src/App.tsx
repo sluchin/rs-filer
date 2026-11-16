@@ -1,4 +1,10 @@
-import { useCallback, useRef, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
 import log from "loglevel";
 import BookmarkPane from "./features/bookmarks/components/BookmarkPane";
 import HistoryPane from "./features/explorer/components/HistoryPane";
@@ -116,30 +122,52 @@ export default function App(): ReactElement {
   );
   const { notice, notify } = useNotice(logInfo);
   const keymap = useUserKeymap(logError);
-  // 移動履歴の一覧とブックマーク一覧は, 開くキー (キーマップで割り当てたもの) をもう一度押すと閉じる (トグル).
-  // 一覧の表示中は, 全体のキー操作が無効なので, 一覧の側で判定する. 1 つのキーの割り当てだけを見る (`C-x` で始まる, 続きのキーの割り当ては見ない).
-  const isHistoryListKey = useCallback(
-    (e: KeyboardEvent): boolean =>
-      resolveKey(e, null, keymap).command === "historyList",
+  // 一覧の表示中は, 全体のキー操作が無効なので, 一覧を開くキー (キーマップで割り当てたもの) の判定は, 一覧の側で行う.
+  // 一覧を開くキーをもう一度押すと一覧は閉じ (トグル), ほかの一覧を開くキーを押すと, その一覧に替わる.
+  // `C-x r l` のような続きのキーのある割り当てに備えて, 途中のキーの並びを覚える.
+  const listPrefixRef = useRef<string | null>(null);
+  const listKeyCacheRef = useRef<{
+    event: KeyboardEvent | null;
+    command: string | undefined;
+  }>({ event: null, command: undefined });
+  /**
+   * 一覧の表示中に押されたキーを, コマンドにします. 同じキーイベントに対して何度呼んでも, 途中のキーの並びは 1 回だけ進めます.
+   *
+   * @param e - キーイベント.
+   * @returns 決まったコマンド. 続きのキーを待つ間と, 割り当てが無いときは undefined.
+   */
+  const resolveListKey = useCallback(
+    (e: KeyboardEvent): string | undefined => {
+      const cache = listKeyCacheRef.current;
+      if (cache.event === e) {
+        return cache.command;
+      }
+      // 修飾キー単独の入力は, 途中のキーの並びに影響しない.
+      if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) {
+        return undefined;
+      }
+      const { command, prefix } = resolveKey(e, listPrefixRef.current, keymap);
+      listPrefixRef.current = prefix ?? null;
+      listKeyCacheRef.current = { event: e, command };
+      return command;
+    },
     [keymap],
   );
-  const isRecentFilesKey = useCallback(
-    (e: KeyboardEvent): boolean =>
-      resolveKey(e, null, keymap).command === "recentFiles",
-    [keymap],
+  /** 一覧を開くコマンドの, 続きのキーを待っているか (待っている間のキーは, 一覧の操作にしない). */
+  const isListPrefixPending = (): boolean => listPrefixRef.current !== null;
+  const isListKey = useCallback(
+    (command: string) =>
+      (e: KeyboardEvent): boolean =>
+        resolveListKey(e) === command,
+    [resolveListKey],
   );
-  const isFavoritesKey = useCallback(
-    (e: KeyboardEvent): boolean =>
-      resolveKey(e, null, keymap).command === "favorites",
-    [keymap],
-  );
-  const isBookmarksKey = useCallback(
-    (e: KeyboardEvent): boolean =>
-      resolveKey(e, null, keymap).command === "bookmarks",
-    [keymap],
-  );
+  const isHistoryListKey = useMemo(() => isListKey("historyList"), [isListKey]);
+  const isRecentFilesKey = useMemo(() => isListKey("recentFiles"), [isListKey]);
+  const isFavoritesKey = useMemo(() => isListKey("favorites"), [isListKey]);
+  const isBookmarksKey = useMemo(() => isListKey("bookmarks"), [isListKey]);
   /**
    * 一覧の表示中に, ほかの一覧を開くキーが押されたら, 今の一覧を閉じてその一覧を開く判定を返す.
+   * 続きのキーを待っている間のキーも, 処理したことにする.
    *
    * @param paneId - 一覧を出しているペイン.
    * @param own - その一覧を開くコマンド (このキーでは切り替えない).
@@ -148,7 +176,7 @@ export default function App(): ReactElement {
   const switchListKey =
     (paneId: PaneId, own: string) =>
     (e: KeyboardEvent): boolean => {
-      const command = resolveKey(e, null, keymap).command;
+      const command = resolveListKey(e);
       const opens = {
         bookmarks: dialogs.openBookmarks,
         favorites: dialogs.openFavorites,
@@ -156,7 +184,7 @@ export default function App(): ReactElement {
         historyList: dialogs.openHistoryList,
       } as const;
       if (command === undefined || command === own || !(command in opens)) {
-        return false;
+        return isListPrefixPending();
       }
       closeBookmarks(paneId);
       closeFavorites(paneId);
