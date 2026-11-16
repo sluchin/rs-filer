@@ -425,7 +425,7 @@ export default function App(): ReactElement {
             x,
             y,
             noDuplicate: true,
-            onRemove: () => bookmarks.removeBookmark(path),
+            onRemove: () => bookmarks.removeBookmark([path]),
           });
         }}
         onCancel={() => closeBookmarks(paneId)}
@@ -470,7 +470,7 @@ export default function App(): ReactElement {
             y,
             onReveal: () => revealFavorite(path),
             noDuplicate: true,
-            onRemove: () => favorites.removeFavorite(path),
+            onRemove: () => favorites.removeFavorite([path]),
           });
         }}
         onCancel={() => closeFavorites(paneId)}
@@ -515,7 +515,7 @@ export default function App(): ReactElement {
             y,
             onReveal: () => revealRecent(path),
             noDuplicate: true,
-            onRemove: () => recentFiles.remove(path),
+            onRemove: () => recentFiles.remove([path]),
           });
         }}
         onCancel={() => closeRecentFiles(paneId)}

@@ -2279,6 +2279,17 @@ describe("App (履歴・ブックマーク)", () => {
     await paneOf("left").findByText("in.txt");
   });
 
+  it("正常系: 登録済みのディレクトリで M-b をもう一度押しても, 登録は解除されないこと", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Alt>}b{/Alt}");
+    expect(paneOf("left").getByText("/mock/home")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await user.keyboard("{Alt>}b{/Alt}");
+    expect(paneOf("left").getByText("/mock/home")).toBeInTheDocument();
+  });
+
   it("正常系: ダブルクリックでもそのディレクトリへ移動して通常表示へ戻ること", async () => {
     mockPhase4();
     const user = await renderLoaded();
@@ -2302,7 +2313,7 @@ describe("App (履歴・ブックマーク)", () => {
     expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
   });
 
-  it("正常系: j/k でカーソルが動き, d でカーソル位置のブックマークを解除できること (一覧にはとどまる)", async () => {
+  it("正常系: j/k でカーソルが動き, d で印を付け, x で外せること (一覧にはとどまる)", async () => {
     mockPhase4();
     const user = await renderLoaded();
 
@@ -2318,13 +2329,13 @@ describe("App (履歴・ブックマーク)", () => {
     ]);
 
     await user.keyboard("j");
-    await user.keyboard("d");
+    await user.keyboard("dx");
     expect(paneOf("left").getByText("/mock/home")).toBeInTheDocument();
     expect(
       paneOf("left").queryByText("/mock/home/FolderA"),
     ).not.toBeInTheDocument();
 
-    await user.keyboard("u");
+    await user.keyboard("dx");
     expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
   });
 
@@ -2379,14 +2390,6 @@ describe("App (履歴・ブックマーク)", () => {
     expect(
       paneOf("left").getByText("/mock/home").closest("li"),
     ).toHaveAttribute("aria-current", "true");
-  });
-
-  it("正常系: Delete キーでもカーソル位置のブックマークを解除できること", async () => {
-    mockPhase4();
-    const user = await renderLoaded();
-    await user.keyboard("{Alt>}b{/Alt}");
-    await user.keyboard("{Delete}");
-    expect(paneOf("left").getByText("登録されていません.")).toBeInTheDocument();
   });
 
   it("正常系: 右ペインがアクティブなときは, 右ペインの履歴を戻れること", async () => {
@@ -6063,7 +6066,7 @@ describe("App (最近開いたファイル)", () => {
     await user.keyboard("{Alt>}r{/Alt}");
     expect(await screen.findByText("/mock/home/old.txt")).toBeInTheDocument();
 
-    await user.keyboard("d");
+    await user.keyboard("dx");
 
     expect(screen.queryByText("/mock/home/b.txt")).not.toBeInTheDocument();
     expect(screen.getByText("/mock/home/old.txt")).toBeInTheDocument();
@@ -6190,7 +6193,7 @@ describe("App (お気に入り)", () => {
     expect(screen.queryByText("/mock/home/b.txt")).not.toBeInTheDocument();
     expect(screen.getByText("/mock/home/old.txt")).toBeInTheDocument();
 
-    await user.keyboard("d");
+    await user.keyboard("dx");
     expect(screen.queryByText("/mock/home/old.txt")).not.toBeInTheDocument();
   });
 

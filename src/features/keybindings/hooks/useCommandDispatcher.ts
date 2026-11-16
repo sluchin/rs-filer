@@ -93,7 +93,7 @@ export interface CommandDispatcherDeps {
   /** 設定 (`useSettings`). */
   settings: ReturnType<typeof useSettings>;
   /** ブックマーク (`useBookmarks`). */
-  bookmarks: Pick<ReturnType<typeof useBookmarks>, "toggleBookmark">;
+  bookmarks: Pick<ReturnType<typeof useBookmarks>, "addBookmark">;
   /** お気に入り (`useFavorites`). */
   favorites: Pick<ReturnType<typeof useFavorites>, "toggleFavorite">;
   /** タブの操作 (`useTabs`). */
@@ -414,7 +414,7 @@ export function useCommandDispatcher(
         break;
       }
       case "addBookmark":
-        bookmarks.toggleBookmark(active.currentPath);
+        bookmarks.addBookmark(active.currentPath);
         panels.openBookmarks(activePane);
         break;
       case "palette":

@@ -18,8 +18,8 @@ interface BookmarkPaneProps {
   bookmarks: string[];
   /** 選んだ (`Enter` またはダブルクリック) ときのハンドラー. */
   onSelect: (path: string) => void;
-  /** カーソル位置のブックマークを解除するハンドラー. */
-  onRemove: (path: string) => void;
+  /** 一覧から外す (`x` で, 削除の印を付けた行) ハンドラー. */
+  onRemove: (paths: string[]) => void;
   /** 通常のペイン表示へ戻る (`Esc`) ハンドラー. */
   onCancel: () => void;
   /** `Tab` で, もう一方のペインをアクティブにするハンドラー. */
@@ -50,7 +50,8 @@ interface BookmarkPaneProps {
  * `Enter` またはダブルクリックでそのディレクトリへ移動して通常のペイン表示に戻ります.
  * パスは省略せずに表示し, ペインに収まらない長いパスは, 一覧を横にスクロール
  * (スクロールバー, または `←` `→`) して見ます.
- * `d` / `u` / `Delete` でカーソル位置のブックマークを解除し (一覧にはとどまる),
+ * `d` で, カーソル位置の行に削除の印 (赤字と取り消し線) を付けて 1 行下へ進み, `u` で印を外して 1 行下へ進みます.
+ * `x` で, 印を付けた行を一覧から外します (一覧にはとどまる).
  * `Esc` または一覧を開くキー (既定は `b`) で, 何もせず通常のペイン表示に戻ります (トグル). `Tab` では, もう一方のペインへ移り,
  * この一覧は (アクティブでないまま) 表示され続けます.
  * `onReveal` を渡すと, `o` で, カーソル位置のパスのあるディレクトリを開く (最近開いたファイルの一覧用).
@@ -83,6 +84,8 @@ export default function BookmarkPane({
   /** 絞り込みの文字. 絞り込みの入力欄を出していないときは null. */
   const [filter, setFilter] = useState<string | null>(null);
   const filterInput = useRef<HTMLInputElement | null>(null);
+  /** 削除の印を付けた行のパス. */
+  const [flagged, setFlagged] = useState<ReadonlySet<string>>(new Set());
   const rowsRef = useRef<HTMLUListElement>(null);
   const bookmarks = useMemo(
     () => (filter === null ? allPaths : filterPaths(allPaths, filter)),
@@ -126,11 +129,28 @@ export default function BookmarkPane({
         if (bookmarks[index]) {
           onSelect(bookmarks[index]);
         }
-      } else if (e.key === "d" || e.key === "u" || e.key === "Delete") {
+      } else if (e.key === "d" || e.key === "u") {
         e.preventDefault();
         if (bookmarks[index]) {
-          onRemove(bookmarks[index]);
+          const path = bookmarks[index];
+          setFlagged((prev) => {
+            const next = new Set(prev);
+            if (e.key === "d") {
+              next.add(path);
+            } else {
+              next.delete(path);
+            }
+            return next;
+          });
+          setIndex(Math.min(bookmarks.length - 1, index + 1));
         }
+      } else if (e.key === "x") {
+        e.preventDefault();
+        const marked = allPaths.filter((p) => flagged.has(p));
+        if (marked.length > 0) {
+          onRemove(marked);
+        }
+        setFlagged(new Set());
       } else if (e.key === "o" && onReveal) {
         e.preventDefault();
         if (bookmarks[index]) {
@@ -162,6 +182,8 @@ export default function BookmarkPane({
   }, [
     isActive,
     bookmarks,
+    allPaths,
+    flagged,
     filter,
     index,
     onSelect,
@@ -212,6 +234,7 @@ export default function BookmarkPane({
             <li
               key={path}
               className="file-row"
+              data-flagged={flagged.has(path)}
               data-cursor={
                 i !== index ? "none" : isActive ? "active" : "inactive"
               }

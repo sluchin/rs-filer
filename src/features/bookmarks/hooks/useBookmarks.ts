@@ -81,17 +81,15 @@ export function useBookmarks(
   }, [loaded, saved, update]);
 
   /**
-   * ディレクトリをブックマークへ追加します. 登録済みなら解除します.
+   * ディレクトリをブックマークへ追加します. 登録済みなら, 何もしません (解除は一覧の `x`).
    *
    * @param path - 対象のディレクトリのパス.
    */
-  const toggleBookmark = useCallback(
+  const addBookmark = useCallback(
     (path: string): void => {
-      update({
-        bookmarks: bookmarks.includes(path)
-          ? bookmarks.filter((b) => b !== path)
-          : [...bookmarks, path],
-      });
+      if (!bookmarks.includes(path)) {
+        update({ bookmarks: [...bookmarks, path] });
+      }
     },
     [bookmarks, update],
   );
@@ -99,13 +97,13 @@ export function useBookmarks(
   /**
    * ブックマークを解除します.
    *
-   * @param path - 解除するディレクトリのパス.
+   * @param paths - 解除するディレクトリのパス.
    */
   const removeBookmark = useCallback(
-    (path: string): void =>
-      update({ bookmarks: bookmarks.filter((b) => b !== path) }),
+    (paths: string[]): void =>
+      update({ bookmarks: bookmarks.filter((b) => !paths.includes(b)) }),
     [bookmarks, update],
   );
 
-  return { bookmarks, toggleBookmark, removeBookmark };
+  return { bookmarks, addBookmark, removeBookmark };
 }

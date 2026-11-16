@@ -73,7 +73,7 @@ function makeDeps(right: PaneState, colName?: number) {
       },
       updateDirColumnWidth: vi.fn(),
     },
-    bookmarks: { toggleBookmark: vi.fn() },
+    bookmarks: { addBookmark: vi.fn() },
     panels,
     pathInputs: { current: { left: null, right: null } },
     filterInputs: { current: { left: null, right: null } },
@@ -119,7 +119,7 @@ describe("useCommandDispatcher", () => {
 
     useCommandDispatcher(deps)("addBookmark");
 
-    expect(deps.bookmarks.toggleBookmark).toHaveBeenCalledWith("/work");
+    expect(deps.bookmarks.addBookmark).toHaveBeenCalledWith("/work");
     expect(panels.openBookmarks).toHaveBeenCalledWith("right");
   });
 

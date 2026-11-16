@@ -6,6 +6,7 @@ import {
   checkNestedConflicts,
   checkStaleOverwrites,
   copyFilesToClipboard,
+  getItemInfo,
   readClipboardFiles,
   runTransfer,
 } from "../../../services/tauriApi";
@@ -19,6 +20,7 @@ import type {
   TransferRequest,
 } from "../types";
 import { nestedMessage, overwriteMessage } from "../overwriteMessage";
+import { formatDate } from "../../../utils/formatters";
 import { getBaseName, getParentPath, isSamePath } from "../../../utils/path";
 
 /** この機能のロガー. */
@@ -84,6 +86,40 @@ export function describeTransfer(request: TransferRequest): string {
   const sources = rest > 0 ? `${shown} ほか ${rest} 件` : shown;
   const dest = request.dest_dir ? ` → 先: ${request.dest_dir}` : "";
   return `(元: ${sources}${dest})`;
+}
+
+/**
+ * 上書きになる対象 (送り先に同じ名前があるもの) の, 元と先の更新日時を文にします.
+ *
+ * 更新日時を読めない対象は, 含めません. 操作の前 (送り先がまだ上書きされていないとき) に呼びます.
+ *
+ * @param request - 上書きを承諾済みのコピー・移動の依頼.
+ * @returns `(上書き: a.txt 元 ... / 先 ...)` の形. 上書きが無い (または読めない) ときは空文字列.
+ */
+export async function describeOverwrites(
+  request: TransferRequest,
+): Promise<string> {
+  const destDir = request.dest_dir;
+  if (!request.overwrite || !destDir) {
+    return "";
+  }
+  const sep = destDir.includes("\\") && !destDir.includes("/") ? "\\" : "/";
+  const parts: string[] = [];
+  for (const source of request.sources.slice(0, SHOWN_SOURCES)) {
+    const name = getBaseName(source);
+    try {
+      const [from, to] = await Promise.all([
+        getItemInfo(source),
+        getItemInfo(`${destDir.replace(/[\\/]$/, "")}${sep}${name}`),
+      ]);
+      parts.push(
+        `${name} 元 ${formatDate(from.modified)} / 先 ${formatDate(to.modified)}`,
+      );
+    } catch {
+      // 送り先が無い, または読めない対象は, 更新日時を出さない
+    }
+  }
+  return parts.length > 0 ? ` (上書き: ${parts.join(", ")})` : "";
 }
 
 /**
@@ -153,6 +189,7 @@ export function useTransfer({
       let failure: string | null = null;
       try {
         setError(null);
+        const overwrites = await describeOverwrites(request);
         const summary = await runTransfer(request, (progress) =>
           setTask((t) => (t ? { ...t, ...progress } : t)),
         );
@@ -161,7 +198,7 @@ export function useTransfer({
         notify(
           summary.cancelled
             ? `${label}を中断しました (${summary.processed}/${count} 件処理済み) ${where}`
-            : `${label}しました: ${summary.processed} 件 ${where}`,
+            : `${label}しました: ${summary.processed} 件 ${where}${overwrites}`,
         );
       } catch (e) {
         log.error(`${label} 失敗: ${describeTransfer(request)}`, e);

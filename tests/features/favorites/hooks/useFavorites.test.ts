@@ -54,7 +54,7 @@ describe("useFavorites", () => {
 
   it("正常系: removeFavorite で解除できること", () => {
     const { result } = renderFavorites(["/a.txt"]);
-    act(() => result.current.removeFavorite("/a.txt"));
+    act(() => result.current.removeFavorite(["/a.txt"]));
     expect(result.current.favorites).toEqual([]);
   });
 

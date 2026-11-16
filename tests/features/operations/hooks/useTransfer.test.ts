@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FileEntry, PaneState } from "@/features/explorer/types";
 import {
+  describeOverwrites,
   describeTransfer,
   useTransfer,
 } from "@/features/operations/hooks/useTransfer";
@@ -10,6 +11,7 @@ import {
   checkNestedConflicts,
   checkStaleOverwrites,
   copyFilesToClipboard,
+  getItemInfo,
   readClipboardFiles,
   runTransfer,
 } from "@/services/tauriApi";
@@ -20,6 +22,7 @@ vi.mock("@/services/tauriApi", () => ({
   checkNestedConflicts: vi.fn(),
   checkStaleOverwrites: vi.fn(),
   copyFilesToClipboard: vi.fn(),
+  getItemInfo: vi.fn(),
   readClipboardFiles: vi.fn(),
   runTransfer: vi.fn(),
 }));
@@ -469,5 +472,55 @@ describe("describeTransfer", () => {
 
   it("境界: 先が無い操作 (削除) では, 元だけが出ること", () => {
     expect(describeTransfer(request(["/a"], null))).toBe("(元: /a)");
+  });
+});
+
+describe("describeOverwrites", () => {
+  const request = (
+    overwrite: boolean,
+    dest_dir: string | null,
+    src = "/s/a",
+  ) => ({
+    kind: "copy" as const,
+    sources: [src],
+    dest_dir,
+    overwrite,
+    permanent: false,
+  });
+  /** 2024/01/02 03:04:05 (UTC) の前後 1 日以内の時刻. */
+  const info = (modified: number | null) =>
+    ({ modified }) as Awaited<ReturnType<typeof getItemInfo>>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("正常系: 同名のものを上書きするときは, 元と先の更新日時が出ること", async () => {
+    vi.mocked(getItemInfo)
+      .mockResolvedValueOnce(info(1_700_000_000))
+      .mockResolvedValueOnce(info(1_700_086_400));
+    const text = await describeOverwrites(request(true, "/dest/"));
+    expect(getItemInfo).toHaveBeenCalledWith("/s/a");
+    expect(getItemInfo).toHaveBeenCalledWith("/dest/a");
+    expect(text).toMatch(
+      /^ \(上書き: a 元 \d{4}\/\d\d\/\d\d \d\d:\d\d:\d\d \/ 先 \d{4}\/\d\d\/\d\d \d\d:\d\d:\d\d\)$/,
+    );
+  });
+
+  it("正常系: Windows のパスでは, \\ でつなぐこと", async () => {
+    vi.mocked(getItemInfo).mockResolvedValue(info(1_700_000_000));
+    await describeOverwrites(request(true, "D:\\dest", "C:\\s\\a.txt"));
+    expect(getItemInfo).toHaveBeenCalledWith("D:\\dest\\a.txt");
+  });
+
+  it("境界: 上書きでない, または先が無い (削除) ときは, 何も出さないこと", async () => {
+    expect(await describeOverwrites(request(false, "/dest"))).toBe("");
+    expect(await describeOverwrites(request(true, null))).toBe("");
+    expect(getItemInfo).not.toHaveBeenCalled();
+  });
+
+  it("異常系: 更新日時を読めない対象は, 出さないこと", async () => {
+    vi.mocked(getItemInfo).mockRejectedValue(new Error("x"));
+    expect(await describeOverwrites(request(true, "/dest"))).toBe("");
   });
 });

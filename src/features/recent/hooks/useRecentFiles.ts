@@ -78,10 +78,10 @@ export function useRecentFiles(limit: number = DEFAULT_RECENT_FILES_LIMIT) {
   /**
    * ファイルを一覧から取り除きます.
    *
-   * @param path - 取り除くファイルの絶対パス.
+   * @param paths - 取り除くファイルの絶対パス.
    */
-  const remove = useCallback((path: string): void => {
-    setEntries((prev) => prev.filter((p) => p !== path));
+  const remove = useCallback((paths: string[]): void => {
+    setEntries((prev) => prev.filter((p) => !paths.includes(p)));
   }, []);
 
   return { files: [...entries].reverse(), record, remove };

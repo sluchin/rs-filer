@@ -15,7 +15,7 @@ function renderPane(isActive = true, bookmarks = ["/a", LONG]) {
     onCancel: vi.fn(),
     onSwitchPane: vi.fn(),
     // 一覧を開くキーの判定は App がキーマップで行う. ここでは x を, 開くキーとみなす
-    isToggleKey: vi.fn((e: KeyboardEvent) => e.key === "x"),
+    isToggleKey: vi.fn((e: KeyboardEvent) => e.key === "q"),
   };
   render(
     <BookmarkPane
@@ -62,11 +62,33 @@ describe("BookmarkPane", () => {
     expect(list.scrollLeft).toBe(0);
   });
 
+  it("正常系: d で削除の印 (赤字と取り消し線) を付けて 1 行下へ進み, u で外し, x で印を付けた行をまとめて外すこと", async () => {
+    const user = userEvent.setup();
+    const { handlers } = renderPane(true, ["/a", "/b", "/c"]);
+    const row = (name: string) => screen.getByText(name).closest("li");
+
+    await user.keyboard("x");
+    expect(handlers.onRemove).not.toHaveBeenCalled();
+
+    await user.keyboard("dd");
+    expect(row("/a")).toHaveAttribute("data-flagged", "true");
+    expect(row("/b")).toHaveAttribute("data-flagged", "true");
+    expect(row("/c")).toHaveAttribute("data-flagged", "false");
+    expect(row("/c")).toHaveAttribute("aria-current", "true");
+
+    await user.keyboard("kku");
+    expect(row("/a")).toHaveAttribute("data-flagged", "false");
+
+    await user.keyboard("x");
+    expect(handlers.onRemove).toHaveBeenCalledWith(["/b"]);
+    expect(row("/b")).toHaveAttribute("data-flagged", "false");
+  });
+
   it("正常系: 一覧を開くキーをもう一度押すと, 閉じること (トグル)", async () => {
     const user = userEvent.setup();
     const { handlers } = renderPane();
 
-    await user.keyboard("x");
+    await user.keyboard("q");
 
     expect(handlers.onCancel).toHaveBeenCalledTimes(1);
     expect(handlers.onSelect).not.toHaveBeenCalled();
@@ -198,8 +220,8 @@ describe("BookmarkPane", () => {
     expect(screen.getByLabelText("left list filter")).not.toHaveFocus();
     await user.keyboard("{Enter}");
     expect(handlers.onSelect).toHaveBeenCalledWith("/b/todo.txt");
-    await user.keyboard("d");
-    expect(handlers.onRemove).toHaveBeenCalledWith("/b/todo.txt");
+    await user.keyboard("dx");
+    expect(handlers.onRemove).toHaveBeenCalledWith(["/b/todo.txt"]);
 
     await user.keyboard("{Control>}s{/Control}");
     expect(screen.getByLabelText("left list filter")).toHaveFocus();

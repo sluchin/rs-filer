@@ -39,11 +39,11 @@ export function useFavorites(
   /**
    * お気に入りを解除します.
    *
-   * @param path - 解除するファイルのパス.
+   * @param paths - 解除するファイルのパス.
    */
   const removeFavorite = useCallback(
-    (path: string): void =>
-      update({ favorites: favorites.filter((f) => f !== path) }),
+    (paths: string[]): void =>
+      update({ favorites: favorites.filter((f) => !paths.includes(f)) }),
     [favorites, update],
   );
 

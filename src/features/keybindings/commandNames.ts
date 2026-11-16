@@ -66,7 +66,7 @@ export const COMMAND_DESCRIPTIONS: Record<Command, string> = {
   recentFiles: "最近開いたファイルの一覧",
   favorites: "お気に入りの一覧",
   addFavorite: "お気に入りへ登録・解除",
-  addBookmark: "ブックマークへ登録 / 解除",
+  addBookmark: "ブックマークへ登録",
   palette: "コマンドの実行",
   help: "コマンド一覧の表示",
   openTerminal: "カレントディレクトリでターミナルを開く",

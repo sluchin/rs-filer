@@ -88,7 +88,7 @@ describe("useRecentFiles", () => {
     act(() => result.current.record("/a"));
     act(() => result.current.record("/b"));
 
-    act(() => result.current.remove("/a"));
+    act(() => result.current.remove(["/a"]));
 
     expect(result.current.files).toEqual(["/b"]);
   });

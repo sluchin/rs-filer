@@ -36,20 +36,20 @@ describe("useBookmarks", () => {
     localStorage.clear();
   });
 
-  it("正常系: 追加すると設定に保存され, 再度呼ぶと解除されること", () => {
+  it("正常系: 追加すると設定に保存され, 登録済みなら再度呼んでも解除されないこと", () => {
     const { result, saved } = renderBookmarks([]);
-    act(() => result.current.toggleBookmark("/a"));
-    act(() => result.current.toggleBookmark("/b"));
+    act(() => result.current.addBookmark("/a"));
+    act(() => result.current.addBookmark("/b"));
     expect(result.current.bookmarks).toEqual(["/a", "/b"]);
     expect(saved).toHaveBeenLastCalledWith({ bookmarks: ["/a", "/b"] });
 
-    act(() => result.current.toggleBookmark("/a"));
-    expect(result.current.bookmarks).toEqual(["/b"]);
+    act(() => result.current.addBookmark("/a"));
+    expect(result.current.bookmarks).toEqual(["/a", "/b"]);
   });
 
   it("正常系: removeBookmark で解除できること", () => {
     const { result } = renderBookmarks(["/a"]);
-    act(() => result.current.removeBookmark("/a"));
+    act(() => result.current.removeBookmark(["/a"]));
     expect(result.current.bookmarks).toEqual([]);
   });
 
