@@ -75,6 +75,18 @@ export function useDialogs() {
   const [copyMenu, setCopyMenu] = useState<CopyMenuState | null>(null);
 
   const actions = useMemo(() => {
+    /** 同じペインに出す一覧は 1 つだけなので, 指定した一覧を出すときは, ほかの一覧を消す. */
+    const showList = (
+      kind: "bookmarks" | "history" | "recent" | "favorites",
+      pane: PaneId,
+    ): void => {
+      const set = (on: boolean) => (p: PaneFlags) => ({ ...p, [pane]: on });
+      setBookmarkPanes(set(kind === "bookmarks"));
+      setHistoryPanes(set(kind === "history"));
+      setRecentPanes(set(kind === "recent"));
+      setFavoritePanes(set(kind === "favorites"));
+    };
+
     const panels: PanelActions = {
       // プレビューと詳細は, どちらも反対側のペインに出すので, 一方を出すときは, もう一方を消す.
       togglePreview: () => {
@@ -86,14 +98,10 @@ export function useDialogs() {
         setInfoOn((on) => !on);
       },
       openLog: () => setLogOpen(true),
-      openHistoryList: (pane) =>
-        setHistoryPanes((p) => ({ ...p, [pane]: true })),
-      openRecentFiles: (pane) =>
-        setRecentPanes((p) => ({ ...p, [pane]: true })),
-      openFavorites: (pane) =>
-        setFavoritePanes((p) => ({ ...p, [pane]: true })),
-      openBookmarks: (pane) =>
-        setBookmarkPanes((p) => ({ ...p, [pane]: true })),
+      openHistoryList: (pane) => showList("history", pane),
+      openRecentFiles: (pane) => showList("recent", pane),
+      openFavorites: (pane) => showList("favorites", pane),
+      openBookmarks: (pane) => showList("bookmarks", pane),
       toggleTree: (pane) => setTreePanes((p) => ({ ...p, [pane]: !p[pane] })),
       openPalette: () => {
         setPaletteValue("");

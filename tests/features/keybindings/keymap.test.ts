@@ -169,7 +169,7 @@ describe("resolveKey", () => {
     ["r l", "bookmarks"],
     ["f m", "addFavorite"],
     ["f l", "favorites"],
-    ["h l", "historyList"],
+    ["D r", "historyList"],
   ])("正常系: C-x %s は, コマンド %s になること", (keys, command) => {
     let prefix: string | null = PREFIX_CTRL_X;
     for (const k of keys.split(" ")) {
@@ -181,14 +181,17 @@ describe("resolveKey", () => {
     }
   });
 
-  it("正常系: 一覧を開くキーの旧割り当て (b, F, H, M-b, M-f, M-h, M-r, C-x C-r) は無いこと", () => {
+  it("正常系: 一覧を開くキーの旧割り当て (b, F, H, M-b, M-f, M-h, M-r) は無いこと", () => {
     for (const k of ["b", "F", "H"]) {
       expect(resolveKey(key(k), null)).toEqual({});
     }
     for (const k of ["b", "f", "h", "r"]) {
       expect(resolveKey(key(k, { altKey: true }), null)).toEqual({});
     }
-    expect(resolveKey(key("r", { ctrlKey: true }), PREFIX_CTRL_X)).toEqual({});
+    expect(resolveKey(key("h"), PREFIX_CTRL_X)).toEqual({});
+    expect(resolveKey(key("r", { ctrlKey: true }), PREFIX_CTRL_X)).toEqual({
+      command: "recentFiles",
+    });
   });
 
   it("正常系: C-x の後に C-d で, パス入力欄へ移る (goto) こと", () => {

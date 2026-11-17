@@ -183,13 +183,14 @@ export default function App(): ReactElement {
         recentFiles: dialogs.openRecentFiles,
         historyList: dialogs.openHistoryList,
       } as const;
+      if (command === "palette") {
+        // どの一覧の表示中でも, M-x でコマンドを実行できる
+        dialogs.openPalette();
+        return true;
+      }
       if (command === undefined || command === own || !(command in opens)) {
         return isListPrefixPending();
       }
-      closeBookmarks(paneId);
-      closeFavorites(paneId);
-      closeRecentFiles(paneId);
-      closeHistoryList(paneId);
       opens[command as keyof typeof opens](paneId);
       return true;
     };

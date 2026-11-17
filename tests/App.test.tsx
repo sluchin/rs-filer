@@ -2348,7 +2348,7 @@ describe("App (履歴・ブックマーク)", () => {
     const user = await renderLoaded();
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
 
     // 現在地より前の行を消す
     fireEvent.contextMenu(paneOf("left").getByText("/mock/home"), {
@@ -2376,7 +2376,7 @@ describe("App (履歴・ブックマーク)", () => {
     const user = await renderLoaded();
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
 
     await user.keyboard("kdx");
     expect(paneOf("left").getAllByRole("listitem").map(rowPathText)).toEqual([
@@ -2413,13 +2413,13 @@ describe("App (移動履歴の一覧)", () => {
     vi.clearAllMocks();
   });
 
-  it("正常系: C-x h l でアクティブなペインの表示が移動履歴の一覧に切り替わり, 現在地に印が付くこと", async () => {
+  it("正常系: C-x D r でアクティブなペインの表示が移動履歴の一覧に切り替わり, 現在地に印が付くこと", async () => {
     mockPhase4();
     const user = await renderLoaded();
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
 
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
 
     const rows = paneOf("left").getAllByRole("listitem");
     expect(rows.map(rowPathText)).toEqual([
@@ -2437,10 +2437,10 @@ describe("App (移動履歴の一覧)", () => {
     );
     const user = await renderLoaded();
 
-    await user.keyboard(":recentFiles{Enter}");
+    await user.keyboard("{Control>}x{/Control}{Control>}r{/Control}");
     await screen.findByText("最近開いたファイル");
 
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
     expect(await paneOf("left").findByText("移動履歴")).toBeInTheDocument();
     expect(screen.queryByText("最近開いたファイル")).not.toBeInTheDocument();
 
@@ -2459,15 +2459,33 @@ describe("App (移動履歴の一覧)", () => {
     );
   });
 
-  it("正常系: 移動履歴の一覧の表示中に, もう一度 C-x h l を押すと, 移動せずに通常の表示に戻ること (トグル)", async () => {
+  it("正常系: 一覧の表示中に M-x でコマンドを実行でき, 一覧は 1 つだけに替わること", async () => {
     mockPhase4();
     const user = await renderLoaded();
-    await user.keyboard("{Control>}x{/Control}hl");
+
+    await user.keyboard("{Control>}x{/Control}rl");
+    expect(await paneOf("left").findByText("ブックマーク")).toBeInTheDocument();
+    await user.keyboard("{Alt>}x{/Alt}");
+    expect(
+      screen.getByRole("dialog", { name: "コマンドの実行" }),
+    ).toBeInTheDocument();
+    await user.keyboard("recentFiles{Enter}");
+
+    expect(
+      await paneOf("left").findByText("最近開いたファイル"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("ブックマーク")).not.toBeInTheDocument();
+  });
+
+  it("正常系: 移動履歴の一覧の表示中に, もう一度 C-x D r を押すと, 移動せずに通常の表示に戻ること (トグル)", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
     expect(paneOf("left").getAllByRole("listitem")[0]).toHaveTextContent(
       "/mock/home",
     );
 
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
 
     expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
     expect(paneOf("left").queryByText("現在地")).toBeNull();
@@ -2484,7 +2502,7 @@ describe("App (移動履歴の一覧)", () => {
     await paneOf("left").findByText("in.txt");
     // 履歴: [/mock/home, /mock/home/FolderA] (同じディレクトリは末尾へ移す. 現在地は末尾).
 
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
     await user.keyboard("kkk");
     await user.keyboard("{Enter}");
 
@@ -2499,7 +2517,7 @@ describe("App (移動履歴の一覧)", () => {
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
 
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
     await user.dblClick(paneOf("left").getByText("/mock/home"));
 
     await waitFor(() =>
@@ -2513,7 +2531,7 @@ describe("App (移動履歴の一覧)", () => {
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
 
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
     await user.keyboard("{Escape}");
 
     expect(paneOf("left").getByText("in.txt")).toBeInTheDocument();
@@ -2522,7 +2540,7 @@ describe("App (移動履歴の一覧)", () => {
   it("正常系: Tab を押すと, 一覧を表示したままもう一方のペインがアクティブになり, もう一度で戻ること", async () => {
     mockPhase4();
     const user = await renderLoaded();
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
     expect(screen.getByRole("region", { name: "left pane" })).toHaveAttribute(
       "data-active",
       "true",
@@ -2556,7 +2574,7 @@ describe("App (移動履歴の一覧)", () => {
     await user.keyboard("{Tab}{Enter}");
     await paneOf("right").findByText("in.txt");
 
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
 
     expect(paneOf("right").getByText("/mock/home")).toBeInTheDocument();
     expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
@@ -2565,7 +2583,7 @@ describe("App (移動履歴の一覧)", () => {
   it("境界: 割り当てのないキーを押しても何も起きないこと", async () => {
     mockPhase4();
     const user = await renderLoaded();
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
     await user.keyboard("z");
     expect(
       paneOf("left").getByText("/mock/home", { selector: ".full-path" }),
@@ -2578,7 +2596,7 @@ describe("App (移動履歴の一覧)", () => {
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
 
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
     expect(
       paneOf("left").getByText("/mock/home/FolderA").closest("li"),
     ).toHaveAttribute("aria-current", "true");
@@ -4992,7 +5010,7 @@ describe("App (移動履歴の保存と復元)", () => {
     );
     const user = await renderLoaded();
 
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
 
     // 左: 開いた /mock/home は履歴にあるので, 末尾へ移し, そこが現在地.
     expect(paneOf("left").getAllByRole("listitem").map(rowPathText)).toEqual([
@@ -5000,7 +5018,7 @@ describe("App (移動履歴の保存と復元)", () => {
       "/mock/home現在地",
     ]);
     // 右: 開いた /mock/home は履歴に無いので, 末尾に足す.
-    await user.keyboard("{Escape}{Tab}{Control>}x{/Control}hl");
+    await user.keyboard("{Escape}{Tab}{Control>}x{/Control}{Shift>}D{/Shift}r");
     expect(paneOf("right").getAllByRole("listitem").map(rowPathText)).toEqual([
       "/mock/other",
       "/mock/home現在地",
@@ -5018,7 +5036,7 @@ describe("App (移動履歴の保存と復元)", () => {
     );
     const user = await renderLoaded();
 
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
 
     expect(paneOf("left").getAllByRole("listitem").map(rowPathText)).toEqual([
       "C:\\Users\\foo",
@@ -5080,7 +5098,7 @@ describe("App (移動履歴の保存と復元)", () => {
 
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
-    await user.keyboard("{Control>}x{/Control}hl");
+    await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
 
     expect(paneOf("left").getAllByRole("listitem").map(rowPathText)).toEqual([
       "/mock/home",
@@ -5851,7 +5869,7 @@ describe("App (タブ)", () => {
     expect(paneOf("left").getByText("FolderA")).toBeInTheDocument();
 
     // タブ 2 で, 最近開いたファイルの一覧を出す
-    await user.keyboard(":recentFiles{Enter}");
+    await user.keyboard("{Control>}x{/Control}{Control>}r{/Control}");
     expect(await screen.findByText("最近開いたファイル")).toBeInTheDocument();
     expect(shown("ブックマーク")).toBe(false);
 
@@ -5914,7 +5932,7 @@ describe("App (最近開いたファイル)", () => {
     const user = await renderLoaded();
 
     await user.keyboard("j{Enter}");
-    await user.keyboard(":recentFiles{Enter}");
+    await user.keyboard("{Control>}x{/Control}{Control>}r{/Control}");
 
     expect(await screen.findByText("最近開いたファイル")).toBeInTheDocument();
     expect(
@@ -5944,7 +5962,7 @@ describe("App (最近開いたファイル)", () => {
 
     await user.keyboard("W");
     await user.keyboard("e");
-    await user.keyboard(":recentFiles{Enter}");
+    await user.keyboard("{Control>}x{/Control}{Control>}r{/Control}");
 
     expect(
       await screen.findByText("開いたファイルはありません."),
@@ -5973,7 +5991,7 @@ describe("App (最近開いたファイル)", () => {
         : undefined,
     );
     const user = await renderLoaded();
-    await user.keyboard(":recentFiles{Enter}");
+    await user.keyboard("{Control>}x{/Control}{Control>}r{/Control}");
     await screen.findByText("/mock/home/b.txt");
 
     await user.keyboard("jo");
@@ -5993,7 +6011,7 @@ describe("App (最近開いたファイル)", () => {
         : undefined,
     );
     const user = await renderLoaded();
-    await user.keyboard(":recentFiles{Enter}");
+    await user.keyboard("{Control>}x{/Control}{Control>}r{/Control}");
     const row = await screen.findByText("/mock/home/b.txt");
 
     fireEvent.contextMenu(row, { clientX: 5, clientY: 6 });
@@ -6029,7 +6047,7 @@ describe("App (最近開いたファイル)", () => {
         : undefined,
     );
     const user = await renderLoaded();
-    await user.keyboard(":recentFiles{Enter}");
+    await user.keyboard("{Control>}x{/Control}{Control>}r{/Control}");
 
     fireEvent.contextMenu(await screen.findByText("/mock/home/b.txt"), {
       clientX: 5,
@@ -6047,7 +6065,7 @@ describe("App (最近開いたファイル)", () => {
         : undefined,
     );
     const user = await renderLoaded();
-    await user.keyboard(":recentFiles{Enter}");
+    await user.keyboard("{Control>}x{/Control}{Control>}r{/Control}");
     expect(await screen.findByText("/mock/home/old.txt")).toBeInTheDocument();
 
     await user.keyboard("dx");
@@ -6072,7 +6090,7 @@ describe("App (最近開いたファイル)", () => {
     });
     const user = await renderLoaded();
 
-    await user.keyboard(":recentFiles{Enter}");
+    await user.keyboard("{Control>}x{/Control}{Control>}r{/Control}");
 
     expect(await screen.findByText("/mock/home/c.txt")).toBeInTheDocument();
     expect(screen.queryByText("/mock/home/a.txt")).not.toBeInTheDocument();
