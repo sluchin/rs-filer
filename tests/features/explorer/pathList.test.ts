@@ -3,6 +3,7 @@ import {
   PATH_LIST_SCROLL_STEP,
   filterIndexes,
   filterPaths,
+  moveListCursor,
   scrollPathList,
 } from "@/features/explorer/pathList";
 
@@ -53,5 +54,53 @@ describe("filterIndexes", () => {
     expect(filterIndexes(paths, "docs todo")).toEqual([1]);
     expect(filterIndexes(paths, "")).toEqual([0, 1, 2]);
     expect(filterIndexes(paths, "zzz")).toEqual([]);
+  });
+});
+
+describe("moveListCursor", () => {
+  const press = (
+    key: string,
+    mods: { ctrlKey?: boolean; altKey?: boolean } = {},
+    index = 20,
+    count = 50,
+  ) =>
+    moveListCursor(
+      { key, ctrlKey: false, altKey: false, ...mods },
+      index,
+      count,
+    );
+
+  it.each([
+    ["ArrowDown", {}, 21],
+    ["j", {}, 21],
+    ["n", {}, 21],
+    [" ", {}, 21],
+    ["n", { ctrlKey: true }, 21],
+    ["ArrowUp", {}, 19],
+    ["k", {}, 19],
+    ["p", {}, 19],
+    ["p", { ctrlKey: true }, 19],
+    ["PageDown", {}, 30],
+    ["PageUp", {}, 10],
+    ["v", { altKey: true }, 10],
+    ["Home", {}, 0],
+    ["<", { altKey: true }, 0],
+    ["End", {}, 49],
+    [">", { altKey: true }, 49],
+  ])("正常系: %s (%j) でカーソルが動くこと", (key, mods, expected) => {
+    expect(press(key, mods)).toBe(expected);
+  });
+
+  it("境界: 先頭・末尾より外へは出ず, 行が無いときは 0 になること", () => {
+    expect(press("PageUp", {}, 3)).toBe(0);
+    expect(press("PageDown", {}, 45)).toBe(49);
+    expect(press("j", {}, 0, 0)).toBe(0);
+  });
+
+  it("正常系: カーソルを動かすキーでなければ null を返すこと", () => {
+    expect(press("x")).toBeNull();
+    expect(press("x", { ctrlKey: true })).toBeNull();
+    expect(press("x", { altKey: true })).toBeNull();
+    expect(press("ArrowLeft")).toBeNull();
   });
 });

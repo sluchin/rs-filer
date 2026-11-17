@@ -2590,30 +2590,30 @@ describe("App (移動履歴の一覧)", () => {
     ).toBeInTheDocument();
   });
 
-  it("正常系: ↑/↓ でもカーソルが動き, 先頭・末尾より外へは出ないこと", async () => {
+  it("正常系: 一覧を出すと先頭の行にカーソルがあり, ↑/↓ で動いて, 先頭・末尾より外へは出ないこと", async () => {
     mockPhase4();
     const user = await renderLoaded();
     await user.keyboard("{Enter}");
     await paneOf("left").findByText("in.txt");
 
     await user.keyboard("{Control>}x{/Control}{Shift>}D{/Shift}r");
-    expect(
-      paneOf("left").getByText("/mock/home/FolderA").closest("li"),
-    ).toHaveAttribute("aria-current", "true");
+    const current = (name: string) =>
+      paneOf("left").getByText(name).closest("li");
+    expect(current("/mock/home")).toHaveAttribute("aria-current", "true");
+
+    await user.keyboard("{ArrowUp}");
+    expect(current("/mock/home")).toHaveAttribute("aria-current", "true");
 
     await user.keyboard("{ArrowDown}");
-    expect(
-      paneOf("left").getByText("/mock/home/FolderA").closest("li"),
-    ).toHaveAttribute("aria-current", "true");
-
-    await user.keyboard("{ArrowUp}");
-    expect(
-      paneOf("left").getByText("/mock/home").closest("li"),
-    ).toHaveAttribute("aria-current", "true");
-    await user.keyboard("{ArrowUp}");
-    expect(
-      paneOf("left").getByText("/mock/home").closest("li"),
-    ).toHaveAttribute("aria-current", "true");
+    expect(current("/mock/home/FolderA")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    await user.keyboard("{ArrowDown}");
+    expect(current("/mock/home/FolderA")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
   });
 });
 

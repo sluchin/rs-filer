@@ -1,6 +1,18 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
 import PathItem from "../../explorer/components/PathItem";
-import { filterPaths, scrollPathList } from "../../explorer/pathList";
+import { useVirtualRows } from "../../explorer/hooks/useVirtualRows";
+import {
+  filterPaths,
+  moveListCursor,
+  scrollPathList,
+} from "../../explorer/pathList";
 import QuickFilterBar from "../../search/components/QuickFilterBar";
 import type { PaneId } from "../../explorer/types";
 
@@ -86,7 +98,7 @@ export default function BookmarkPane({
   const filterInput = useRef<HTMLInputElement | null>(null);
   /** 削除の印を付けた行のパス. */
   const [flagged, setFlagged] = useState<ReadonlySet<string>>(new Set());
-  const rowsRef = useRef<HTMLUListElement>(null);
+  const rowsRef = useRef<HTMLUListElement | null>(null);
   const bookmarks = useMemo(
     () => (filter === null ? allPaths : filterPaths(allPaths, filter)),
     [allPaths, filter],
@@ -94,6 +106,27 @@ export default function BookmarkPane({
   // 解除などで件数が減ってカーソルが範囲外に出ても, 描画時にその場でクランプする
   // (件数が変わるたびに setState し直すのではなく, 値そのものを直す).
   const index = Math.min(rawIndex, Math.max(0, bookmarks.length - 1));
+
+  // 通常のペインと同じく, 画面に映る行の前後だけを描画し, カーソルの行が見えるようにスクロールする.
+  const {
+    containerRef,
+    measureRowRef,
+    start,
+    end,
+    paddingTop,
+    paddingBottom,
+    scrollToIndex,
+  } = useVirtualRows(bookmarks.length);
+  const setRowsElement = useCallback(
+    (element: HTMLUListElement | null): void => {
+      rowsRef.current = element;
+      containerRef(element);
+    },
+    [containerRef],
+  );
+  useEffect(() => {
+    scrollToIndex(index);
+  }, [index, scrollToIndex]);
 
   useEffect(() => {
     // アクティブでない間は, もう一方のペインの操作を優先し, 一覧のキー操作を受け付けない.
@@ -112,12 +145,9 @@ export default function BookmarkPane({
       } else if (onOtherListKey?.(e)) {
         // ほかの一覧を開くキーなら, その一覧に替わる
         e.preventDefault();
-      } else if (e.key === "ArrowDown" || e.key === "j") {
+      } else if (moveListCursor(e, index, bookmarks.length) !== null) {
         e.preventDefault();
-        setIndex(Math.min(bookmarks.length - 1, index + 1));
-      } else if (e.key === "ArrowUp" || e.key === "k") {
-        e.preventDefault();
-        setIndex(Math.max(0, index - 1));
+        setIndex(moveListCursor(e, index, bookmarks.length) as number);
       } else if (
         // 長いパスを見るため, 一覧を横にスクロールする.
         // キー操作を受け付けるのはマウントしている間だけなので, 一覧の要素は必ずある
@@ -220,7 +250,10 @@ export default function BookmarkPane({
         />
       )}
       <div className="file-list">
-        <ul ref={rowsRef} className="file-rows path-rows">
+        <ul ref={setRowsElement} className="file-rows path-rows">
+          {paddingTop > 0 && (
+            <li aria-hidden="true" style={{ height: paddingTop }} />
+          )}
           {bookmarks.length === 0 && (
             <li className="file-row">
               <span className="col-name">
@@ -230,28 +263,35 @@ export default function BookmarkPane({
               </span>
             </li>
           )}
-          {bookmarks.map((path, i) => (
-            <li
-              key={path}
-              className="file-row"
-              data-flagged={flagged.has(path)}
-              data-cursor={
-                i !== index ? "none" : isActive ? "active" : "inactive"
-              }
-              aria-current={i === index ? "true" : undefined}
-              onClick={() => setIndex(i)}
-              onDoubleClick={() => onSelect(path)}
-              onContextMenu={(e) => {
-                if (onContextMenu) {
-                  e.preventDefault();
-                  setIndex(i);
-                  onContextMenu(path, e.clientX, e.clientY);
+          {bookmarks.slice(start, end).map((path, k) => {
+            const i = start + k;
+            return (
+              <li
+                key={path}
+                className="file-row"
+                data-flagged={flagged.has(path)}
+                data-cursor={
+                  i !== index ? "none" : isActive ? "active" : "inactive"
                 }
-              }}
-            >
-              <PathItem path={path} isDir={!isFiles} />
-            </li>
-          ))}
+                aria-current={i === index ? "true" : undefined}
+                ref={i === start ? measureRowRef : undefined}
+                onClick={() => setIndex(i)}
+                onDoubleClick={() => onSelect(path)}
+                onContextMenu={(e) => {
+                  if (onContextMenu) {
+                    e.preventDefault();
+                    setIndex(i);
+                    onContextMenu(path, e.clientX, e.clientY);
+                  }
+                }}
+              >
+                <PathItem path={path} isDir={!isFiles} />
+              </li>
+            );
+          })}
+          {paddingBottom > 0 && (
+            <li aria-hidden="true" style={{ height: paddingBottom }} />
+          )}
         </ul>
       </div>
     </div>

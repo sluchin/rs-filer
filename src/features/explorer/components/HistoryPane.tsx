@@ -1,6 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
 import QuickFilterBar from "../../search/components/QuickFilterBar";
-import { filterIndexes, scrollPathList } from "../pathList";
+import { useVirtualRows } from "../hooks/useVirtualRows";
+import { filterIndexes, moveListCursor, scrollPathList } from "../pathList";
 import PathItem from "./PathItem";
 import type { PaneId } from "../types";
 
@@ -70,13 +78,13 @@ export default function HistoryPane({
   isToggleKey,
   onOtherListKey,
 }: HistoryPaneProps): ReactElement {
-  const [rawIndex, setIndex] = useState(historyIndex);
+  const [rawIndex, setIndex] = useState(0);
   /** 絞り込みの文字. 絞り込みの入力欄を出していないときは null. */
   const [filter, setFilter] = useState<string | null>(null);
   const filterInput = useRef<HTMLInputElement | null>(null);
   /** 削除の印を付けた行の, 履歴上の位置. */
   const [flagged, setFlagged] = useState<ReadonlySet<number>>(new Set());
-  const rowsRef = useRef<HTMLUListElement>(null);
+  const rowsRef = useRef<HTMLUListElement | null>(null);
   /** 表示する行の, 履歴上の位置 (絞り込んでいなければ, 全て). */
   const rows = useMemo(
     () =>
@@ -88,6 +96,27 @@ export default function HistoryPane({
   // 履歴が変わってカーソルが範囲外に出ても, 描画時にその場でクランプする.
   // index は, 表示している行の中の位置 (履歴上の位置は rows[index]).
   const index = Math.min(Math.max(rawIndex, 0), Math.max(0, rows.length - 1));
+
+  // 通常のペインと同じく, 画面に映る行の前後だけを描画し, カーソルの行が見えるようにスクロールする.
+  const {
+    containerRef,
+    measureRowRef,
+    start,
+    end,
+    paddingTop,
+    paddingBottom,
+    scrollToIndex,
+  } = useVirtualRows(rows.length);
+  const setRowsElement = useCallback(
+    (element: HTMLUListElement | null): void => {
+      rowsRef.current = element;
+      containerRef(element);
+    },
+    [containerRef],
+  );
+  useEffect(() => {
+    scrollToIndex(index);
+  }, [index, scrollToIndex]);
 
   useEffect(() => {
     if (!isActive) {
@@ -105,12 +134,9 @@ export default function HistoryPane({
       } else if (onOtherListKey?.(e)) {
         // ほかの一覧を開くキーなら, その一覧に替わる
         e.preventDefault();
-      } else if (e.key === "ArrowDown" || e.key === "j") {
+      } else if (moveListCursor(e, index, rows.length) !== null) {
         e.preventDefault();
-        setIndex(Math.min(rows.length - 1, index + 1));
-      } else if (e.key === "ArrowUp" || e.key === "k") {
-        e.preventDefault();
-        setIndex(Math.max(0, index - 1));
+        setIndex(moveListCursor(e, index, rows.length) as number);
       } else if (
         // 長いパスを見るため, 一覧を横にスクロールする.
         // キー操作を受け付けるのはマウントしている間だけなので, 一覧の要素は必ずある
@@ -208,35 +234,45 @@ export default function HistoryPane({
         />
       )}
       <div className="file-list">
-        <ul ref={rowsRef} className="file-rows path-rows">
+        <ul ref={setRowsElement} className="file-rows path-rows">
+          {paddingTop > 0 && (
+            <li aria-hidden="true" style={{ height: paddingTop }} />
+          )}
           {rows.length === 0 && (
             <li className="file-row">
               <span className="col-name">一致するものがありません.</span>
             </li>
           )}
-          {rows.map((i, position) => (
-            <li
-              key={`${i}-${history[i]}`}
-              className="file-row"
-              data-flagged={flagged.has(i)}
-              data-cursor={
-                position !== index ? "none" : isActive ? "active" : "inactive"
-              }
-              aria-current={position === index ? "true" : undefined}
-              onClick={() => setIndex(position)}
-              onDoubleClick={() => onSelect(history[i], i)}
-              onContextMenu={(e) => {
-                if (onContextMenu) {
-                  e.preventDefault();
-                  setIndex(position);
-                  onContextMenu(history[i], i, e.clientX, e.clientY);
+          {rows.slice(start, end).map((i, k) => {
+            const position = start + k;
+            return (
+              <li
+                key={`${i}-${history[i]}`}
+                className="file-row"
+                data-flagged={flagged.has(i)}
+                data-cursor={
+                  position !== index ? "none" : isActive ? "active" : "inactive"
                 }
-              }}
-            >
-              <PathItem path={history[i]} isDir />
-              {i === historyIndex && <span className="col-attr">現在地</span>}
-            </li>
-          ))}
+                aria-current={position === index ? "true" : undefined}
+                ref={position === start ? measureRowRef : undefined}
+                onClick={() => setIndex(position)}
+                onDoubleClick={() => onSelect(history[i], i)}
+                onContextMenu={(e) => {
+                  if (onContextMenu) {
+                    e.preventDefault();
+                    setIndex(position);
+                    onContextMenu(history[i], i, e.clientX, e.clientY);
+                  }
+                }}
+              >
+                <PathItem path={history[i]} isDir />
+                {i === historyIndex && <span className="col-attr">現在地</span>}
+              </li>
+            );
+          })}
+          {paddingBottom > 0 && (
+            <li aria-hidden="true" style={{ height: paddingBottom }} />
+          )}
         </ul>
       </div>
     </div>

@@ -28,9 +28,79 @@ function renderPane(isActive = true, bookmarks = ["/a", LONG]) {
   return { list: screen.getByRole("list"), handlers };
 }
 
+/** 一覧の高さを 200px, 1 行の高さを 20px とみなす (jsdom はレイアウトを計算しない). */
+function stubLayout(): void {
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(200);
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    right: 0,
+    width: 0,
+    top: 0,
+    bottom: 0,
+    height: 20,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  });
+}
+
 describe("BookmarkPane", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("正常系: 一覧を出すと先頭の行がカーソルで, 画面に映る行の前後だけを描画し, カーソルの行が見えるようにスクロールすること", async () => {
+    const user = userEvent.setup();
+    stubLayout();
+    const paths = Array.from({ length: 100 }, (_, i) => `/b/${i}`);
+    const { list } = renderPane(true, paths);
+
+    expect(screen.getByText("/b/0").closest("li")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(screen.queryByText("/b/60")).not.toBeInTheDocument();
+    expect(list.scrollTop).toBe(0);
+
+    await user.keyboard("{ArrowDown}".repeat(15));
+    // 16 行目 (添字 15) の下端が見えるまで: 16 * 20 - 200
+    expect(list.scrollTop).toBe(120);
+
+    await user.keyboard("{ArrowUp}".repeat(15));
+    expect(list.scrollTop).toBe(0);
+  });
+
+  it("正常系: PageDown / PageUp は 10 行, End / Home は末尾 / 先頭へ動き, C-n C-p M-v M-> M-< n p Space も同じ働きをすること", async () => {
+    const user = userEvent.setup();
+    stubLayout();
+    const paths = Array.from({ length: 100 }, (_, i) => `/b/${i}`);
+    const { list } = renderPane(true, paths);
+    const press = async (keys: string): Promise<void> => {
+      await user.keyboard(keys);
+      // jsdom は, scrollTop を変えても scroll イベントを送らない
+      fireEvent.scroll(list);
+    };
+    const current = () =>
+      list.querySelector('[aria-current="true"]')?.textContent;
+
+    await press("{PageDown}");
+    expect(current()).toContain("/b/10");
+    await press("{PageUp}");
+    expect(current()).toContain("/b/0");
+    await press("{End}");
+    expect(current()).toContain("/b/99");
+    await press("{Home}");
+    expect(current()).toContain("/b/0");
+    await press("{Control>}n{/Control}n p {Control>}n{/Control}");
+    expect(current()).toContain("/b/4");
+    await press("{Control>}p{/Control}");
+    expect(current()).toContain("/b/3");
+    await press("{Alt>}>{/Alt}");
+    expect(current()).toContain("/b/99");
+    await press("{Alt>}v{/Alt}");
+    expect(current()).toContain("/b/89");
+    await press("{Alt>}<{/Alt}");
+    expect(current()).toContain("/b/0");
   });
 
   it("正常系: パスを省略せずに表示し, 一覧を横にスクロールできるクラスを付けること", () => {
