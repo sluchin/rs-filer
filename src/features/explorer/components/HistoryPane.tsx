@@ -227,6 +227,9 @@ export default function HistoryPane({
             setIndex(0);
           }}
           onCancel={() => setFilter(null)}
+          onMove={(delta) =>
+            setIndex(Math.min(Math.max(0, index + delta), rows.length - 1))
+          }
           inputRef={(element) => {
             filterInput.current = element;
           }}

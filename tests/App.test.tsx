@@ -2145,6 +2145,31 @@ describe("App (表示・ソート・絞り込み)", () => {
     expect(cursorNames()).toEqual(["a.txt"]);
   });
 
+  it("正常系: 絞り込みを Enter で確定したあと, ↓ でカーソルを動かせること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+
+    await user.keyboard("/{Enter}");
+    expect(screen.getByLabelText("left filter")).not.toHaveFocus();
+    const first = cursorNames();
+    await user.keyboard("{ArrowDown}");
+
+    expect(cursorNames()).not.toEqual(first);
+  });
+
+  it("正常系: 絞り込みの入力中に ↓ と ↑ で, 入力欄に居たまま一覧のカーソルを動かせること", async () => {
+    mockPhase4();
+    const user = await renderLoaded();
+
+    await user.keyboard("/");
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByLabelText("left filter")).toHaveFocus();
+    const down = cursorNames();
+    await user.keyboard("{ArrowUp}");
+
+    expect(cursorNames()).not.toEqual(down);
+  });
+
   it("正常系: 絞り込み中に / や Ctrl+S を押すと入力欄へ戻り, Esc で絞り込みが解除されること", async () => {
     mockPhase4();
     const user = await renderLoaded();

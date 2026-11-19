@@ -392,6 +392,9 @@ export default function App(): ReactElement {
     (pane: PaneId, value: string | null): void =>
       setView(pane, { filter: value }),
   );
+  const handleFilterMove = useStableCallback(
+    (pane: PaneId, delta: number): void => moveCursor(pane, delta),
+  );
   const registerPathInput = useCallback(
     (pane: PaneId, element: HTMLInputElement | null): void => {
       pathInputs.current[pane] = element;
@@ -666,6 +669,7 @@ export default function App(): ReactElement {
           onParentClick={handleParentClick}
           onPathSubmit={handlePathSubmit}
           onFilterChange={handleFilterChange}
+          onFilterMove={handleFilterMove}
           onItemClick={handleItemClick}
           onItemOpen={handleItemOpen}
           onItemContextMenu={handleItemContextMenu}

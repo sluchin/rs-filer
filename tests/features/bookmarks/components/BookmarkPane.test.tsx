@@ -297,6 +297,18 @@ describe("BookmarkPane", () => {
     expect(screen.getByLabelText("left list filter")).toHaveFocus();
   });
 
+  it("正常系: 入力中の ↓ と ↑ で, 入力欄に居たまま絞り込んだ一覧のカーソルを動かせ, 端ではそれ以上動かないこと", async () => {
+    const user = userEvent.setup();
+    const { handlers } = renderPane(true, ["/a/x1", "/b/x2", "/c/x3"]);
+
+    await user.keyboard("/x{ArrowUp}");
+    expect(screen.getByLabelText("left list filter")).toHaveFocus();
+    await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{Enter}{Enter}");
+    expect(handlers.onSelect).toHaveBeenLastCalledWith("/c/x3");
+    await user.keyboard("/{ArrowUp}{Enter}{Enter}");
+    expect(handlers.onSelect).toHaveBeenLastCalledWith("/b/x2");
+  });
+
   it("正常系: Esc で絞り込みを解除し, 絞り込んでいないときの Esc は一覧を閉じること", async () => {
     const user = userEvent.setup();
     const { handlers } = renderPane(true, ["/a/memo.md", "/b/todo.txt"]);

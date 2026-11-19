@@ -24,6 +24,8 @@ interface DualPaneContainerProps {
   onPathSubmit: (pane: PaneId, value: string) => void;
   /** 絞り込み文字列の変更ハンドラー. null で絞り込みを解除する. */
   onFilterChange: (pane: PaneId, value: string | null) => void;
+  /** 絞り込み入力中のカーソル移動のハンドラー. */
+  onFilterMove: (pane: PaneId, delta: number) => void;
   /** `..` の行クリックのハンドラー. */
   onParentClick: (pane: PaneId) => void;
   /** 項目クリックのハンドラー. */
@@ -60,6 +62,7 @@ type PaneHandlers = Pick<
   | "onParentClick"
   | "onPathSubmit"
   | "onFilterChange"
+  | "onFilterMove"
   | "onItemClick"
   | "onItemOpen"
   | "onItemContextMenu"
@@ -83,6 +86,7 @@ function bindPane(
     | "onParentClick"
     | "onPathSubmit"
     | "onFilterChange"
+    | "onFilterMove"
     | "onItemClick"
     | "onItemOpen"
     | "onItemContextMenu"
@@ -96,6 +100,7 @@ function bindPane(
     onParentClick: () => props.onParentClick(paneId),
     onPathSubmit: (value) => props.onPathSubmit(paneId, value),
     onFilterChange: (value) => props.onFilterChange(paneId, value),
+    onFilterMove: (delta) => props.onFilterMove(paneId, delta),
     onItemClick: (index, file) => props.onItemClick(paneId, index, file),
     onItemOpen: (index, file) => props.onItemOpen(paneId, index, file),
     onItemContextMenu: (index, file, x, y) =>
@@ -123,6 +128,7 @@ export default function DualPaneContainer({
   onParentClick,
   onPathSubmit,
   onFilterChange,
+  onFilterMove,
   onItemClick,
   onItemOpen,
   onItemContextMenu,
@@ -140,6 +146,7 @@ export default function DualPaneContainer({
       onParentClick,
       onPathSubmit,
       onFilterChange,
+      onFilterMove,
       onItemClick,
       onItemOpen,
       onItemContextMenu,
@@ -153,6 +160,7 @@ export default function DualPaneContainer({
     onParentClick,
     onPathSubmit,
     onFilterChange,
+    onFilterMove,
     onItemClick,
     onItemOpen,
     onItemContextMenu,

@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DualPaneContainer from "@/features/explorer/components/DualPaneContainer";
 import FileList from "@/features/explorer/components/FileList";
@@ -42,6 +42,7 @@ const handlers = {
   onParentClick: vi.fn(),
   onPathSubmit: vi.fn(),
   onFilterChange: vi.fn(),
+  onFilterMove: vi.fn(),
   onItemClick: vi.fn(),
   onItemOpen: vi.fn(),
   onItemContextMenu: vi.fn(),
@@ -125,5 +126,24 @@ describe("DualPaneContainer", () => {
     );
     expect(handlers.onParent).toHaveBeenCalledWith("right");
     expect(handlers.onParentClick).toHaveBeenCalledWith("right");
+  });
+
+  it("正常系: 絞り込み入力中の ↓ は, そのペインを付けてカーソル移動のハンドラーを呼ぶ", () => {
+    render(
+      <DualPaneContainer
+        activePane="left"
+        leftPane={pane([])}
+        rightPane={{ ...pane([]), filter: "" }}
+        overrides={{}}
+        paneColumnWidths={WIDTHS}
+        {...handlers}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByLabelText("right filter"), {
+      key: "ArrowDown",
+    });
+
+    expect(handlers.onFilterMove).toHaveBeenCalledWith("right", 1);
   });
 });

@@ -243,6 +243,9 @@ export default function BookmarkPane({
             setIndex(0);
           }}
           onCancel={() => setFilter(null)}
+          onMove={(delta) =>
+            setIndex(Math.min(Math.max(0, index + delta), bookmarks.length - 1))
+          }
           inputRef={(element) => {
             filterInput.current = element;
           }}

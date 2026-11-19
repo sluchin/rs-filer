@@ -10,6 +10,8 @@ interface QuickFilterBarProps {
   onChange: (value: string) => void;
   /** 絞り込みを解除するハンドラー (Esc). */
   onCancel: () => void;
+  /** 一覧のカーソルを動かすハンドラー (`↓` で 1, `↑` で -1). */
+  onMove: (delta: number) => void;
   /** 入力欄の要素を受け取る ref コールバック. */
   inputRef: (element: HTMLInputElement | null) => void;
   /** 入力欄のアクセシブルな名前. */
@@ -18,6 +20,7 @@ interface QuickFilterBarProps {
 
 /**
  * ペイン内の名前の絞り込み入力欄. 入力するたびに一覧が絞り込まれます.
+ * `↓` と `↑` で, 入力したまま一覧のカーソルを動かします.
  * `Enter` で入力を終えて一覧の操作へ戻り (絞り込みは維持), `Esc` で絞り込みを解除します.
  *
  * @param props - コンポーネントのプロパティ.
@@ -27,6 +30,7 @@ export default function QuickFilterBar({
   value,
   onChange,
   onCancel,
+  onMove,
   inputRef,
   label,
 }: QuickFilterBarProps): ReactElement {
@@ -46,6 +50,9 @@ export default function QuickFilterBar({
           } else if (e.key === "Escape") {
             onCancel();
             e.currentTarget.blur();
+          } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            onMove(e.key === "ArrowDown" ? 1 : -1);
           }
         }}
       />

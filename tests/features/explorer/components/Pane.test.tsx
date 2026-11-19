@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import FileList from "@/features/explorer/components/FileList";
 import Pane from "@/features/explorer/components/Pane";
@@ -40,6 +40,7 @@ describe("Pane", () => {
         onParent={vi.fn()}
         onPathSubmit={vi.fn()}
         onFilterChange={vi.fn()}
+        onFilterMove={vi.fn()}
         onParentClick={vi.fn()}
         onItemClick={vi.fn()}
         onItemOpen={vi.fn()}
@@ -70,6 +71,7 @@ describe("Pane", () => {
         onParent={vi.fn()}
         onPathSubmit={vi.fn()}
         onFilterChange={vi.fn()}
+        onFilterMove={vi.fn()}
         onParentClick={vi.fn()}
         onItemClick={vi.fn()}
         onItemOpen={vi.fn()}
@@ -85,5 +87,36 @@ describe("Pane", () => {
     expect(vi.mocked(FileList).mock.calls[0][0].columnWidths).toEqual({
       col_name: 640,
     });
+  });
+
+  it("正常系: 絞り込み入力中の ↓ と ↑ は, カーソルを動かすハンドラーを呼ぶこと", () => {
+    const onFilterMove = vi.fn();
+    render(
+      <Pane
+        paneId="right"
+        state={{ ...STATE, filter: "a" }}
+        isActive
+        onActivate={vi.fn()}
+        onParent={vi.fn()}
+        onPathSubmit={vi.fn()}
+        onFilterChange={vi.fn()}
+        onFilterMove={onFilterMove}
+        onParentClick={vi.fn()}
+        onItemClick={vi.fn()}
+        onItemOpen={vi.fn()}
+        onItemContextMenu={vi.fn()}
+        pathInputRef={vi.fn()}
+        filterInputRef={vi.fn()}
+        paneColumnWidths={{ left: {}, right: {} }}
+        onColumnWidthChange={vi.fn()}
+      />,
+    );
+    const input = screen.getByLabelText("right filter");
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+
+    expect(onFilterMove).toHaveBeenNthCalledWith(1, 1);
+    expect(onFilterMove).toHaveBeenNthCalledWith(2, -1);
   });
 });

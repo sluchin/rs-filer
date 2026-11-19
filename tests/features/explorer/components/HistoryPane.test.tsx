@@ -192,6 +192,22 @@ describe("HistoryPane", () => {
     expect(handlers.onSelect).toHaveBeenLastCalledWith("/a/docs", 0);
   });
 
+  it("正常系: 入力中の ↓ と ↑ で, 入力欄に居たまま絞り込んだ一覧のカーソルを動かせ, 端ではそれ以上動かないこと", async () => {
+    const user = userEvent.setup();
+    const { handlers } = renderPane(true, [
+      "/a/docs",
+      "/b/music",
+      "/c/docs/old",
+    ]);
+
+    await user.keyboard("/docs{ArrowUp}");
+    expect(screen.getByLabelText("left history filter")).toHaveFocus();
+    await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{Enter}{Enter}");
+    expect(handlers.onSelect).toHaveBeenLastCalledWith("/c/docs/old", 2);
+    await user.keyboard("/{ArrowUp}{Enter}{Enter}");
+    expect(handlers.onSelect).toHaveBeenLastCalledWith("/a/docs", 0);
+  });
+
   it("正常系: 1 件も合わなければその旨が出て, Enter は何も選ばないこと. Esc で絞り込みを解除し, もう一度 Esc で閉じること", async () => {
     const user = userEvent.setup();
     const { handlers } = renderPane(true, ["/a", "/b"]);

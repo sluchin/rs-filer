@@ -27,6 +27,8 @@ export interface PaneProps {
   onPathSubmit: (value: string) => void;
   /** 絞り込み文字列の変更ハンドラー. null で絞り込みを解除する. */
   onFilterChange: (value: string | null) => void;
+  /** 絞り込み入力中に, カーソルを動かすハンドラー (下向きが正). */
+  onFilterMove: (delta: number) => void;
   /** `..` の行クリックのハンドラー. */
   onParentClick: () => void;
   /** 項目クリックのハンドラー. */
@@ -67,6 +69,7 @@ function Pane({
   onParentClick,
   onPathSubmit,
   onFilterChange,
+  onFilterMove,
   onItemClick,
   onItemOpen,
   onItemContextMenu,
@@ -98,6 +101,7 @@ function Pane({
           value={state.filter}
           onChange={onFilterChange}
           onCancel={() => onFilterChange(null)}
+          onMove={onFilterMove}
           inputRef={filterInputRef}
           label={`${paneId} filter`}
         />
