@@ -444,6 +444,7 @@ export default function App(): ReactElement {
     }
     paneOverrides[paneId] = (
       <BookmarkPane
+        key={`${paneId}-bookmarks`}
         paneId={paneId}
         isActive={activePane === paneId}
         bookmarks={bookmarks.bookmarks}
@@ -484,6 +485,7 @@ export default function App(): ReactElement {
     };
     paneOverrides[paneId] = (
       <BookmarkPane
+        key={`${paneId}-favorites`}
         paneId={paneId}
         isActive={activePane === paneId}
         bookmarks={favorites.favorites}
@@ -529,6 +531,7 @@ export default function App(): ReactElement {
     };
     paneOverrides[paneId] = (
       <BookmarkPane
+        key={`${paneId}-recent`}
         paneId={paneId}
         isActive={activePane === paneId}
         bookmarks={recentFiles.files}

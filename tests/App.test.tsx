@@ -2484,6 +2484,34 @@ describe("App (移動履歴の一覧)", () => {
     );
   });
 
+  it("正常系: ブックマークの一覧でカーソルを動かしてから最近開いたファイルの一覧に替えると, 1 行目から始まること", async () => {
+    mockHome((cmd) => {
+      if (cmd === "load_recent_files") {
+        return Promise.resolve(["/mock/home/b.txt", "/mock/home/c.txt"]);
+      }
+      return cmd === "load_config"
+        ? Promise.resolve({
+            theme: "classic",
+            font_size: "medium",
+            editor: null,
+            terminal: null,
+            bookmarks: ["/mock/home", "/mock/home/FolderA"],
+          })
+        : undefined;
+    });
+    const user = await renderLoaded();
+    await user.keyboard("{Control>}x{/Control}rl");
+    await paneOf("left").findByText("ブックマーク");
+    await user.keyboard("j");
+
+    await user.keyboard("{Control>}x{/Control}{Control>}r{/Control}");
+
+    await paneOf("left").findByText("最近開いたファイル");
+    const rows = paneOf("left").getAllByRole("listitem");
+    expect(rows[0]).toHaveAttribute("aria-current", "true");
+    expect(rows[1]).not.toHaveAttribute("aria-current");
+  });
+
   it("正常系: 一覧の表示中に M-x でコマンドを実行でき, 一覧は 1 つだけに替わること", async () => {
     mockPhase4();
     const user = await renderLoaded();
